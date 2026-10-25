@@ -15,9 +15,11 @@ const TOOLS = [
   { cat: 'Defense', id: 'lookout', key: '4', label: 'Lookout',       cost: () => effCost('lookout'), tip: 'Spots hordes early and reveals the map. Place anywhere.' },
   { cat: 'Defense', id: 'reinforce', key: 'Q', label: 'Reinforce',   cost: () => ({ m: Math.ceil(TIER.cost[1] * buildMul()) }), tip: 'Upgrade a wall: Timber > Reinforced > Concrete (needs research). Tougher, shrugs off pile pressure.' },
   { cat: 'Defense', id: 'electrify', key: 'Z', label: 'Electrify',   cost: () => effCost('electrify'), tip: 'Zaps zombies climbing this wall. Needs a fuelled generator.' },
+  { cat: 'Defense', id: 'outpost', key: '', label: 'Outpost', cost: () => effCost('outpost'), tip: 'Fortified post outside your territory (near buildings). Garrison it and it works nearby buildings for you at 70%; also a lookout.' },
   { cat: 'Traps & fire', id: 'spike',   key: '5', label: 'Spike trap',  cost: () => effCost('spike'),   tip: 'Cuts down zombies that walk over it. Wears out.' },
   { cat: 'Traps & fire', id: 'barrel',  key: '6', label: 'Fire barrel', cost: () => effCost('barrel'),  tip: 'Ignites when a crowd gathers and sets them alight. One use.' },
   { cat: 'Traps & fire', id: 'decoy',   key: 'V', label: 'Decoy',       cost: () => effCost('decoy'),   tip: 'Noise-maker: for 15s it draws idle zombies, and part of a horde, toward it.' },
+  { cat: 'Traps & fire', id: 'grate', key: '', label: 'Seal sewer', cost: () => effCost('grate'), tip: 'Seal a sewer access you have found. Unsealed ones let hordes come up inside your walls.' },
   { cat: 'Traps & fire', id: 'molotov', key: 'T', label: 'Molotov',     cost: () => effCost('molotov'), tip: 'Throw (range ' + FIRE.range + '). Burns crowds, sets them alight and destroys nests.' },
   ...Object.keys(FACILITIES).map((id, n) => ({ cat: 'Facilities', id, key: '', label: FACILITIES[id].label, cost: facCost(id), lvl: FACILITIES[id].level, tip: FACILITIES[id].desc + ' (camp level ' + FACILITIES[id].level + ', inside territory)' })),
   { cat: 'People', id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
@@ -51,6 +53,13 @@ const UI = (() => {
     $('btnRes').addEventListener('click', toggleResearch);
     $('btnFallen').addEventListener('click', toggleMemorial);
     $('btnRules').addEventListener('click', toggleRules);
+    $('btnTruck').addEventListener('click', () => Base.buildTruck());
+    const cs = $('craftSeg');
+    for (const k in RECIPES) {
+      const b = document.createElement('button'); b.dataset.craft = k; b.style.justifyContent = 'center'; b.style.padding = '3px 2px'; b.style.fontSize = '11px';
+      b.textContent = RECIPES[k].label; b.title = Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
+      b.addEventListener('click', () => { G.craft = k; Snd.click(); }); cs.appendChild(b);
+    }
   }
 
   // ---- HUD ---------------------------------------------------------------
@@ -66,6 +75,19 @@ const UI = (() => {
     $('morWrap').title = 'Camp morale ' + (G.morale | 0) + ' (heading to ' + (G.moraleTarget | 0) + '). High: defenders shoot faster. Low: slower, no refugees; in despair people desert. Deaths hurt, wins heal.';
     $('iMor').textContent = ml + ' ' + (G.morale | 0) + ' → ' + (G.moraleTarget | 0); $('morBar').style.width = G.morale + '%'; $('morBar').style.background = mc || 'var(--acc)';
     $('cFallen').textContent = G.memorial.length;
+    $('rWater').textContent = G.water | 0; $('rWater').style.color = G.water <= 0 ? 'var(--bad)' : '';
+    const S = season(), left = SEASON_LEN - (gameTime() % SEASON_LEN);
+    $('iSeason').textContent = S.name + ' (' + Math.ceil(left / 60) + 'm left)';
+    $('iSupply').textContent = Math.round(G.supply * 100) + '%' + (G.depleted ? ' · ' + G.depleted + ' dry' : '');
+    $('supBar').style.width = (G.supply * 100) + '%'; $('supBar').style.background = G.supply < STOCK.crit ? 'var(--bad)' : G.supply < STOCK.warn ? '#e8a447' : 'var(--good)';
+    $('iWater').textContent = (G.water | 0) + ' / ' + Math.round(G.hygiene) + '% clean'; $('iWater').style.color = G.water <= 0 || G.hygiene < HYGIENE.low ? 'var(--bad)' : '';
+    $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Blades ' + G.blades + ' · Keys ' + G.keys;
+    const hasShop = facilities.some(f => f.type === 'workshop');
+    $('craftRow').style.display = hasShop ? '' : 'none';
+    document.querySelectorAll('[data-craft]').forEach(b => b.classList.toggle('on', b.dataset.craft === G.craft));
+    const bay = facilities.some(f => f.type === 'garagebay'), tb = $('btnTruck');
+    tb.style.display = bay && !Campaign.truck ? '' : 'none';
+    if (bay && !Campaign.truck) { tb.textContent = G.truckT > 0 ? 'Truck: ' + Math.ceil(G.truckT) + 's' : 'Build truck (' + costStr(TRUCK.cost) + ')'; tb.disabled = G.truckT > 0 || !canAfford(TRUCK.cost); }
     $('rFuel').textContent = G.fuel | 0; $('rFuel').style.color = G.power.demand > 0 && G.fuel < 5 ? 'var(--bad)' : '';
     $('rMed').textContent = G.med | 0; $('rMed').style.color = G.med < 1 ? 'var(--dim)' : '';
     $('iPower').textContent = G.power.supply + '/' + G.power.demand.toFixed(1) + (G.power.burn > 0 ? ' · -' + G.power.burn.toFixed(2) + ' fuel/s' : '') + (G.power.demand > G.power.supply ? ' (brownout)' : '');
@@ -74,6 +96,7 @@ const UI = (() => {
     $('zCount').textContent = G.visibleZ;
     const hd = $('horde');
     if (G.hordeMsg) { hd.className = 'panel ' + G.hordeMsg.cls; hd.textContent = G.hordeMsg.text; }
+    else if (G.herdMsg) { hd.className = 'panel alert'; hd.textContent = G.herdMsg; }
     else { hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
     if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = (G.rescueKind === 'convoy' ? 'Convoy arrives in ' : 'Helicopter extraction in ') + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
@@ -106,7 +129,7 @@ const UI = (() => {
     const b = nearBuilding(), pr = $('prompt');
     if (b && !G.over && P.dead <= 0) {
       pr.style.display = 'block';
-      pr.textContent = b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
+      pr.textContent = b.locked && !b.looted && !b.nest ? 'Locked: hold E to open (keycard, or ' + KEYS.breachFuel + ' fuel to cut through)' : b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
     } else pr.style.display = 'none';
 
     const st = STORYTELLERS[G.story] || STORYTELLERS.cassandra;

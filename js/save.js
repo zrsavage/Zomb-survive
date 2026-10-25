@@ -7,7 +7,8 @@ const Save = (() => {
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue',
     'sid', 'storm', 'eventT', 'trader', 'refugeeT', 'res', 'sel', 'diff', 'seed', 'morale', 'memorial', 'deaths',
-    'story', 'rules', 'ruleCd', 'flags', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'nests', 'nestT'];
+    'story', 'rules', 'ruleCd', 'flags', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'nests', 'nestT',
+    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT'];
 
   function snapshot() {
     const d = { v: 1, scalars: {} };
@@ -18,12 +19,13 @@ const Save = (() => {
     d.wallHp = b64(hp16); d.tier = b64(wallTier); d.elec = b64(elec);
     d.facilities = facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
     d.buildings = buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0));
+    d.stock = buildings.map(b => b.stock); d.sewers = sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0)); d.truck = Campaign.truck;
     d.idle = G.idle; d.crews = G.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk }));
-    d.defenders = defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s }));
+    d.defenders = defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s, blade: x.blade || null }));
     d.traps = traps.map(t => ({ ...t }));
     d.crates = crates.map(c => ({ ...c }));
     d.hordes = hordes.map(h => ({ ...h }));
-    d.zombies = zombies.map(z => [r2(z.x), r2(z.y), z.type, r2(z.hp), z.mode, z.h, z.v]);
+    d.zombies = zombies.map(z => [r2(z.x), r2(z.y), z.type, r2(z.hp), z.mode === 4 ? 0 : z.mode, z.h, z.v]);
     return d;
   }
   function save() {
@@ -48,10 +50,14 @@ const Save = (() => {
     for (const f of (d.facilities || [])) { const o = { type: f.type, x: f.x, y: f.y, t: 0, on: false }; facilities.push(o); facAt[f.y * W + f.x] = o; }
     G.nests = G.nests || []; for (const n of G.nests) if (buildings[n.bi]) buildings[n.bi].nest = true;
     G.med = G.med === undefined ? 4 : G.med; G.fuel = G.fuel || 0;
+    if (d.stock) d.stock.forEach((st, i) => { if (buildings[i] && st) buildings[i].stock = st; });
+    if (d.sewers) d.sewers.forEach((f, i) => { if (sewers[i]) { sewers[i].found = !!(f & 1); sewers[i].sealed = !!(f & 2); } });
+    Campaign.truck = d.truck || null; G.outposts = G.outposts || [];
+    for (const k of ['water', 'hygiene']) if (typeof G[k] !== 'number') G[k] = k === 'water' ? WATER.start : HYGIENE.start;
     d.buildings.forEach((f, i) => { if (buildings[i]) { buildings[i].looted = !!(f & 1); buildings[i].crew = !!(f & 2); } });
     G.idle = d.idle; G.crews = d.crews;
     defenders = []; defAt = new Array(W * H).fill(null);
-    for (const x of d.defenders) { addDefender(x.x, x.y, x.s); const dd = defAt[x.y * W + x.x]; if (dd) dd.hp = x.hp; }
+    for (const x of d.defenders) { addDefender(x.x, x.y, x.s); const dd = defAt[x.y * W + x.x]; if (dd) { dd.hp = x.hp; dd.blade = x.blade || null; } }
     traps = d.traps; trapAt = new Array(W * H).fill(null); for (const t of traps) trapAt[t.y * W + t.x] = t;
     crates = d.crates; hordes = d.hordes;
     zombies = d.zombies.map(a => {

@@ -17,13 +17,13 @@ const DIFFICULTY = {
 
 // ---- structures ---------------------------------------------------------------
 // wall[] tile kinds
-const K = { WALL: 1, TOWER: 2, LOOKOUT: 3, GATE: 4, RADIO: 5 };
-const WALL_HP = { 1: 120, 2: 260, 3: 90, 4: 100, 5: 500 };
+const K = { WALL: 1, TOWER: 2, LOOKOUT: 3, GATE: 4, RADIO: 5, OUTPOST: 6 };
+const WALL_HP = { 1: 120, 2: 260, 3: 90, 4: 100, 5: 500, 6: 300 };
 const WALL_PATH_COST = 12;       // how much zombies dislike climbing (they take gaps if close)
 const COST = {
   wall: { m: 3 }, tower: { m: 12 }, gate: { m: 6 }, lookout: { m: 10 },
   spike: { m: 6 }, barrel: { m: 16 }, decoy: { m: 4, a: 8 }, radio: { m: 400, f: 120, a: 100 },
-  molotov: { m: 2, fuel: 1 }, electrify: { m: 8 },
+  molotov: { m: 2, fuel: 1 }, electrify: { m: 8 }, outpost: { m: 40, a: 10 }, grate: { m: 10 },
 };
 const RADIO_LEVEL = 4;           // camp level needed to build the radio tower
 const RESCUE_TIME = 240;         // seconds you must hold out after the radio goes up
@@ -43,8 +43,8 @@ const LEVELS = [   // index = camp level - 1
 ];
 
 const BUILDING_TYPES = {
-  house:     { label: 'House',     w: 5, rate: { m: 0.45, f: 0.25, med: 0.01 }, loot: { m: 12, f: 6,  a: 4, med: 2 },  roof: ['#a0524a', '#8d4a52', '#96603f', '#7d5a6a'] },
-  store:     { label: 'Store',     w: 2, rate: { f: 1.1, m: 0.15, med: 0.02 },  loot: { m: 5,  f: 22, a: 2, med: 4 },  roof: ['#3f7aa6', '#4a8c9a', '#4a6aa0'] },
+  house:     { label: 'House',     w: 5, rate: { m: 0.45, f: 0.25, med: 0.01 }, loot: { m: 12, f: 6,  a: 4, med: 2, water: 4 },  roof: ['#a0524a', '#8d4a52', '#96603f', '#7d5a6a'] },
+  store:     { label: 'Store',     w: 2, rate: { f: 1.1, m: 0.15, med: 0.02, water: 0.04 },  loot: { m: 5,  f: 22, a: 2, med: 4, water: 14 },  roof: ['#3f7aa6', '#4a8c9a', '#4a6aa0'] },
   garage:    { label: 'Garage',    w: 2, rate: { a: 0.9, m: 0.3, fuel: 0.03 },   loot: { m: 15, f: 2,  a: 22, fuel: 6 }, roof: ['#767a84', '#6a6f78', '#80848a'] },
   warehouse: { label: 'Warehouse', w: 2, rate: { m: 1.0, a: 0.25 },  loot: { m: 28, f: 5,  a: 8 },  roof: ['#8a7a48', '#7d7048', '#6f7a52'] },
 };
@@ -52,11 +52,12 @@ const BUILDING_TYPES = {
 Object.assign(BUILDING_TYPES, {
   pharmacy:  { label: 'Pharmacy',       w: 0, poi: true, rate: { med: 0.06 },          loot: { m: 4,  f: 2,  a: 0,  med: 16 },       roof: ['#cfe0d8', '#c4d8d0'] },
   gas:       { label: 'Gas Station',    w: 0, poi: true, rate: { fuel: 0.07, m: 0.1 }, loot: { m: 6,  f: 4,  a: 0,  fuel: 22 },      roof: ['#b04a3a', '#a04436'] },
-  police:    { label: 'Police Station', w: 0, poi: true, rate: { a: 1.4 },             loot: { m: 10, f: 0,  a: 60, med: 3 },        roof: ['#2f3d5a', '#34446a'] },
+  police:    { label: 'Police Station', w: 0, poi: true, locked: true, rate: { a: 1.4 },             loot: { m: 10, f: 0,  a: 60, med: 3 },        roof: ['#2f3d5a', '#34446a'] },
   junkyard:  { label: 'Junkyard',       w: 0, poi: true, rate: { m: 2.0, fuel: 0.02 }, loot: { m: 65, f: 0,  a: 6,  fuel: 8 },       roof: ['#6a5a40', '#5e5038'] },
+  bunker:    { label: 'Bunker',         w: 0, poi: true, locked: true, rate: { a: 1.2, m: 0.8, med: 0.04, fuel: 0.04 }, loot: { m: 80, f: 40, a: 80, med: 24, fuel: 24, water: 20 }, roof: ['#3a3e42', '#34383c'] },
   farmstead: { label: 'Farmstead',      w: 0, poi: true, rate: { f: 1.7 },             loot: { m: 6,  f: 60, a: 2,  med: 2 },        roof: ['#7a8a3a', '#6e8038'] },
 });
-const POI_ORDER = ['pharmacy', 'gas', 'police', 'junkyard', 'farmstead', 'pharmacy', 'gas'];   // order they are assigned
+const POI_ORDER = ['pharmacy', 'gas', 'police', 'junkyard', 'farmstead', 'bunker', 'pharmacy', 'gas'];   // order they are assigned
 const LOOT_TIME = 3, SURVIVOR_CHANCE = 0.12;
 
 // ---- zombies ---------------------------------------------------------------
@@ -67,6 +68,7 @@ const ZTYPES = {
   screamer: { hp: 14,  speed: 1.2,  dmg: 3,  climb: 1.6,  label: 'Screamer' },   // wakes the dead, enrages the horde
   leaper:   { hp: 12,  speed: 1.7,  dmg: 5,  climb: 0.35, label: 'Leaper' },     // vaults walls almost instantly
   bloater:  { hp: 60,  speed: 0.7,  dmg: 8,  climb: 2.4,  label: 'Bloater' },    // bursts when killed
+  tyrant:   { hp: 700, speed: 0.85, dmg: 32, climb: 5.0,  label: 'Tyrant', armor: 0.35, boss: true },   // a boss that walks with every fifth horde
   spitter:  { hp: 25,  speed: 1.1,  dmg: 3,  climb: 2.0,  label: 'Spitter' },    // sprays acid from range
   armored:  { hp: 70,  speed: 0.9,  dmg: 9,  climb: 2.6,  label: 'Riot zombie', armor: 0.5 },   // bullets bounce, blades do not
   dog:      { hp: 12,  speed: 3.2,  dmg: 7,  climb: Infinity, label: 'Infected dog', noClimb: true },   // fast, cannot climb: needs a gap
@@ -127,6 +129,7 @@ const RESEARCH = [
   { id: 'watch',   name: 'Watch Network',    desc: 'Lookouts see 50% farther and reveal more map.',      cost: { m: 130 },         time: 45 },
   { id: 'scav',    name: 'Scavenging Kit',   desc: 'Loot yields +35% and takes 30% less time.',          cost: { m: 90, f: 40 },   time: 35 },
   { id: 'medicine',name: 'Field Medicine',   desc: 'Everyone heals twice as fast, medics too.',          cost: { m: 80, f: 60 },   time: 40 },
+  { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
@@ -229,11 +232,46 @@ const FACILITIES = {
   floodlight: { label: 'Floodlight', level: 2, cost: { m: 12 }, desc: 'Needs power. Lights the area; defenders nearby shoot 12% faster.' },
   clinic:     { label: 'Clinic',     level: 2, cost: { m: 50 }, desc: 'Makes medicine slowly and cures the sick.' },
   depot:      { label: 'Depot',      level: 3, cost: { m: 60 }, desc: '+300 storage for every resource (max 2).' },
+  well:       { label: 'Well',       level: 1, cost: { m: 30 }, desc: 'Draws +0.55 water/s.' },
+  rain:       { label: 'Rain collector', level: 1, cost: { m: 15 }, desc: '+0.22 water/s, far more in rain.' },
+  latrine:    { label: 'Latrine',    level: 1, cost: { m: 20 }, desc: 'Keeps the camp clean. Dirty camps get sick and sullen.' },
+  turret:     { label: 'Turret',     level: 3, cost: { m: 70 }, desc: 'Needs power. Fires at the nearest zombie on its own (uses ammo).' },
+  battery:    { label: 'Battery',    level: 3, cost: { m: 40 }, desc: 'Stores up to 30 power; smooths brownouts. Generators run full to charge it.' },
+  garagebay:  { label: 'Garage bay', level: 3, cost: { m: 80 }, desc: 'Lets you build a Truck: needed to reach other towns.' },
 };
 const TIER = { hp: [1, 1.8, 3], press: [1, 0.6, 0.3], cost: [0, 6, 14], names: ['Timber', 'Reinforced', 'Concrete'] };
-const POWER = { gen: 4, fuelBurn: 0.03, noiseGap: 4, noiseR: 9, flood: 1, shop: 1, elec: 0.5, zap: 18 };
+const POWER = { gen: 4, fuelBurn: 0.03, noiseGap: 4, noiseR: 9, flood: 1, shop: 1, elec: 0.5, zap: 18, turret: 1.5, battCap: 30, battOut: 6 };
 const FIRE = { r: 2.1, t: 6, dps: 35, burn: 3, burnDps: 10, spread: 0.25, nestDps: 40, range: 9, cooldown: 1.5 };
 const NEST = { hp: 150, gapMin: 110, gapMax: 200, max: 6, spawnGap: 9, near: 10, hordeBonus: 0.05, crewRisk: 0.15 };
 const SPIT = { range: 6, dmg: 7, cd: 2.5, wallDmg: 6 };
 const TURN = { chance: 0.35, medicMul: 0.5, delay: 6 };
 const HP_SCALE = { from: 6, per: 0.04 };          // horde zombies toughen up after this many hordes
+
+// ---- finite town stock, water, seasons, weather ---------------------------------------------------------------
+const STOCK_KEYS = ['m', 'f', 'a', 'med', 'fuel', 'water'];
+const STOCK = { mult: 2.4, poiMult: 4.0, warn: 0.25, crit: 0.1 };          // every building holds a finite amount; the town runs dry
+const WATER = { start: 70, use: 0.03, well: 0.55, rain: 0.22, thirstMorale: -15, thirstGap: 20 };
+const HYGIENE = { start: 85, decay: 0.012, latrine: 0.35, low: 30, crit: 10 };
+const SEASON_LEN = 420;
+const SEASONS = [
+  { name: 'Spring', tint: [90, 170, 100, 0.05],  upkeep: 1,    garden: 1,   water: 1,   fuel: 1,   zspeed: 1,    storm: 1.4, sick: 1,   rain: 1.3 },
+  { name: 'Summer', tint: [255, 205, 90, 0.07],  upkeep: 1,    garden: 1.4, water: 1.5, fuel: 0.8, zspeed: 1.05, storm: 0.5, sick: 1.3, rain: 0.6 },
+  { name: 'Autumn', tint: [225, 120, 40, 0.08],  upkeep: 1.05, garden: 0.9, water: 1,   fuel: 1,   zspeed: 1,    storm: 1.8, sick: 1,   rain: 1.6 },
+  { name: 'Winter', tint: [180, 215, 255, 0.10], upkeep: 1.25, garden: 0,   water: 0.8, fuel: 1.5, zspeed: 0.85, storm: 0.6, sick: 1.2, rain: 0.3, snow: true },
+];
+const FOG = { time: 80, vision: 0.55, notice: 0.7 };
+
+// ---- crafting, keys, sewers, herds, outposts ---------------------------------------------------------------
+const RECIPES = {
+  ammo:  { label: 'Ammo',          in: { m: 2 },            out: { a: 1 },     time: 5 },
+  ap:    { label: 'AP rounds',     in: { m: 3, fuel: 1 },   out: { ap: 2 },    time: 8 },
+  inc:   { label: 'Incendiary',    in: { m: 2, fuel: 1 },   out: { inc: 2 },   time: 8 },
+  blade: { label: 'Combat blade',  in: { m: 12 },           out: { blade: 1 }, time: 15 },
+};
+const BLADE = { dur: 160, dmg: 1.5 };
+const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
+const SEWER = { count: 4, minD: 8, maxD: 20, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
+const HERD = { gapMin: 110, gapMax: 190, min: 20, max: 50, cap: 2, attackR: 14 };
+const OUTPOST = { range: 7.5, yield: 0.7, buildRange: 7 };
+const TRUCK = { cost: { m: 150, fuel: 20 }, time: 60, crewTime: 0.65, crewLoot: 1.25 };
+const BOSS_EVERY = 5;

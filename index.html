@@ -32,6 +32,7 @@
   .row{display:flex;justify-content:space-between;gap:10px}
 
   #top{top:8px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;white-space:nowrap;max-width:calc(100vw - 16px);overflow:hidden}
+  @media (max-width:1500px){#top{gap:9px;font-size:12px}#top .res small{font-size:10px}}
   .res b{display:inline-block;width:10px;height:10px;margin-right:5px;border-radius:2px;vertical-align:-1px}
   .res small{color:var(--dim)}
   #horde{top:56px;left:50%;transform:translateX(-50%);white-space:nowrap;color:var(--dim);transition:border-color .3s}
@@ -133,6 +134,7 @@
   <div class="res"><b style="background:var(--ammo)"></b><span id="rAmmo">0</span> <small id="dAmmo"></small></div>
   <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
   <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
+  <div class="res" title="Water: everyone drinks. Wells and rain collectors make more."><b style="background:#4fb0e8"></b><span id="rWater">0</span></div>
   <div class="res" title="Fuel (generators, Molotovs)"><b style="background:#e8884a"></b><span id="rFuel">0</span></div>
   <div class="res" title="Medicine (treating the sick, medics)"><b style="background:#e86a9a"></b><span id="rMed">0</span></div>
   <div class="res" id="morWrap" title="Camp morale">Morale <span id="mor">70</span></div>
@@ -164,7 +166,14 @@
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
   <div class="row"><span>People / Lookouts</span><span id="iPpl"></span></div>
+  <div class="row"><span>Season</span><span id="iSeason"></span></div>
+  <div class="row"><span>Town supplies</span><span id="iSupply"></span></div>
+  <div class="bar"><i id="supBar" style="width:100%"></i></div>
+  <div class="row"><span>Water / Hygiene</span><span id="iWater"></span></div>
   <div class="row"><span>Power</span><span id="iPower"></span></div>
+  <div class="row"><span>Special stock</span><span id="iStock"></span></div>
+  <div id="craftRow" style="display:none"><h4>Workshop makes</h4><div class="seg" id="craftSeg" style="margin-top:3px;flex-wrap:wrap"></div></div>
+  <button id="btnTruck" style="display:none;margin-top:4px;justify-content:center"></button>
   <div class="row"><span>Nests</span><span id="iNests"></span></div>
   <div class="row"><span>Storyteller</span><span id="iStory"></span></div>
   <div class="row"><span>Morale</span><span id="iMor"></span></div>
@@ -210,6 +219,8 @@
 <script src="js/story.js"></script>
 <script src="js/outside.js"></script>
 <script src="js/base.js"></script>
+<script src="js/survival.js"></script>
+<script src="js/campaign.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>
 <script src="js/ui.js"></script>

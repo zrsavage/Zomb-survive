@@ -22,9 +22,15 @@ function effCost(name) {
 }
 const canAfford = c => (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a) && (!c.med || G.med >= c.med) && (!c.fuel || G.fuel >= c.fuel);
 function pay(c) { G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; G.med -= c.med || 0; G.fuel -= c.fuel || 0; }
-const LOOT_KEYS = [['m', 'materials', 'mat'], ['f', 'food', 'food'], ['a', 'ammo', 'ammo'], ['med', 'medicine', 'med'], ['fuel', 'fuel', 'fuel']];
+const LOOT_KEYS = [['m', 'materials', 'mat'], ['f', 'food', 'food'], ['a', 'ammo', 'ammo'], ['med', 'medicine', 'med'], ['fuel', 'fuel', 'fuel'], ['water', 'water', 'water']];
 function rollLoot(loot, mul) { const o = {}; for (const [k] of LOOT_KEYS) o[k] = loot[k] ? Math.round(loot[k] * mul * (0.7 + rng() * 0.6)) : 0; return o; }
 function addRes(o) { const cap = storeCap(); for (const [k, , f] of LOOT_KEYS) if (o[k]) G[f] = Math.min(cap, G[f] + o[k]); }
+function takeLoot(b, mul) {                         // loot is taken out of the building's finite stock
+  const want = rollLoot(BUILDING_TYPES[b.type].loot, mul), got = {};
+  for (const [k] of LOOT_KEYS) { const r = Math.min(want[k] || 0, (b.stock && b.stock[k]) || 0); got[k] = r; if (b.stock) b.stock[k] -= r; }
+  return got;
+}
+const hasTruck = () => !!(typeof Campaign !== 'undefined' && Campaign.truck);
 const lootText = (o, short) => LOOT_KEYS.filter(([k]) => o[k]).map(([k, n]) => '+' + o[k] + (short ? k : ' ' + n)).join(short ? ' ' : ', ');
 const armorF = z => 1 - (ZTYPES[z.type].armor || 0) * (has('ap') ? 0.5 : 1);
 function log(msg) { G.log.unshift({ t: G.elapsed, msg }); if (G.log.length > 8) G.log.pop(); toast(msg); }
@@ -120,6 +126,8 @@ function updateMorale(dt) {
   const ppl = allPeople();
   target += clamp(ppl.reduce((m, s) => m + tsum(s, 'cheer'), 0), -12, 12);
   target += ruleSum('morale');
+  if (G.water <= 0) target += WATER.thirstMorale;
+  if (G.hygiene < HYGIENE.crit) target -= 12; else if (G.hygiene < HYGIENE.low) target -= 6;
   target += ppl.filter(s => s.lover && s.id < s.lover).length * REL.loverMorale + ppl.filter(s => s.rival && s.id < s.rival).length * REL.rivalMorale;
   target = clamp(target, 5, 95);
   G.moraleTarget = target;
@@ -157,12 +165,13 @@ function newGame(diffKey, seed, storyKey) {
   rng = mulberry32(seed ^ 0x9e3779b9);
   genTown(seed);
   wall.fill(0); wallHp.fill(0); wallTier.fill(0); elec.fill(0); explored.fill(0); vis.fill(0);
-  facilities = []; fires = []; turning = []; facAt = new Array(W * H).fill(null);
+  facilities = []; fires = []; turning = []; herds = []; facAt = new Array(W * H).fill(null);
   defAt = new Array(W * H).fill(null); trapAt = new Array(W * H).fill(null);
   zombies = []; defenders = []; hordes = []; traps = []; crates = []; decoys = []; rings = []; tracers = []; parts = []; texts = []; flashes = [];
   const D = DIFFICULTY[diffKey] || DIFFICULTY.normal;
   G = {
-    seed, diff: diffKey || 'normal', level: 1, ammo: 40, mat: 45, food: 30, med: 4, fuel: 0, idle: [], crews: [], sel: [], sid: 1,
+    seed, diff: diffKey || 'normal', level: 1, ammo: 40, mat: 45, food: 30, med: 4, fuel: 0, water: WATER.start, hygiene: HYGIENE.start, ap: 0, inc: 0, blades: 0, keys: 0, craft: 'ammo',
+    fog: 0, thirstT: WATER.thirstGap, incT: 0, supply: 1, supplyLvl: 0, depleted: 0, outposts: [], herdT: 170, herdScan: 0, herdId: 0, herdMsg: null, batt: 0, truckT: 0, idle: [], crews: [], sel: [], sid: 1,
     nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
     coreHp: LEVELS[0].coreHp, kills: 0, elapsed: 0,
     hordeN: 0, hordesBeaten: 0, nextHorde: D.first, hordeId: 0, rescue: null,
@@ -179,7 +188,7 @@ function newGame(diffKey, seed, storyKey) {
   };
   P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0 };
   Art.renderTerrain();
-  computeBaseField(); computePlayerField(); computeTerritory();
+  computeBaseField(); computePlayerField(); computeTerritory(); Survival.refreshIncome();
   seedAmbient(D.ambient);
   updateVision();
   log('You are alone. Scavenge buildings (hold E), scout, and fortify before the first horde.');
@@ -200,7 +209,7 @@ function makeZombie(x, y, mode, h, forceType) {
   const zt = ZTYPES[type];
   const tough = mode === 2 ? 1 + HP_SCALE.per * Math.max(0, G.hordeN - HP_SCALE.from + 1) : 1;      // later hordes are tougher
   return {
-    burn: 0, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
+    burn: 0, hd: null, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
     speed: zt.speed * (0.85 + rng() * 0.3), climb: 0, lift: 0, anim: rng() * 6, face: 1, st: 0, v: rng() * 6 | 0,
   };
 }
@@ -242,15 +251,23 @@ function startHorde(opts = {}) {
   const minor = !!opts.minor, D = DIFFICULTY[G.diff];
   const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
   const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1)));
-  hordes.push({ id: ++G.hordeId, n, minor, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
+  hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 10 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
   if (minor) return;
   G.recentDeaths = 0;
   const gap = G.rescue !== null ? HORDE.finalGapMin + rng() * (HORDE.finalGapMax - HORDE.finalGapMin)
     : (HORDE.gapMin + rng() * (HORDE.gapMax - HORDE.gapMin)) * Math.max(0.6, 1 - 0.03 * n) * D.gap * Director.hordeGap();
   G.nextHorde = gap;
 }
-function spawnHordeZombie(h) {
+function spawnHordeZombie(h, forceType) {
   if (zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) return;
+  if (!forceType && !h.minor && sewers.length && rng() < Survival.sewerShare()) {         // some come up through the sewers
+    const open = sewers.filter(s => !s.sealed);
+    if (open.length) {
+      const s = pick(open);
+      if (!s.found) { s.found = true; log('Zombies are climbing out of a manhole ' + compass(s.x - CORE.x, s.y - CORE.y) + ' of camp! Seal sewer accesses with a grate.'); }
+      zombies.push(makeZombie(s.x + 0.5, s.y + 0.5, 2, h.id)); return;
+    }
+  }
   for (let t = 0; t < 12; t++) {
     const along = (h.pos + (rng() - 0.5) * 0.18 + 1) % 1;
     const s = h.side;
@@ -258,7 +275,7 @@ function spawnHordeZombie(h) {
     const y = s === 2 ? 0 : s === 3 ? H - 1 : (along * H | 0);
     const i = y * W + x;
     if (bld[i] >= 0 || wall[i] || dist[i] === Infinity) continue;
-    zombies.push(makeZombie(x + 0.3 + rng() * 0.4, y + 0.3 + rng() * 0.4, 2, h.id)); return;
+    zombies.push(makeZombie(x + 0.3 + rng() * 0.4, y + 0.3 + rng() * 0.4, 2, h.id, forceType)); return;
   }
 }
 
@@ -364,6 +381,11 @@ function updateZombies(dt) {
     if (z.mode === 1) {
       D = pdist; N = pnext;
       if (pdx * pdx + pdy * pdy > AMBIENT.forget * AMBIENT.forget) { z.lose += dt; if (z.lose > 5) { z.mode = 0; continue; } } else z.lose = 0;
+    } else if (z.mode === 4) {                                  // part of a roaming herd, following its waypoint
+      if (pdx * pdx + pdy * pdy < G.noticeR * G.noticeR) { z.mode = 1; z.hd = null; z.lose = 0; continue; }
+      if (!z.hd || !herds.includes(z.hd) || z.hd.D[ti] === Infinity) { z.mode = 0; z.hd = null; continue; }
+      D = z.hd.D; N = z.hd.N;
+      if (D[ti] < 2 || N[ti] < 0) { stepMove(z, (rng() - 0.5) * 0.7 * dt, (rng() - 0.5) * 0.7 * dt, false); z.st = 3; continue; }
     } else if (z.mode === 3) {                                  // investigating a noise
       D = ndist; N = nnext;
       if (D[ti] === Infinity) { z.mode = z.prev === 2 ? 2 : 0; continue; }
@@ -391,7 +413,7 @@ function updateZombies(dt) {
       separate(k, z, dt);
       continue;
     }
-    const sp = z.speed * (z.rage > 0 ? SCREAM.rageSpeed : 1) * dt;
+    const sp = z.speed * (z.rage > 0 ? SCREAM.rageSpeed : 1) * season().zspeed * dt;
     stepMove(z, dx / dd * sp, dy / dd * sp, onWall);
     if (onWall) z.st = 2;
     if (Math.abs(dx) > 0.01) z.face = dx > 0 ? 1 : -1;
@@ -430,6 +452,7 @@ function killZombie(k) {
   G.kills++;
   if (z.by) z.by.kills++;
   if (z.rev) log(z.rev.name + ' has been put to rest');
+  if (z.type === 'tyrant') { crates.push({ x: z.x, y: z.y, t: 300, type: 'boss' }); log('The Tyrant is down. It dropped something - go and take it.'); shake(3); Snd.boom(z.x, z.y); }
   if (rng() < 0.1) G.mat = Math.min(storeCap(), G.mat + 1);
   if (rng() < 0.03) G.food = Math.min(storeCap(), G.food + 1);
   const g = Art.decals.getContext('2d');
@@ -493,11 +516,12 @@ function fight(e, dt, o) {
     const z = zombies[j], dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
     if (z.hp > 0 && q < nd) { nd = q; near = z; }
   }
-  if (near) {
+  if (near && !o.noMelee) {
     e.face = near.x >= e.px ? 1 : -1; e.st = 'stab';
     if (e.mcd <= 0) {
       e.mcd = MELEE.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1);
-      near.hp -= MELEE.dmg * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1); e.stab = 0.18; near.by = e.s || null;
+      let bl = 1; if (e.blade && e.blade.dur > 0) { bl = BLADE.dmg; if (--e.blade.dur <= 0) { e.blade = null; if (e.s) log(who(e.s) + '\'s blade snapped'); } }
+      near.hp -= MELEE.dmg * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * bl; e.stab = 0.18; near.by = e.s || null;
       addBurst(near.x, near.y - 0.3, '#9ad06a', 2);
       tracers.push({ x1: near.x - 0.25, y1: near.y - 0.5, x2: near.x + 0.25, y2: near.y - 0.1, life: 0.12, slash: true });
       Snd.stab(near.x, near.y);
@@ -506,7 +530,7 @@ function fight(e, dt, o) {
     }
     return;
   }
-  if (e.cd > 0 || G.ammo < 1) return;
+  if (e.cd > 0 || (G.ammo < 1 && G.ap < 1 && G.inc < 1)) return;
   const range = o.range * (o.rangeMul || 1);
   let best = null, bd = range * range;
   for (let j = 0; j < zombies.length; j++) {
@@ -515,10 +539,19 @@ function fight(e, dt, o) {
     if (q < bd) { bd = q; best = z; }
   }
   if (best) {
-    G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1)); best.hp -= GUN.dmg * (o.dmgMul || 1) * (has('ap') ? 1.3 : 1) * armorF(best); best.by = e.s || null; e.shot = 0.09; e.st = 'shoot';
+    // pick the round: AP against armour, incendiary into a crowd, otherwise plain ammo
+    let kind = 'a', af = armorF(best);
+    if ((ZTYPES[best.type].armor || 0) > 0 && G.ap >= 1) kind = 'ap';
+    else if (G.inc >= 1) { let n = 0; for (const z of zombies) { if ((z.x - best.x) ** 2 + (z.y - best.y) ** 2 < 2 && ++n >= 4) break; } if (n >= 4) kind = 'inc'; }
+    if (kind === 'a' && G.ammo < 1) kind = G.ap >= 1 ? 'ap' : 'inc';
+    let dm = (o.dmgMul || 1) * (has('ap') ? 1.3 : 1);
+    if (kind === 'ap') { G.ap -= 1; af = 1; dm *= 1.15; }
+    else if (kind === 'inc') { G.inc -= 1; dm *= 0.7; for (const z of zombies) if ((z.x - best.x) ** 2 + (z.y - best.y) ** 2 < 1.6) z.burn = FIRE.burn; }
+    else G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1));
+    best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot';
     e.cd = o.cd * (o.cdMul || 1) * (has('rapid') ? 0.8 : 1) * (o.starving ? 1.8 : 1) * (0.9 + rng() * 0.2);
     e.face = best.x >= e.px ? 1 : -1;
-    tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1 });
+    tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1, ap: kind === 'ap', inc: kind === 'inc' });
     if (flashes.length < 40) flashes.push({ x: e.px + e.face * 0.5, y: e.py - 0.5, life: 0.09 });
     if (parts.length < Q.parts) parts.push({ x: e.px, y: e.py - 0.4, vx: -e.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
     addBurst(best.x, best.y - 0.4, '#a02020', 2, { grav: 3 });
@@ -532,7 +565,8 @@ function updateDefenders(dt) {
   for (let k = defenders.length - 1; k >= 0; k--) {
     const d = defenders[k];
     if (d.hurt) d.hurt -= dt;
-    const tower = wall[d.y * W + d.x] === K.TOWER, sn = d.s.role === 'sniper';
+    const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
+    if (!d.blade && G.blades > 0) { G.blades--; d.blade = { dur: BLADE.dur }; }
     const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
     if (d.s.lover) { const l = defenders.find(o => o.s.id === d.s.lover); if (l && (l.px - d.px) ** 2 + (l.py - d.py) ** 2 < 49) { rel.dmg = REL.loverDmg; rel.cd = 0.95; } }
     if (d.s.rival) { const r = defenders.find(o => o.s.id === d.s.rival); if (r && (r.px - d.px) ** 2 + (r.py - d.py) ** 2 < 25) rel.cd *= REL.rivalCd; }
@@ -554,7 +588,7 @@ function removeDefender(d) { defAt[d.y * W + d.x] = null; defenders.splice(defen
 function addDefender(x, y, s) {
   const i = y * W + x;
   const k = wall[i];
-  if ((k !== K.WALL && k !== K.TOWER && k !== K.LOOKOUT) || defAt[i]) return false;
+  if ((k !== K.WALL && k !== K.TOWER && k !== K.LOOKOUT && k !== K.OUTPOST) || defAt[i]) return false;
   const maxHp = Math.round(60 * tmul(s, 'hp'));
   const d = { x, y, px: x + 0.5, py: y + 0.5, hp: maxHp, maxHp, cd: 0, mcd: 0, face: 1, shot: 0, noiseT: 0, s, st: 'idle', anim: rng() * 6 };
   defAt[i] = d; defenders.push(d); return true;
@@ -640,7 +674,7 @@ function updatePlayer(dt) {
   if (jl > 0.18) { mx = joy.x; my = joy.y; mag = Math.min(1, jl); }
   const moving = !!(mx || my);
   P.moving = moving;
-  G.noticeR = AMBIENT.notice * (moving ? (keys.shift ? NOISE.sprint : 1) : NOISE.still);
+  G.noticeR = AMBIENT.notice * (moving ? (keys.shift ? NOISE.sprint : 1) : NOISE.still) * (G.fog > 0 ? FOG.notice : 1);
   if (moving) {
     G.cam.free = false;
     const k = wall[(P.py | 0) * W + (P.px | 0)];
@@ -661,10 +695,15 @@ function updatePlayer(dt) {
   const b = nearBuilding();
   if (keys.e && b && !b.looted && !b.crew && !b.nest && !moving) {
     const bi = buildings.indexOf(b);
-    if (P.lootB !== bi) { P.lootB = bi; P.loot = 0; }
-    P.loot += dt;
-    Snd.tick();
-    if (P.loot >= lootTime()) { scavenge(b); P.loot = 0; P.lootB = -1; }
+    let need = { t: lootTime() };                                         // locked buildings need a keycard or a cutting torch (fuel)
+    if (b.locked) need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
+    if (!need) { warn('Locked. You need a keycard or ' + KEYS.breachFuel + ' fuel to cut through.'); P.loot = 0; P.lootB = -1; }
+    else {
+      if (P.lootB !== bi) { P.lootB = bi; P.loot = 0; }
+      P.loot += dt; P.lootNeed = need.t;
+      Snd.tick();
+      if (P.loot >= need.t) { if (need.key) G.keys--; if (need.fuel) G.fuel -= need.fuel; scavenge(b); P.loot = 0; P.lootB = -1; }
+    }
   } else { P.loot = 0; P.lootB = -1; }
 
   // supply crates
@@ -676,7 +715,15 @@ function updatePlayer(dt) {
       if (rng() < 0.5) { for (let k = 0; k < 8; k++) zombies.push(Object.assign(makeZombie(c.x + (rng() - 0.5) * 6, c.y + (rng() - 0.5) * 6, 1, 0), { mode: 1 })); log('The noise drew company!'); }
       Snd.pickup(); continue;
     }
-    if (c.type !== 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
+    if (c.type === 'boss' && Math.hypot(c.x - P.px, c.y - P.py) < 1.4) {
+      crates.splice(i, 1);
+      addRes({ m: 150, f: 60, a: 80, med: 20, fuel: 20, water: 30 }); G.keys++; moraleGain('horde');
+      const left = RESEARCH.filter(r => !G.res.done[r.id]);
+      let bp = ''; if (left.length) { const r = pick(left); G.res.done[r.id] = true; if (G.res.active && G.res.active.id === r.id) G.res.active = null; bp = ' and a blueprint for ' + r.name; }
+      floatText(c.x, c.y - 1, 'TYRANT LOOT', '#ffd27a'); Snd.pickup(); log('Tyrant loot: 150m 60f 80a 20 med 20 fuel, a keycard' + bp);
+      continue;
+    }
+    if (c.type !== 'survivor' && c.type !== 'boss' && Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
       const L = EVENTS.crateLoot, roll = v => Math.round(v * (0.8 + rng() * 0.5));
       const m = roll(L.m), f = roll(L.f), a = roll(L.a);
       G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
@@ -687,14 +734,15 @@ function updatePlayer(dt) {
   }
 
   const tile = wall[(P.py | 0) * W + (P.px | 0)];
-  fight(P, dt, { starving: false, noiseMode: 1, range: tile === K.TOWER ? GUN.towerRange : GUN.range, cd: GUN.cd * 0.75 });
+  fight(P, dt, { starving: false, noiseMode: 1, range: (tile === K.TOWER || tile === K.OUTPOST) ? GUN.towerRange : GUN.range, cd: GUN.cd * 0.75 });
   P.st = P.st === 'idle' && moving ? 'walk' : P.st;
 }
 function scavenge(b) {
   b.looted = true;
   const t = BUILDING_TYPES[b.type];
-  const got = rollLoot(t.loot, has('scav') ? 1.35 : 1);
+  const got = takeLoot(b, has('scav') ? 1.35 : 1);
   addRes(got);
+  if (b.type === 'house' && rng() < KEYS.houseChance) { G.keys++; floatText(b.x + b.w / 2, b.y - 1, '+keycard', '#7fd0ff'); }
   Snd.loot();
   floatText(b.x + b.w / 2, b.y - 0.2, lootText(got, true), '#ffe27a');
   let msg = t.label + ': ' + lootText(got);
@@ -710,6 +758,7 @@ function selectedIdle() {
 }
 function sendCrew(b) {
   if (!b || b.looted || b.crew) return warn('That building is not available');
+  if (b.locked) return warn('Locked: open it yourself (keycard or fuel)');
   if (b.nest && !selectedIdle().some(s => s.role === 'fighter' || s.role === 'sniper')) return warn('Clearing a nest needs a Fighter or Sniper in the crew');
   if (!explored[(b.y + (b.h >> 1)) * W + b.x + (b.w >> 1)]) return warn('Scout that building first');
   const members = selectedIdle().slice(0, 3);
@@ -717,7 +766,7 @@ function sendCrew(b) {
   if (G.ammo < CREW.ammoCost) return warn('A crew needs ' + CREW.ammoCost + ' ammo');
   G.ammo -= CREW.ammoCost;
   const d = Math.hypot(b.x + b.w / 2 - CORE.x, b.y + b.h / 2 - CORE.y);
-  const dur = (CREW.baseTime + d * CREW.perTile) * (has('scav') ? 0.8 : 1) * ruleMul('crewTime') * (members.reduce((m, s) => m + tmul(s, 'crewTime'), 0) / members.length);
+  const dur = (CREW.baseTime + d * CREW.perTile) * (has('scav') ? 0.8 : 1) * ruleMul('crewTime') * (hasTruck() ? TRUCK.crewTime : 1) * (members.reduce((m, s) => m + tmul(s, 'crewTime'), 0) / members.length);
   let near = 0; for (const z of zombies) if (z.mode === 0 && Math.hypot(z.x - (b.x + b.w / 2), z.y - (b.y + b.h / 2)) < 9) near++;
   const fighters = members.filter(s => s.role === 'fighter' || s.role === 'sniper').length;
   const risk = clamp(CREW.baseRisk + d * CREW.perTileRisk + Math.min(0.18, near * 0.012) - 0.04 * fighters + (b.nest ? NEST.crewRisk : 0) + (b.poi ? 0.08 : 0), 0.04, 0.7);
@@ -739,7 +788,7 @@ function updateCrews(dt) {
     const scav = c.members.filter(s => s.role === 'scavenger').length;
     const mul = (CREW.lootMul + CREW.perMember * (c.members.length - 1) + CREW.scavBonus * scav + (has('scav') ? 0.35 : 0)) * (c.members.reduce((m, s) => m + tmul(s, 'loot') * skillMul(s, 'scav'), 0) / c.members.length);
     for (const s of survivors) addXp(s, 'scav', 25);
-    const got = survivors.length ? rollLoot(t.loot, mul) : {};
+    const got = survivors.length ? takeLoot(b, mul * (hasTruck() ? TRUCK.crewLoot : 1)) : {};
     addRes(got);
     for (const s of survivors) G.idle.push(s);
     let msg = 'Crew back from the ' + t.label + ': ' + (lootText(got) || 'nothing');
@@ -769,13 +818,13 @@ function treatSick(id) {
 // ---- economy ---------------------------------------------------------------
 function updateEconomy(dt) {
   const mouths = people();
-  const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0) * ruleMul('upkeep');
+  const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0) * ruleMul('upkeep') * season().upkeep;
   const base = 1 + 0.3 * (G.level - 1);
   const im = ruleMul('income');
-  const ra = G.income.a * im + 0.04 * base, rm = G.income.m * im + 0.1 * base, rf = G.income.f * im + 0.08 * base - upkeep;
-  G.net = { a: ra, m: rm, f: rf, med: G.income.med, fuel: G.income.fuel - G.power.burn };
+  const ra = 0.04 * base, rm = 0.1 * base, rf = 0.08 * base - upkeep;                       // the camp's own trickle; buildings are handled by extract()
+  G.net = { a: ra + G.income.a * im, m: rm + G.income.m * im, f: rf + G.income.f * im, med: G.income.med * im, fuel: G.income.fuel * im - G.power.burn, water: G.income.water * im };
   const cap = storeCap();
-  G.med = clamp(G.med + G.income.med * dt, 0, cap); G.fuel = clamp(G.fuel + G.income.fuel * dt, 0, cap);
+  Survival.extract(dt);
   G.ammo = clamp(G.ammo + ra * dt, 0, cap);
   G.mat = clamp(G.mat + rm * dt, 0, cap);
   G.food = clamp(G.food + rf * dt, 0, cap);
@@ -812,7 +861,10 @@ function updateHordes(dt) {
   for (const h of hordes) {
     if (h.left > 0) {
       h.acc += dt * h.total / HORDE.spawnSecs;
-      while (h.acc >= 1 && h.left > 0) { h.acc -= 1; h.left--; spawnHordeZombie(h); }
+      while (h.acc >= 1 && h.left > 0) {
+        h.acc -= 1; h.left--; spawnHordeZombie(h);
+        if (h.boss > 0 && h.left <= h.total * 0.5) { h.boss--; spawnHordeZombie(h, 'tyrant'); shake(3); if (h.seen) log('Lookout: a TYRANT walks with the horde!'); else toast('The ground shakes. Something huge is coming.'); Snd.scream(CORE.x, CORE.y); }
+      }
     }
   }
   G.scanT -= dt;
@@ -855,7 +907,7 @@ function updateHordes(dt) {
 
 // ---- events, research, rescue ---------------------------------------------------------------
 function updateEvents(dt) {
-  G.storm = Math.max(0, G.storm - dt);
+  G.storm = Math.max(0, G.storm - dt); G.fog = Math.max(0, G.fog - dt);
   if (G.storm > 0) {
     G.thunderT -= dt;
     if (G.thunderT <= 0) { G.thunderT = 6 + rng() * 9; G.flash = 1; setTimeout(() => Snd.thunder(), 400 + rng() * 900); }
@@ -868,6 +920,7 @@ function updateEvents(dt) {
 function fireEvent() {
   const kind = Director.pickEvent();
   if (!kind) return;
+  if (kind === 'fog') { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; }
   if (kind === 'stranger') { const s = newSurvivor(); addRecruit(s, 'wandered in and asked to stay'); moraleGain('refugee'); Snd.pickup(); return; }
   if (kind === 'stragglers') { startHorde({ minor: true, mult: 0.3 }); return; }          // no warning: a few dozen drift in
   if (kind === 'drop') {
@@ -928,7 +981,7 @@ function updateRescue(dt) {
 let warnT = 0;
 function warn(msg) { if (performance.now() > warnT) { toast(msg); warnT = performance.now() + 1500; Snd.error(); } }
 function inBuildRange(tx, ty) { return Math.hypot(tx + 0.5 - P.px, ty + 0.5 - P.py) <= BUILD_RANGE; }
-const TOOL_KIND = { wall: K.WALL, tower: K.TOWER, lookout: K.LOOKOUT, gate: K.GATE, radio: K.RADIO };
+const TOOL_KIND = { wall: K.WALL, tower: K.TOWER, lookout: K.LOOKOUT, gate: K.GATE, radio: K.RADIO, outpost: K.OUTPOST };
 function refund(name) { return Math.floor(((COST[name].m || 0) * 0.5)); }
 function tryBuild(tx, ty) {
   if (G.over || !inb(tx, ty)) return;
@@ -947,6 +1000,10 @@ function tryBuild(tx, ty) {
       if (G.level < RADIO_LEVEL) return warn('The radio tower needs camp level ' + RADIO_LEVEL);
       if (G.rescue !== null) return warn('The radio is already broadcasting');
       if (!claimed[i]) return warn('Build the radio inside your territory');
+    }
+    if (tool === 'outpost') {
+      if (claimed[i]) return warn('Outposts go outside your territory');
+      if (!buildings.some(b => !b.claimed && Math.hypot(b.x + b.w / 2 - tx, b.y + b.h / 2 - ty) < OUTPOST.buildRange)) return warn('Build an outpost within ' + OUTPOST.buildRange + ' tiles of a building you want to work');
     }
     const base = effCost(tool), cost = wall[i] === K.WALL && kind === K.TOWER ? { m: Math.max(0, base.m - effCost('wall').m) } : base;
     if (!canAfford(cost)) return warn(cost.f || cost.a ? 'Not enough supplies' : 'Not enough materials');
@@ -974,6 +1031,8 @@ function tryBuild(tx, ty) {
     const cost = { m: Math.ceil(TIER.cost[t + 1] * buildMul()) }; if (!canAfford(cost)) return warn('Not enough materials');
     pay(cost); wallTier[i] = t + 1; wallHp[i] = maxHp(wall[i], i); Snd.build();
   } else if (false) {
+  } else if (tool === 'grate') {
+    if (!Survival.sealSewer(tx, ty)) warn('Click a sewer access to seal it');
   } else if (tool === 'decoy') {
     if (wall[i] || trapAt[i]) return;
     const cost = effCost('decoy');
@@ -998,7 +1057,7 @@ function tryBuild(tx, ty) {
     if (trapAt[i]) { const t = trapAt[i]; traps.splice(traps.indexOf(t), 1); trapAt[i] = null; G.mat += refund(t.type); Snd.demolish(); return; }
     if (facAt[i]) { Base.remove(facAt[i]); Snd.demolish(); return; }
     if (wall[i] && wall[i] !== K.RADIO) {
-      const nm = { 1: 'wall', 2: 'tower', 3: 'lookout', 4: 'gate' }[wall[i]];
+      const nm = { 1: 'wall', 2: 'tower', 3: 'lookout', 4: 'gate', 6: 'outpost' }[wall[i]];
       G.mat += refund(nm);
       wall[i] = 0; wallHp[i] = 0; wallTier[i] = 0; elec[i] = 0; G.fieldDirty = true; G.visT = 0; Snd.demolish();
     }
@@ -1048,7 +1107,7 @@ function simulate(dt) {
   updateHordes(dt);
   updateZombies(dt);
   updateTraps(dt);
-  Outside.update(dt); Base.update(dt);
+  Outside.update(dt); Base.update(dt); Survival.update(dt);
   updateDefenders(dt);
   updateCrews(dt);
   updateSurvivors(dt);

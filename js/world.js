@@ -20,6 +20,7 @@ let defAt = new Array(W * H).fill(null);
 let trapAt = new Array(W * H).fill(null);
 let zombies = [], defenders = [], hordes = [], traps = [], crates = [], decoys = [], rings = [];
 let facilities = [], fires = [], turning = [], facAt = new Array(W * H).fill(null);
+let sewers = [], herds = [];
 let tracers = [], parts = [], texts = [], flashes = [];
 let P = null;                                  // the survivor
 let G = null;                                  // game state
@@ -27,7 +28,8 @@ let G = null;                                  // game state
 const solidForWalker = i => bld[i] >= 0;
 
 // ---- town generation (deterministic from a seed so saves stay small) -----------------------
-function genTown(seed) {
+function genTown(seed, wealth) {
+  wealth = wealth || 1;
   const wr = mulberry32(seed);
   bld.fill(-1); ground.fill(0); buildings = []; lamps = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
@@ -69,9 +71,23 @@ function genTown(seed) {
     for (const type of POI_ORDER) {
       const c = cand.find(c => !used.includes(c.i) && used.every(u => Math.hypot(buildings[u].x - c.b.x, buildings[u].y - c.b.y) > 12));
       if (!c) continue;
-      used.push(c.i); c.b.type = type; c.b.poi = true;
+      used.push(c.i); c.b.type = type; c.b.poi = true; c.b.locked = !!BUILDING_TYPES[type].locked;
       c.b.roof = BUILDING_TYPES[type].roof[wr() * BUILDING_TYPES[type].roof.length | 0];
     }
+  }
+  // every building holds a finite stock: scavenging and passive income both draw it down
+  for (const b of buildings) {
+    const t = BUILDING_TYPES[b.type], mult = (b.poi ? STOCK.poiMult : STOCK.mult) * wealth;
+    b.stock = {}; b.s0 = 0;
+    for (const k of STOCK_KEYS) if (t.loot[k]) { b.stock[k] = Math.round(t.loot[k] * mult * (0.7 + wr() * 0.6)); b.s0 += b.stock[k]; }
+  }
+  // sewer access points on the roads around the camp (zombies may use them; sealing needs a grate)
+  sewers = [];
+  for (let t = 0; t < 200 && sewers.length < SEWER.count; t++) {
+    const x = wr() * W | 0, y = wr() * H | 0, d = Math.hypot(x - CORE.x, y - CORE.y);
+    if (ground[y * W + x] !== 1 || d < SEWER.minD || d > SEWER.maxD || isCoreTile(x, y)) continue;
+    if (sewers.some(s => Math.hypot(s.x - x, s.y - y) < 6)) continue;
+    sewers.push({ x, y, found: false, sealed: false });
   }
   // sidewalks: block tiles touching a road
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -221,14 +237,15 @@ const fogCanvas = document.createElement('canvas'); fogCanvas.width = W; fogCanv
 const fogCtx = fogCanvas.getContext('2d'), fogImg = fogCtx.createImageData(W, H);
 function updateVision() {
   vis.fill(0);
-  const storm = G.storm > 0 ? 0.65 : 1;
+  const storm = (G.storm > 0 ? 0.65 : 1) * (G.fog > 0 ? FOG.vision : 1);
   reveal(P.px, P.py, PLAYER.vision * storm);
   reveal(CORE.x + 0.5, CORE.y + 0.5, 8 * storm);
   for (const d of defenders) reveal(d.px, d.py, 7 * storm);
-  G.lookouts = [];
-  for (let i = 0; i < W * H; i++) if (wall[i] === K.LOOKOUT) {
+  G.lookouts = []; G.outposts = [];
+  for (let i = 0; i < W * H; i++) if (wall[i] === K.LOOKOUT || wall[i] === K.OUTPOST) {
     const x = i % W + 0.5, y = ((i / W) | 0) + 0.5;
     G.lookouts.push({ x, y }); reveal(x, y, lookoutVis() * storm);
+    if (wall[i] === K.OUTPOST) G.outposts.push({ x, y, i });
   }
   const d = fogImg.data;
   for (let i = 0; i < W * H; i++) {

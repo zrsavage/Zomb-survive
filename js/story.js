@@ -32,13 +32,13 @@ const Director = {
   },
   pickEvent() {
     const t = this.tension(), calm = 1 - t, can = {
-      drop: true, trader: !G.trader, storm: G.storm <= 0,
+      drop: true, trader: !G.trader, storm: G.storm <= 0, fog: G.fog <= 0,
       stranger: roomForPerson() && G.morale >= 25,
       sick: G.idle.some(s => !s.sick), stragglers: G.elapsed > 200 && !hordes.length,
     };
     const w = {
-      drop: 1.5 + 3 * t, trader: 1 + 2 * t, stranger: 0.8 + 2.2 * t, storm: 0.2 + 1.6 * calm,
-      sick: (0.2 + calm) * ruleMul('sickness'), stragglers: calm > 0.3 ? 1.4 * calm : 0,
+      drop: 1.5 + 3 * t, trader: 1 + 2 * t, stranger: 0.8 + 2.2 * t, storm: (0.2 + 1.6 * calm) * season().storm, fog: 0.4 + 0.8 * calm,
+      sick: (0.2 + calm) * ruleMul('sickness') * season().sick * (G.hygiene < HYGIENE.low ? 3 : 1), stragglers: calm > 0.3 ? 1.4 * calm : 0,
     };
     const keys = Object.keys(w).filter(k => can[k]);
     if (!keys.length) return null;

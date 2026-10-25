@@ -161,6 +161,8 @@ function buildSprites() {
   S.z_armored = makeSet(DIMS.human, { skin: '#8a9a7a', shirt: '#26324a', pants: '#1c2230', eye: '#ff4a3a', hat: '#2a3a5a' }, { hat: 'helmet', straps: true, bigEye: true },
     { walkArm: 'fwd', swing: 1, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
   S.z_dog = makeDogSet();
+  S.z_tyrant = makeSet(DIMS.brute, { skin: '#7a4a3a', shirt: '#2a1a1a', pants: '#1a1212', eye: '#ff2a2a', hat: '#3a1a1a' }, { hat: 'helmet', straps: true, blood: 3, bigEye: true },
+    { walkArm: 'fwd', swing: 2, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
   // pre-mirrored copies so facing left costs nothing at draw time
   for (const k in S) {
     const set = S[k]; set.fl = {};
@@ -198,13 +200,14 @@ Art.renderTerrain = function () {
     } else if (t === 1) {                                            // cracks, patches
       if (r() < 0.35) { let cx2 = px + (r() * 14 | 0), cy2 = py + (r() * 14 | 0); for (let i = 0; i < 6 + (r() * 6 | 0); i++) { R('#232629', cx2, cy2, 1, 1); cx2 += (r() * 3 | 0) - 1; cy2 += (r() * 3 | 0) - 1; } }
       if (r() < 0.07) R('#2c3035', px + 2, py + 3, 6 + (r() * 6 | 0), 4);
-      if (r() < 0.012) { R('#202326', px + 4, py + 4, 8, 8); R('#2a2e32', px + 5, py + 5, 6, 6); R('#1a1c1f', px + 7, py + 5, 1, 6); }
       if (r() < 0.05) { const dc = ['#8a8a82', '#6a5a4a', '#9a9a50', '#a04a3a'][r() * 4 | 0]; R(dc, px + (r() * 12 | 0), py + (r() * 12 | 0), 2 + (r() * 3 | 0), 1 + (r() * 2 | 0)); }
     } else if (t === 3) {
       R('#595c59', px, py + 7, T, 1); R('#595c59', px + 7, py, 1, T);
       if (r() < 0.1) R('#4f7a3a', px + (r() * 14 | 0), py + 7, 1, 2);
     }
   }
+  // sewer access points
+  for (const s of sewers) { const px = s.x * T, py = s.y * T; R('#202326', px + 3, py + 3, 10, 10); R('#2c3034', px + 4, py + 4, 8, 8); R('#15171a', px + 7, py + 4, 2, 8); R('#15171a', px + 4, py + 7, 8, 2); }
   // road markings
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (ground[y * W + x] !== 1) continue;
@@ -257,7 +260,7 @@ function drawBuilding(g, b) {
   const rh = h - FH, roof = b.roof;
   g.globalAlpha = 0.38; R('#000', x + 3, y + 3, w, h); g.globalAlpha = 1;
   // facade
-  const fc = { house: '#cdbfa0', store: '#d6d2c4', garage: '#9a9ea6', warehouse: '#8d8678', pharmacy: '#dfe8e4', gas: '#c8b8a0', police: '#aab0c0', junkyard: '#8a7a60', farmstead: '#c8b890' }[b.type];
+  const fc = { house: '#cdbfa0', store: '#d6d2c4', garage: '#9a9ea6', warehouse: '#8d8678', pharmacy: '#dfe8e4', gas: '#c8b8a0', police: '#aab0c0', junkyard: '#8a7a60', farmstead: '#c8b890', bunker: '#6a6e70' }[b.type];
   R(fc, x, y + rh, w, FH);
   R(shade(fc, 0.62), x, y + rh, w, 2);
   R(shade(fc, 0.7), x, y + h - 1, w, 1);
@@ -274,6 +277,9 @@ function drawBuilding(g, b) {
   } else if (b.type === 'garage') {
     R('#6a6e76', x + 5, fy - 2, w - 10, 7);
     for (let i = 0; i < 7; i += 2) R('#555960', x + 5, fy - 2 + i, w - 10, 1);
+  } else if (b.type === 'bunker') {
+    R('#3a3e42', x + w / 2 - 6, fy - 2, 12, 8); R('#555a60', x + w / 2 - 5, fy - 1, 10, 6); R('#e8c020', x + w / 2 - 6, fy - 2, 12, 1); R('#2a2d30', x + w / 2 - 1, fy, 2, 5);
+    for (let i = 0; i < w; i += 6) R('#e8c020', x + i, y + h - 2, 3, 1);
   } else if (b.type === 'pharmacy') {
     R('#2a3a4a', x + 3, fy - 1, w - 16, 5); R('#8cc4d8', x + 4, fy - 1, w - 18, 2); R('#3a2a22', x + w - 11, fy - 1, 7, 6); R('#8cc4d8', x + w - 10, fy, 5, 3);
     R('#2fae5a', x + w / 2 - 2, y + rh + 2, 5, 1); R('#2fae5a', x + w / 2, y + rh + 1, 1, 5);
@@ -305,6 +311,9 @@ function drawBuilding(g, b) {
     R('#e8d070', x + w - 22, y + rh - 8, 16, 5); R('#b09040', x + w - 21, y + rh - 7, 14, 1);
   } else if (b.type === 'garage') {
     for (let i = 0; i < w; i += 3) R(i % 6 ? shade(roof, 0.88) : shade(roof, 1.1), x + i, y, 1, rh);
+  } else if (b.type === 'bunker') {
+    R(shade(roof, 1.15), x + 2, y + 2, w - 4, rh - 4); R('#2a2d30', x + w / 2 - 5, y + rh / 2 - 4, 10, 8); R('#4a4e54', x + w / 2 - 4, y + rh / 2 - 3, 8, 6); R('#e8c020', x + w / 2 - 5, y + rh / 2 - 4, 10, 1);
+    for (let i = 0; i < 4; i++) { R('#1a1c1e', x + 4 + i * ((w - 12) / 3 | 0), y + 4, 3, 2); }
   } else if (b.type === 'pharmacy') {
     R(shade(roof, 0.92), x, y, w, 2); R('#2fae5a', x + w / 2 - 3, y + rh / 2 - 7, 6, 14); R('#2fae5a', x + w / 2 - 7, y + rh / 2 - 3, 14, 6);
     R('#8a8e94', x + 5, y + 4, 10, 7); R('#6a6e74', x + 7, y + 6, 6, 3);
@@ -377,6 +386,12 @@ Art.drawWall = function (g, x, y, k, f, press, t, gateOpen, tier, el, pw) {
     R('#6e5230', px, py - 3, 1, 5); R('#6e5230', px + T - 1, py - 3, 1, 5); R('#6e5230', px, py - 3, T, 1);
     const pulse = 0.6 + Math.sin(t * 3 + x) * 0.4;
     R('#2a3a4a', px + 6, py - 1, 4, 4); g.globalAlpha = pulse; R('#7fd0ff', px + 7, py, 2, 2); g.globalAlpha = 1;
+  } else if (k === K.OUTPOST) {
+    if (!below) { R('#4c535a', px, py + 10, T, 6); R('#3c4248', px + 1, py + 11, T - 2, 1); R('#1c2024', px + 6, py + 11, 3, 3); }
+    R('#6c747c', px, py, T, topH); R('#8a929a', px, py, T, 1);
+    R('#a89060', px + 1, py + 6, 5, 3); R('#c8b080', px + 1, py + 6, 5, 1); R('#a89060', px + 10, py + 6, 5, 3);     // sandbags
+    R('#2a2a2e', px + 7, py - 12, 1, 14);
+    for (let q = 0; q < 6; q++) R(q % 2 ? '#2a6ab8' : '#4a8ae0', px + 8 + q, py - 12 + Math.sin(t * 4 + q * 0.7) * 1, 1, 5);
   } else if (k === K.GATE) {
     R('#4a4e54', px, py + 10, T, 6); R('#2a2d30', px + 2, py + 11, T - 4, 4);
     R('#7a7e86', px, py, T, 10); R('#9a9ea6', px, py, T, 1);
@@ -466,5 +481,33 @@ Art.drawFacility = function (g, f, t) {
   } else {
     R('#6a4a2a', px + 1, py + 8, 7, 7); R('#8a6a3a', px + 1, py + 8, 7, 2); R('#7a5a34', px + 8, py + 5, 7, 10); R('#9a7444', px + 8, py + 5, 7, 2);
     R('#4a5a7a', px + 4, py + 3, 6, 5); R('#6a7a9a', px + 4, py + 3, 6, 1);
+  }
+};
+
+Art.drawFacility2 = function (g, f, t) {
+  const px = f.x * T, py = f.y * T, R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  g.globalAlpha = 0.3; R('#000', px + 3, py + 12, 11, 4); g.globalAlpha = 1;
+  if (f.type === 'well') {
+    R('#7a7a74', px + 2, py + 5, 12, 9); R('#9a9a92', px + 2, py + 5, 12, 2); R('#2a5a8a', px + 4, py + 7, 8, 5); R('#5aa0d8', px + 4, py + 7, 8, 1);
+    R('#5a4228', px + 2, py + 2, 1, 6); R('#5a4228', px + 13, py + 2, 1, 6); R('#6a5232', px + 1, py + 1, 14, 2);
+  } else if (f.type === 'rain') {
+    R('#3a5a7a', px + 4, py + 7, 8, 8); R('#5a80a8', px + 4, py + 7, 8, 2); R('#6a7078', px + 2, py + 3, 12, 4); R('#8a9098', px + 2, py + 3, 12, 1);
+    if (G.storm > 0 && (t * 8 | 0) % 2) R('#9ad0ff', px + 8, py + 8, 1, 4);
+  } else if (f.type === 'latrine') {
+    R('#7a5a34', px + 3, py + 3, 10, 12); R('#9a7444', px + 3, py + 3, 10, 2); R('#4a3a24', px + 6, py + 6, 4, 8); R('#2a2018', px + 9, py + 9, 1, 2);
+  } else if (f.type === 'turret') {
+    R('#3a3e44', px + 3, py + 8, 10, 7); R('#5a5e66', px + 3, py + 8, 10, 2); R('#2a2c30', px + 5, py + 4, 6, 6);
+    const dir = f.face || 1; R('#26262c', dir > 0 ? px + 10 : px - 1, py + 6, 6, 2); R('#4a4a54', dir > 0 ? px + 10 : px - 1, py + 6, 6, 1);
+    R(f.on ? '#7dff8c' : '#6a3a3a', px + 7, py + 5, 2, 2);
+    if (f.shot > 0) R('#ffe9a0', dir > 0 ? px + 16 : px - 3, py + 5, 3, 3);
+  } else if (f.type === 'battery') {
+    R('#2a3a2a', px + 2, py + 4, 12, 11); R('#4a5a3a', px + 2, py + 4, 12, 2); R('#c8c020', px + 5, py + 2, 6, 2);
+    const fr = Math.max(0, Math.min(1, (G.power.battMax ? G.batt / G.power.battMax : 0)));
+    for (let q = 0; q < 3; q++) R(fr > q / 3 + 0.05 ? '#7dff8c' : '#2a4a2a', px + 4, py + 7 + q * 2.5, 8, 1.5);
+  } else if (f.type === 'garagebay') {
+    R('#5a5c60', px, py + 2, T, 13); R('#e8c020', px, py + 3, T, 1); R('#e8c020', px, py + 13, T, 1);
+    if (Campaign.truck) { R('#3a5a8a', px + 1, py + 6, 11, 6); R('#5a80b0', px + 1, py + 6, 11, 2); R('#8ab0d8', px + 9, py + 7, 3, 2); R('#1a1a1e', px + 3, py + 12, 3, 3); R('#1a1a1e', px + 9, py + 12, 3, 3); }
+    else if (G.truckT > 0) { R('#000a', px + 1, py + 7, 14, 3); R('#7fd0ff', px + 1, py + 7, 14 * (1 - G.truckT / TRUCK.time), 3); }
+    else { R('#7a7e86', px + 3, py + 6, 10, 6); R('#9a9ea6', px + 3, py + 6, 10, 1); }
   }
 };

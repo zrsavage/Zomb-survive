@@ -58,6 +58,7 @@ function drawWorld(cam, cw, ch, z) {
   // scavenged / crewed buildings
   for (const b of buildings) {
     if (b.looted) { ctx.fillStyle = 'rgba(0,0,0,0.36)'; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T - 9); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(b.x * T + b.w * T / 2 - 3, b.y * T + (b.h * T - 9) / 2 - 1, 6, 2); }
+    if (b.locked && !b.looted) { const lx = b.x * T + b.w * T / 2, ly = b.y * T + (b.h * T - 9) / 2; ctx.fillStyle = '#0008'; ctx.fillRect(lx - 5, ly - 5, 10, 12); ctx.fillStyle = '#e8c547'; ctx.fillRect(lx - 3, ly - 1, 6, 5); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 1; ctx.strokeRect(lx - 2.5, ly - 5.5, 5, 5); }
     if (b.crew) {
       const c = G.crews.find(c => buildings[c.bi] === b), f = c ? c.t / c.dur : 0;
       ctx.fillStyle = 'rgba(40,120,200,0.25)'; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T);
@@ -69,6 +70,11 @@ function drawWorld(cam, cw, ch, z) {
   // crates (with a beacon so they can be found)
   for (const c of crates) {
     const px = c.x * T, py = c.y * T, pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    if (c.type === 'boss') {
+      ctx.globalAlpha = 0.35 + pulse * 0.35; ctx.fillStyle = '#ff9a3a'; ctx.fillRect(px - 2, py - 80, 4, 76); ctx.globalAlpha = 1;
+      shadow(c.x, c.y + 0.3, 14); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(px - 8, py - 9, 16, 11); ctx.fillStyle = '#d8a030'; ctx.fillRect(px - 8, py - 9, 16, 2); ctx.fillStyle = '#ffd27a'; ctx.fillRect(px - 2, py - 6, 4, 5);
+      continue;
+    }
     if (c.type === 'survivor') {
       ctx.globalAlpha = 0.3 + pulse * 0.3; ctx.fillStyle = '#7fd0ff'; ctx.fillRect(px - 1, py - 70, 2, 66); ctx.globalAlpha = 1;
       const set = Art.sprites.def_fighter; shadow(c.x, c.y + 0.3, 10); ctx.drawImage(set.idle[0], Math.round(px - set.ax), Math.round(py - set.ay));
@@ -111,7 +117,15 @@ function drawWorld(cam, cw, ch, z) {
     if (n.hp < NEST.hp) { ctx.fillStyle = '#000a'; ctx.fillRect(bx + 2, by + bh - 6, bw - 4, 3); ctx.fillStyle = '#ff8a22'; ctx.fillRect(bx + 2, by + bh - 6, (bw - 4) * Math.max(0, n.hp) / NEST.hp, 3); }
   }
   // facilities
-  for (const f of facilities) Art.drawFacility(ctx, f, t);
+  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay'];
+  for (const f of facilities) (NEWFAC.includes(f.type) ? Art.drawFacility2 : Art.drawFacility)(ctx, f, t);
+  // sewer accesses you know about
+  for (const s of sewers) {
+    if (!s.found) continue;
+    const px = s.x * T, py = s.y * T;
+    if (s.sealed) { ctx.fillStyle = '#6a6e76'; ctx.fillRect(px + 3, py + 3, 10, 10); ctx.fillStyle = '#2a2d30'; for (let q = 0; q < 4; q++) ctx.fillRect(px + 4 + q * 2.5, py + 4, 1, 8); }
+    else { ctx.globalAlpha = 0.4 + 0.3 * Math.sin(t * 5); ctx.strokeStyle = '#ff5a3a'; ctx.lineWidth = 1; ctx.strokeRect(px + 1.5, py + 1.5, 13, 13); ctx.globalAlpha = 1; }
+  }
   // decoys
   for (const d of decoys) {
     const px = d.x * T, py = d.y * T;
@@ -150,7 +164,7 @@ function drawWorld(cam, cw, ch, z) {
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
       if (o === P) {
         ctx.fillStyle = '#ffd27a'; ctx.fillRect(o.px * T - 1, o.py * T - 29, 3, 2); ctx.fillRect(o.px * T, o.py * T - 27, 1, 1);
-        if (P.loot > 0) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 8, o.py * T - 33, 16, 3); ctx.fillStyle = '#7fcf6a'; ctx.fillRect(o.px * T - 8, o.py * T - 33, 16 * P.loot / lootTime(), 3); }
+        if (P.loot > 0) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 8, o.py * T - 33, 16, 3); ctx.fillStyle = '#7fcf6a'; ctx.fillRect(o.px * T - 8, o.py * T - 33, 16 * Math.min(1, P.loot / (P.lootNeed || lootTime())), 3); }
       }
     } else {
       const big = o.type === 'brute' ? 16 : o.type === 'bloater' ? 14 : 10;
@@ -180,7 +194,7 @@ function drawWorld(cam, cw, ch, z) {
   for (let i = tracers.length - 1; i >= 0; i--) {
     const tr = tracers[i];
     if (tr.life <= 0) { tracers.splice(i, 1); continue; }
-    ctx.strokeStyle = tr.slash ? '#ffffff' : tr.acid ? '#9ad04a' : tr.fire ? '#ff8a22' : '#ffe9a0'; ctx.lineWidth = tr.slash ? 1.4 : tr.fire ? 1.6 : 0.9; ctx.globalAlpha = Math.min(1, tr.life * 12);
+    ctx.strokeStyle = tr.slash ? '#ffffff' : tr.acid ? '#9ad04a' : tr.fire || tr.inc ? '#ff8a22' : tr.ap ? '#8fd0ff' : '#ffe9a0'; ctx.lineWidth = tr.slash ? 1.4 : tr.fire ? 1.6 : 0.9; ctx.globalAlpha = Math.min(1, tr.life * 12);
     ctx.beginPath(); ctx.moveTo(tr.x1 * T, tr.y1 * T); ctx.lineTo(tr.x2 * T, tr.y2 * T); ctx.stroke(); ctx.globalAlpha = 1;
   }
   for (const f of fires) {                                           // ground fire from Molotovs
@@ -324,6 +338,14 @@ function drawAtmosphere(cw, ch) {
     for (let x = ox; x < cw; x += ts) for (let y = oy; y < ch; y += ts) ctx.drawImage(tex, x, y, ts, ts);
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  // season tint, snow and fog
+  const S = season();
+  ctx.fillStyle = 'rgba(' + S.tint[0] + ',' + S.tint[1] + ',' + S.tint[2] + ',' + S.tint[3] + ')'; ctx.fillRect(0, 0, cw, ch);
+  if (S.snow) {
+    ctx.fillStyle = 'rgba(240,248,255,0.75)';
+    for (let i = 0; i < (Q.fog ? 130 : 60); i++) { const x = (i * 83 + Math.sin(t * 0.7 + i) * 18 + t * 12 * dpr) % (cw + 20) - 10, y = (i * 47 + t * (40 + (i % 5) * 9) * dpr) % (ch + 10); ctx.fillRect(x, y, 2 * dpr, 2 * dpr); }
+  }
+  if (G.fog > 0) { const k = Math.min(1, G.fog / 6, (FOG.time - G.fog) / 6 + 0.3); ctx.fillStyle = 'rgba(205,214,224,' + 0.3 * k + ')'; ctx.fillRect(0, 0, cw, ch); }
   // vignette
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.55);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.55 + G.danger * 0.15) + ')');
@@ -386,6 +408,8 @@ function renderMini() {
   mctx.fillStyle = '#e84a3a';
   for (const z of zombies) if (vis[(z.y | 0) * W + (z.x | 0)]) mctx.fillRect(z.x | 0, z.y | 0, 1, 1);
   for (const h of hordes) if (h.seen && h.alive) { mctx.strokeStyle = '#ff5a50'; mctx.strokeRect((h.cx | 0) - 3, (h.cy | 0) - 3, 7, 7); }
+  for (const h of herds) if (h.seen) { mctx.strokeStyle = '#ffa23a'; mctx.strokeRect((h.cx | 0) - 2, (h.cy | 0) - 2, 5, 5); }
+  for (const s of sewers) if (s.found) { mctx.fillStyle = s.sealed ? '#8a8e96' : '#ff5a3a'; mctx.fillRect(s.x, s.y, 1, 1); }
   for (const c of crates) { mctx.fillStyle = c.type === 'survivor' ? ((G.time * 3 | 0) % 2 ? '#7fd0ff' : '#fff') : (G.time * 3 | 0) % 2 ? '#ffe27a' : '#fff'; mctx.fillRect((c.x | 0) - 1, (c.y | 0) - 1, 3, 3); }
   const poiCol = { pharmacy: '#3ee07a', gas: '#e8884a', police: '#5a8aff', junkyard: '#b0a070', farmstead: '#d8e86a' };
   for (const b of buildings) if (b.poi && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) { mctx.fillStyle = poiCol[b.type]; mctx.fillRect((b.x + (b.w >> 1)) - 1, (b.y + (b.h >> 1)) - 1, 3, 3); }

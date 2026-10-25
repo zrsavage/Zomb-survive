@@ -7,8 +7,58 @@
 const Outside = {
   update(dt) {
     G.molCd -= dt;
-    this.nests(dt); this.fires(dt); this.turning(dt);
+    this.nests(dt); this.fires(dt); this.turning(dt); this.herds(dt);
   },
+
+  // ---- roaming herds: groups that wander the town along the roads ---------------------------------------------------------------
+  herds(dt) {
+    G.herdT -= dt;
+    if (G.herdT <= 0) {
+      G.herdT = (HERD.gapMin + rng() * (HERD.gapMax - HERD.gapMin)) * Director.eventGap();
+      if (herds.length < HERD.cap && G.elapsed > 150) this.spawnHerd();
+    }
+    G.herdScan -= dt; if (G.herdScan > 0) return;
+    G.herdScan = 0.5;
+    const R2 = lookoutR() ** 2;
+    let msg = null;
+    for (let k = herds.length - 1; k >= 0; k--) {
+      const h = herds[k]; let n = 0, cx = 0, cy = 0;
+      for (const z of zombies) if (z.hd === h && z.mode === 4) { n++; cx += z.x; cy += z.y; }
+      if (!n) { herds.splice(k, 1); continue; }
+      h.n = n; h.cx = cx / n; h.cy = cy / n;
+      if (!h.seen) for (const l of G.lookouts) { const dx = h.cx - l.x, dy = h.cy - l.y; if (dx * dx + dy * dy < R2) { h.seen = true; log('Lookout: a roaming herd of about ' + n + ' to the ' + compass(h.cx - CORE.x, h.cy - CORE.y)); break; } }
+      if (Math.hypot(h.cx - CORE.x, h.cy - CORE.y) < HERD.attackR) {      // they stumble onto the camp
+        for (const z of zombies) if (z.hd === h) { z.hd = null; z.mode = 2; z.h = 0; }
+        herds.splice(k, 1); log(h.seen ? 'The herd has found your camp!' : 'A roaming herd has found the camp!'); continue;
+      }
+      if (Math.hypot(h.cx - h.tx, h.cy - h.ty) < 3) this.herdTarget(h);
+      if (h.seen) msg = 'Herd of ~' + n + ' roaming ' + compass(h.cx - CORE.x, h.cy - CORE.y) + ' of camp';
+    }
+    G.herdMsg = msg;
+  },
+  herdTarget(h) {
+    for (let t = 0; t < 60; t++) {
+      const toCamp = rng() < 0.3, a = rng() * 6.283, d = 12 + rng() * 16;
+      const x = clamp(((toCamp ? CORE.x : h.cx) + Math.cos(a) * d) | 0, 1, W - 2), y = clamp(((toCamp ? CORE.y : h.cy) + Math.sin(a) * d * 0.7) | 0, 1, H - 2), i = y * W + x;
+      if (ground[i] !== 1 || bld[i] >= 0 || Math.hypot(x - h.cx, y - h.cy) < 8) continue;
+      h.tx = x + 0.5; h.ty = y + 0.5; computeField([i], h.D, h.N); return;
+    }
+  },
+  spawnHerd() {
+    for (let t = 0; t < 60; t++) {
+      const x = 1 + (rng() * (W - 2) | 0), y = 1 + (rng() * (H - 2) | 0), i = y * W + x;
+      if (ground[i] !== 1 || Math.hypot(x - CORE.x, y - CORE.y) < 22) continue;
+      const h = { id: ++G.herdId, tx: x, ty: y, D: new Float32Array(W * H), N: new Int32Array(W * H), n: 0, cx: x, cy: y, seen: false };
+      const n = Math.round((HERD.min + rng() * (HERD.max - HERD.min)) * Math.min(2, 1 + 0.05 * G.hordeN));
+      for (let k = 0; k < n; k++) {
+        const zx = x + (rng() - 0.5) * 4, zy = y + (rng() - 0.5) * 3, zi = (zy | 0) * W + (zx | 0);
+        if (!inb(zx | 0, zy | 0) || bld[zi] >= 0 || zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) continue;
+        const z = makeZombie(zx, zy, 4, 0, rng() < 0.12 ? 'runner' : null); z.hd = h; zombies.push(z);
+      }
+      herds.push(h); this.herdTarget(h); return;
+    }
+  },
+
 
   // ---- nests: infested buildings that spawn zombies until destroyed ---------------------------------------------------------------
   nests(dt) {
