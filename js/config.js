@@ -139,3 +139,38 @@ const QUALITY = {
 };
 const Q = Object.assign({}, QUALITY.high);
 function setQuality(name) { Object.assign(Q, QUALITY[name] || QUALITY.high); try { localStorage.setItem('zomb-quality', Q.name); } catch (e) { /* ignore */ } }
+
+// ---- personalities: traits, backstories, morale -----------------------------------------------
+// mod keys: dmg/range/cd/melee/hp/eat/risk/loot/crewTime/moraleLoss/ammo are multipliers; cheer/repair are additive.
+const TRAITS = {
+  brave:        { label: 'Brave',         desc: 'Shaken far less by loss.',                    mod: { moraleLoss: 0.5 } },
+  coward:       { label: 'Coward',        desc: 'Rattled by loss and shoots a little slower.', mod: { moraleLoss: 1.6, cd: 1.12 } },
+  sharpshooter: { label: 'Sharpshooter',  desc: '+25% bullet damage, +10% range.',             mod: { dmg: 1.25, range: 1.1 } },
+  trigger:      { label: 'Trigger-happy', desc: 'Fires 15% faster but burns 50% more ammo.',   mod: { cd: 0.85, ammo: 1.5 } },
+  tough:        { label: 'Tough',         desc: '+50% health.',                                mod: { hp: 1.5 } },
+  frail:        { label: 'Frail',         desc: '-25% health.',                                mod: { hp: 0.75 } },
+  lucky:        { label: 'Lucky',         desc: 'Safer and richer on crew runs.',              mod: { risk: 0.6, loot: 1.1 } },
+  unlucky:      { label: 'Unlucky',       desc: 'Crew runs are riskier.',                      mod: { risk: 1.4 } },
+  glutton:      { label: 'Glutton',       desc: 'Eats twice as much.',                         mod: { eat: 2 } },
+  frugal:       { label: 'Frugal',        desc: 'Eats half as much.',                          mod: { eat: 0.5 } },
+  cheerful:     { label: 'Cheerful',      desc: 'Lifts the whole camp.',                       mod: { cheer: 4 } },
+  gloomy:       { label: 'Gloomy',        desc: 'Drags the camp down.',                        mod: { cheer: -4 } },
+  bloodthirsty: { label: 'Bloodthirsty',  desc: '+30% stab damage, unsettling to be around.',  mod: { melee: 1.3, cheer: -1 } },
+  pacifist:     { label: 'Pacifist',      desc: '-30% stab damage, scavenges more.',           mod: { melee: 0.7, loot: 1.15, cheer: 1 } },
+  quick:        { label: 'Quick',         desc: 'Crew runs take 20% less time.',               mod: { crewTime: 0.8 } },
+  handy:        { label: 'Handy',         desc: 'Helps repairs like half a builder.',          mod: { repair: 0.5 } },
+};
+const TRAIT_CONFLICTS = [['brave', 'coward'], ['tough', 'frail'], ['lucky', 'unlucky'], ['glutton', 'frugal'], ['cheerful', 'gloomy'], ['bloodthirsty', 'pacifist'], ['sharpshooter', 'trigger']];
+const BACKSTORY = {
+  fighter:   ['Ex-bouncer who never backed down.', 'Former army reservist.', 'Used to coach boxing downtown.', 'Walked out of the quarantine zone alone.'],
+  sniper:    ['Competition shooter with a steady hand.', 'Grew up hunting deer with their father.', 'Ex-police marksman.', 'Learned to shoot defending a farm.'],
+  medic:     ['Paramedic who stayed past the evacuation.', 'Nursing student, fast learner.', 'Veterinarian: zombies are just big patients.', 'Pharmacist who knows what is on the shelves.'],
+  builder:   ['Union carpenter, thirty years on site.', 'Failed architect, great with scrap.', 'Handyman who fixed half the block.', 'Welder from the shipyard.'],
+  scavenger: ['Ran a pawn shop; knows what is worth taking.', 'Courier who knows every back alley.', 'Parkour kid with nothing left to lose.', 'Dumpster-diver turned survivor.'],
+};
+const MORALE = {
+  start: 70, drift: 0.12,                                     // points per second toward the target
+  hits: { defender: 8, crew: 6, sick: 7, friend: 12, desert: 4 },
+  gains: { horde: 6, research: 3, upgrade: 5, crate: 2, refugee: 1 },
+  slowAbove: 75, slowBelow: 35, slowerBelow: 20, noRefugeesBelow: 30, desertBelow: 15, desertGap: 30, grief: 90, memorialMax: 60,
+};

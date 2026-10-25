@@ -40,6 +40,7 @@ const UI = (() => {
     }));
     $('btnUp').addEventListener('click', upgradeCore);
     $('btnRes').addEventListener('click', toggleResearch);
+    $('btnFallen').addEventListener('click', toggleMemorial);
   }
 
   // ---- HUD ---------------------------------------------------------------
@@ -50,6 +51,11 @@ const UI = (() => {
     $('rFood').textContent = G.food | 0; $('dFood').textContent = fmtRate(G.net.f);
     $('rFood').style.color = G.food <= 0 ? 'var(--bad)' : '';
     $('rAmmo').style.color = G.ammo < 1 ? 'var(--bad)' : '';
+    const mo = $('mor'), ml = moraleLabel(G.morale), mc = G.morale < 20 ? 'var(--bad)' : G.morale < 40 ? '#e8a447' : G.morale > 75 ? 'var(--good)' : '';
+    mo.textContent = ml + ' ' + (G.morale | 0); mo.style.color = mc;
+    $('morWrap').title = 'Camp morale ' + (G.morale | 0) + ' (heading to ' + (G.moraleTarget | 0) + '). High: defenders shoot faster. Low: slower, no refugees; in despair people desert. Deaths hurt, wins heal.';
+    $('iMor').textContent = ml + ' ' + (G.morale | 0) + ' → ' + (G.moraleTarget | 0); $('morBar').style.width = G.morale + '%'; $('morBar').style.background = mc || 'var(--acc)';
+    $('cFallen').textContent = G.memorial.length;
     $('pHp').textContent = Math.max(0, P.hp | 0); $('pHp').style.color = P.hp < 35 ? 'var(--bad)' : '';
     $('zCount').textContent = G.visibleZ;
     const hd = $('horde');
@@ -93,15 +99,15 @@ const UI = (() => {
   }
 
   function renderPeople() {
-    const key = G.idle.map(s => s.id + s.role + (s.sick > 0 ? 's' + (s.sick | 0) : '') + (G.sel.includes(s.id) ? '*' : '')).join('|') + G.food;
+    const key = G.idle.map(s => s.id + s.role + (s.grief > 0 ? 'g' : '') + (s.sick > 0 ? 's' + (s.sick | 0) : '') + (G.sel.includes(s.id) ? '*' : '')).join('|') + G.food;
     if (key === lastPeople) return; lastPeople = key;
     const el = $('people');
     if (!G.idle.length) { el.innerHTML = '<div style="color:var(--dim)">None. Scavenge, send crews, or seal the camp to draw refugees.</div>'; return; }
     el.innerHTML = '';
     for (const s of G.idle) {
       const r = ROLES[s.role], c = document.createElement('div');
-      c.className = 'chip' + (G.sel.includes(s.id) ? ' sel' : ''); c.title = r.label + ': ' + r.desc;
-      c.innerHTML = '<span class="badge" style="background:' + r.color + '">' + r.letter + '</span><span style="flex:1">' + s.name + '<small style="color:var(--dim);display:block">' + r.label + '</small></span>';
+      c.className = 'chip' + (G.sel.includes(s.id) ? ' sel' : ''); c.title = survivorTip(s);
+      c.innerHTML = '<span class="badge" style="background:' + r.color + '">' + r.letter + '</span><span style="flex:1">' + s.name + '<small style="color:var(--dim);display:block">' + r.label + (s.traits && s.traits.length ? ' · ' + traitText(s) : '') + (s.grief > 0 ? ' · grieving' : '') + '</small></span>';
       if (s.sick > 0) {
         const b = document.createElement('button'); b.className = 'mini-btn'; b.textContent = 'Sick ' + (s.sick | 0) + 's · treat ' + SICK.treatCost + 'f';
         b.addEventListener('click', ev => { ev.stopPropagation(); treatSick(s.id); }); c.appendChild(b);
@@ -135,6 +141,29 @@ const UI = (() => {
       const b = document.createElement('button'); b.textContent = t.label; b.disabled = !canAfford(t.give);
       b.addEventListener('click', () => { doTrade(i); el.dataset.k = ''; }); el.appendChild(b);
     });
+  }
+
+  function survivorTip(s) {
+    const r = ROLES[s.role], friend = s.friend && findSurvivor(s.friend);
+    return s.name + ' - ' + r.label + '\n' + r.desc + '\n"' + (s.story || '') + '"\n' +
+      (s.traits || []).map(t => TRAITS[t].label + ': ' + TRAITS[t].desc).join('\n') +
+      (friend ? '\nFriend: ' + friend.name : '') + '\nKills: ' + (s.kills || 0) + (s.grief > 0 ? '\nGrieving a lost friend' : '');
+  }
+  // ---- memorial ---------------------------------------------------------------
+  function memorialHtml(limit) {
+    const list = G.memorial.slice().reverse();
+    if (!list.length) return '<div style="color:var(--dim)">Nobody has fallen yet.</div>';
+    return list.slice(0, limit || 99).map(m => '<div class="tech"><div><b>' + m.name + '</b> <span style="color:' + ROLES[m.role].color + '">' + ROLES[m.role].label + '</span>' +
+      '<small>' + m.cause + ' at ' + fmtTime(m.time) + ' · lasted ' + fmtTime(m.lived) + ' · ' + m.kills + ' kills' + (m.traits.length ? ' · ' + m.traits.map(t => TRAITS[t].label).join(', ') : '') + '</small></div></div>').join('') +
+      (limit && list.length > limit ? '<div style="color:var(--dim);padding-top:6px">...and ' + (list.length - limit) + ' more</div>' : '');
+  }
+  function toggleMemorial() {
+    const el = $('memorial'); el.classList.toggle('show');
+    if (el.classList.contains('show')) {
+      el.innerHTML = '<div class="row"><h3>Memorial - the fallen</h3><button id="mClose" style="padding:2px 8px">Close (G)</button></div>' + memorialHtml();
+      $('mClose').addEventListener('click', toggleMemorial);
+    }
+    Snd.click();
   }
 
   // ---- research ---------------------------------------------------------------
@@ -187,10 +216,11 @@ const UI = (() => {
         '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button></div>';
     } else if (mode === 'pause') {
       h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' + vol +
-        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
+        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
     } else {
       h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'The helicopter lifts you out of the dead town.' : 'The dead take the town.') + '</div>' +
         '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
+        '<h4 style="margin-top:12px">The fallen</h4><div style="max-height:30vh;overflow:auto">' + memorialHtml(8) + '</div>' +
         '<div>Difficulty</div>' + diffBtns + '<div id="menuBtns"><button id="mNew">New game</button></div>';
     }
     c.innerHTML = h; ov.classList.remove('hidden');
@@ -207,6 +237,7 @@ const UI = (() => {
     on('mContinue', () => { if (Save.load()) hideMenu(); else toast('Could not load the save'); });
     on('mFull', toggleFullscreen);
     on('mResume', hideMenu);
+    on('mMem', () => { hideMenu(); toggleMemorial(); });
     on('mSave', () => { toast(Save.save() ? 'Game saved' : 'Could not save'); });
     on('mQuit', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } showMenu('title'); });
   }
@@ -319,6 +350,7 @@ const UI = (() => {
       if (toolKeys[k]) { const t = TOOLS.find(x => x.id === toolKeys[k]); if (!(t.hidden && t.hidden())) G.tool = t.id; }
       else if (k === 'u') upgradeCore();
       else if (k === 'r') toggleResearch();
+      else if (k === 'g') toggleMemorial();
       else if (k === 'm') toast(Snd.toggleMute() ? 'Sound off' : 'Sound on');
       else if (k === 'f') toggleFullscreen();
       else if (k === ' ') { G.paused = !G.paused; e.preventDefault(); }

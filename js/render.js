@@ -95,7 +95,7 @@ function drawWorld(cam, cw, ch, z) {
   }
 
   // camp
-  Art.drawCamp(ctx, t, G.level, Math.max(0, G.coreHp / LEVELS[G.level - 1].coreHp));
+  Art.drawCamp(ctx, t, G.level, Math.max(0, G.coreHp / LEVELS[G.level - 1].coreHp), G.memorial.length);
 
   // walls, towers, gates, lookouts (y order so taller things overlap correctly)
   for (let y = vy0; y <= vy1; y++) for (let x = vx0; x <= vx1; x++) {
@@ -120,7 +120,7 @@ function drawWorld(cam, cw, ch, z) {
     if (o.py !== undefined) {
       shadow(o.px, o.py + 0.1, 10);
       drawUnit(o, o.px, o.py + 0.1, o.face, o.stab > 0 && o !== P ? -1 : 0);
-      const mhp = o === P ? PLAYER.hp : 60;
+      const mhp = o === P ? PLAYER.hp : (o.maxHp || 60);
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
       if (o === P) {
         ctx.fillStyle = '#ffd27a'; ctx.fillRect(o.px * T - 1, o.py * T - 29, 3, 2); ctx.fillRect(o.px * T, o.py * T - 27, 1, 1);
@@ -181,7 +181,7 @@ function drawCursor() {
     const { tx, ty } = G.hover, i = ty * W + tx, tool = G.tool;
     const who = inb(tx, ty) && defAt[i];                           // nameplate for a posted survivor
     if (who) {
-      const label = who.s.name + ' - ' + ROLES[who.s.role].label, x = who.px * T, y = who.py * T - 36;
+      const label = who.s.name + ' - ' + ROLES[who.s.role].label + (who.s.traits && who.s.traits.length ? ' (' + traitText(who.s) + ')' : ''), x = who.px * T, y = who.py * T - 36;
       ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center';
       const w = ctx.measureText(label).width + 6;
       ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - w / 2, y - 7, w, 10);

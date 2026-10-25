@@ -352,7 +352,7 @@ Art.drawWall = function (g, x, y, k, f, press, t, gateOpen) {
 };
 
 // ---- camp ---------------------------------------------------------------
-Art.drawCamp = function (g, t, level, hpFrac) {
+Art.drawCamp = function (g, t, level, hpFrac, fallen) {
   const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T, R = (c, a, b, w, h) => { g.fillStyle = c; g.fillRect(a, b, w, h); };
   // ground cloth / mats
   R('#3d4a52', cx + 2, cy + 6, T * 3 - 4, T * 3 - 8); R('#4a5a64', cx + 2, cy + 6, T * 3 - 4, 1);
@@ -371,6 +371,12 @@ Art.drawCamp = function (g, t, level, hpFrac) {
   R('#3a5a7a', cx + 36, cy + 30, 6, 9); R('#5a7a9a', cx + 36, cy + 30, 6, 2); R('#2a4258', cx + 36, cy + 34, 6, 1);
   if (level >= 3) { R('#2a3a58', cx + 30, cy + 8, 14, 8); R('#4a6a9a', cx + 31, cy + 9, 12, 2); R('#4a6a9a', cx + 31, cy + 12, 12, 2); }
   if (level >= 4) { R('#6a6a30', cx + 2, cy + 14, 8, 6); R('#3a3a1a', cx + 3, cy + 15, 6, 2); }
+  // memorial: a small cross for each fallen survivor
+  for (let i = 0; i < Math.min(fallen || 0, 24); i++) {
+    const x = cx - 14 - (i % 6) * 6, y = cy + 38 - ((i / 6) | 0) * 9;
+    R('#00000055', x - 2, y + 5, 6, 2); R('#4a3a2a', x - 2, y + 4, 5, 2);
+    R('#d8d6c8', x, y - 1, 1, 6); R('#d8d6c8', x - 1, y, 3, 1);
+  }
   // fire pit
   const fx = cx + T * 1.5, fy = cy + T * 2;
   R('#2a2824', fx - 6, fy - 1, 12, 5); R('#44403a', fx - 5, fy - 2, 10, 4); R('#201e1a', fx - 3, fy - 1, 6, 2);

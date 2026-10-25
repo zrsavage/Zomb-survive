@@ -130,6 +130,7 @@
   <div class="res"><b style="background:var(--ammo)"></b><span id="rAmmo">0</span> <small id="dAmmo"></small></div>
   <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
   <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
+  <div class="res" id="morWrap" title="Camp morale">Morale <span id="mor">70</span></div>
   <div class="res">Health <span id="pHp">100</span></div>
   <div class="res">In sight <span id="zCount">0</span></div>
 </div>
@@ -157,6 +158,9 @@
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
   <div class="row"><span>People / Lookouts</span><span id="iPpl"></span></div>
+  <div class="row"><span>Morale</span><span id="iMor"></span></div>
+  <div class="bar"><i id="morBar" style="width:70%"></i></div>
+  <button id="btnFallen" style="margin-top:4px;justify-content:center"><span><kbd>G</kbd>Memorial</span><span class="cost" id="cFallen"></span></button>
   <h4>Idle survivors <small style="text-transform:none;letter-spacing:0">(click to select)</small></h4>
   <div id="people"></div>
   <div id="crewsH"><h4>Crews out</h4><div id="crews"></div></div>
@@ -169,6 +173,7 @@
 
 <div id="trade" class="panel"></div>
 <div id="research" class="panel modal"></div>
+<div id="memorial" class="panel modal"></div>
 
 <canvas id="mini" width="64" height="44"></canvas>
 <div id="help" class="panel">WASD move (Shift sprint) · hold E scavenge · click/drag build · wheel zoom · right-drag look · R research · M mute · Space pause · Esc menu</div>
