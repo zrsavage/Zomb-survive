@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zomb Survive</title>
+<style>
+  :root{
+    --bg:#0e1210; --panel:#161c18ee; --line:#2b372f; --txt:#d8e6d4; --dim:#8da08a;
+    --ammo:#e8c547; --mat:#c98b52; --food:#7fcf6a; --bad:#e8524a; --good:#5ec26a; --acc:#4fa3e8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font:13px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden;user-select:none}
+  canvas{display:block;position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair}
+  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+  #top{top:8px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;white-space:nowrap;max-width:calc(100vw - 16px);overflow:hidden}
+  .res b{display:inline-block;width:10px;height:10px;margin-right:5px;border-radius:2px;vertical-align:-1px}
+  .res small{color:var(--dim)}
+  #clock{min-width:150px}
+  #clock .bar{height:4px;background:#2a332d;border-radius:2px;margin-top:3px;overflow:hidden}
+  #clock .bar i{display:block;height:100%;background:var(--acc);width:0}
+  #clock.night .bar i{background:var(--bad)}
+  #tools{left:8px;top:8px;width:196px;display:flex;flex-direction:column;gap:6px}
+  #tools h4,#side h4{margin:2px 0 0;font-size:11px;color:var(--dim);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  button{font:inherit;color:var(--txt);background:#212b25;border:1px solid var(--line);border-radius:5px;padding:6px 8px;
+    text-align:left;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+  button:hover{background:#2b382f}
+  button.on{border-color:var(--acc);background:#223442}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button kbd{color:var(--dim);font:inherit}
+  button .cost{color:var(--dim)}
+  #side{right:8px;top:8px;width:230px;display:flex;flex-direction:column;gap:6px}
+  #side .row{display:flex;justify-content:space-between}
+  .warn{color:var(--bad)} .ok{color:var(--good)}
+  #speed{display:flex;gap:4px}
+  #speed button{flex:1;justify-content:center;padding:5px 0}
+  #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;
+    background:#000a;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:15px;white-space:nowrap}
+  #toast.show{opacity:1}
+  #help{left:8px;bottom:8px;color:var(--dim);max-width:420px}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000b;z-index:5}
+  #overlay.hidden{display:none}
+  #card{max-width:520px;padding:22px 26px;background:#141a16;border:1px solid var(--line);border-radius:10px}
+  #card h1{margin:0 0 6px;font-size:26px;letter-spacing:.04em}
+  #card p{margin:8px 0;color:#bccdb8}
+  #card ul{margin:8px 0 14px;padding-left:18px;color:#bccdb8}
+  #card button{display:inline-block;background:#2f6a3a;border-color:#4a9a58;font-size:15px;padding:9px 18px}
+  @media (max-width:900px){#side{display:none}#help{display:none}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="top" class="panel">
+  <div id="clock"><span id="clockTxt">Day 1</span><div class="bar"><i id="clockBar"></i></div></div>
+  <div class="res"><b style="background:var(--ammo)"></b><span id="rAmmo">0</span> <small id="dAmmo"></small></div>
+  <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
+  <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
+  <div class="res">Zombies <span id="zCount">0</span></div>
+</div>
+
+<div id="tools" class="panel">
+  <h4>Build</h4>
+  <button data-tool="wall"><span><kbd>1</kbd> Wall</span><span class="cost" id="cWall"></span></button>
+  <button data-tool="tower"><span><kbd>2</kbd> Tower</span><span class="cost" id="cTower"></span></button>
+  <button data-tool="def"><span><kbd>3</kbd> Defender</span><span class="cost" id="cDef"></span></button>
+  <button data-tool="erase"><span><kbd>4</kbd> Demolish</span><span class="cost">50%</span></button>
+  <h4>Base</h4>
+  <button id="btnUp"><span><kbd>U</kbd> Upgrade core</span><span class="cost" id="cUp"></span></button>
+  <button id="btnNight"><span><kbd>N</kbd> Call the night</span></button>
+  <h4>Time</h4>
+  <div id="speed">
+    <button data-speed="0">II</button><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
+  </div>
+</div>
+
+<div id="side" class="panel">
+  <h4>Base</h4>
+  <div class="row"><span>Core level</span><span id="iLvl"></span></div>
+  <div class="row"><span>Core health</span><span id="iCore"></span></div>
+  <div class="row"><span>Territory</span><span id="iTerr"></span></div>
+  <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
+  <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
+  <div class="row"><span>Defenders</span><span id="iDef"></span></div>
+  <h4>Record</h4>
+  <div class="row"><span>Nights survived</span><span id="iNights"></span></div>
+  <div class="row"><span>Zombies killed</span><span id="iKills"></span></div>
+</div>
+
+<div id="help" class="panel">WASD / arrows or right-drag: pan &nbsp; Wheel: zoom &nbsp; Left-click / drag: build &nbsp; Space: pause</div>
+<div id="toast"></div>
+
+<div id="overlay">
+  <div id="card">
+    <h1 id="ovTitle">ZOMB SURVIVE</h1>
+    <div id="ovBody">
+      <p>The town is overrun. Your core is the last safe spot. Wall in the streets, claim the buildings inside your perimeter and use what they produce to grow.</p>
+      <ul>
+        <li><b>Walls</b> are free-form. Zombies path around them through any gap, so you can funnel them. Buildings also act as walls.</li>
+        <li><b>Defenders</b> stand on walls and towers. They shoot at range (uses ammo), then stab zombies climbing over (free).</li>
+        <li><b>Territory</b> is everything sealed in with your core, up to a limit. Upgrade the core to hold more of the town.</li>
+        <li>Night brings the hordes. They are weak, but there are a lot of them.</li>
+      </ul>
+    </div>
+    <button id="btnStart">Start</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
