@@ -38,7 +38,7 @@ const Outside = {
   },
   herdTarget(h) {
     for (let t = 0; t < 60; t++) {
-      const toCamp = rng() < 0.3, a = rng() * 6.283, d = 12 + rng() * 16;
+      const toCamp = G.hordeN >= 1 && rng() < 0.3, a = rng() * 6.283, d = 12 + rng() * 16;
       const x = clamp(((toCamp ? CORE.x : h.cx) + Math.cos(a) * d) | 0, 1, W - 2), y = clamp(((toCamp ? CORE.y : h.cy) + Math.sin(a) * d * 0.7) | 0, 1, H - 2), i = y * W + x;
       if (ground[i] !== 1 || bld[i] >= 0 || Math.hypot(x - h.cx, y - h.cy) < 8) continue;
       h.tx = x + 0.5; h.ty = y + 0.5; computeField([i], h.D, h.N); return;
@@ -48,8 +48,8 @@ const Outside = {
     for (let t = 0; t < 60; t++) {
       const x = 1 + (rng() * (W - 2) | 0), y = 1 + (rng() * (H - 2) | 0), i = y * W + x;
       if (ground[i] !== 1 || Math.hypot(x - CORE.x, y - CORE.y) < 22) continue;
-      const h = { id: ++G.herdId, tx: x, ty: y, D: new Float32Array(W * H), N: new Int32Array(W * H), n: 0, cx: x, cy: y, seen: false };
-      const n = Math.round((HERD.min + rng() * (HERD.max - HERD.min)) * Math.min(2, 1 + 0.05 * G.hordeN));
+      const h = { id: ++G.herdId, tx: x, ty: y, D: new Float64Array(W * H), N: new Int32Array(W * H), n: 0, cx: x, cy: y, seen: false };
+      const n = Math.round((HERD.min + rng() * (HERD.max - HERD.min)) * Math.min(2, 0.6 + 0.2 * G.hordeN));      // small until the camp has seen a horde
       for (let k = 0; k < n; k++) {
         const zx = x + (rng() - 0.5) * 4, zy = y + (rng() - 0.5) * 3, zi = (zy | 0) * W + (zx | 0);
         if (!inb(zx | 0, zy | 0) || bld[zi] >= 0 || zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) continue;
@@ -72,8 +72,8 @@ const Outside = {
       n.t -= dt;
       if (n.t > 0) continue;
       n.t = NEST.spawnGap * (0.8 + rng() * 0.4);
-      let near = 0; for (const z of zombies) if (z.mode === 0 && Math.abs(z.x - b.x - b.w / 2) < NEST.near && Math.abs(z.y - b.y - b.h / 2) < NEST.near) near++;
-      if (near >= 10 || zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) continue;
+      let near = 0; for (const z of zombies) if ((z.mode === 0 || z.mode === 2) && Math.abs(z.x - b.x - b.w / 2) < NEST.near && Math.abs(z.y - b.y - b.h / 2) < NEST.near) near++;
+      if (near >= (b.claimed ? 4 : 10) || zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) continue;
       const x = b.x + b.w / 2 + (rng() - 0.5) * b.w, y = b.y + b.h + 0.8, i = (y | 0) * W + (x | 0);
       if (!inb(x | 0, y | 0) || bld[i] >= 0) continue;
       zombies.push(makeZombie(x, y, b.claimed ? 2 : 0, 0));          // inside our territory they go straight for the camp

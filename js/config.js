@@ -10,9 +10,9 @@ const CORE = { x: 34, y: 23 };   // centre tile of the 3x3 camp core
 const SAVE_KEY = 'zomb-survive-save-v1';
 
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   size: 0.7, gap: 1.3, first: 360, ambient: 0.7 },
-  normal: { label: 'Normal', size: 1.0, gap: 1.0, first: 270, ambient: 1.0 },
-  hard:   { label: 'Hard',   size: 1.4, gap: 0.8, first: 200, ambient: 1.3 },
+  easy:   { label: 'Easy',   size: 0.7, gap: 1.3, first: 540, ambient: 0.7 },
+  normal: { label: 'Normal', size: 1.0, gap: 1.0, first: 420, ambient: 1.0 },
+  hard:   { label: 'Hard',   size: 1.4, gap: 0.8, first: 300, ambient: 1.3 },
 };
 
 // ---- structures ---------------------------------------------------------------
@@ -28,7 +28,7 @@ const COST = {
 const RADIO_LEVEL = 4;           // camp level needed to build the radio tower
 const RESCUE_TIME = 240;         // seconds you must hold out after the radio goes up
 const BUILD_RANGE = 11;          // tiles from the survivor
-const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1 };
+const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
 // Walls hold: zombies never break through, they pile up and climb over the heap.
 // Each zombie queued at a wall tile makes the pile higher, so the others climb faster.
@@ -89,8 +89,8 @@ const HORDE_MIX = [
 const SCREAM = { gap: 5, radius: 18, rageRadius: 10, rageTime: 4, rageSpeed: 1.35 };
 const BLOAT = { radius: 1.9, defDmg: 28, playerDmg: 22, zombieDmg: 12 };
 
-// Hordes: first arrives after DIFFICULTY.first seconds, then at random intervals, growing 1.4x each time.
-const HORDE = { gapMin: 55, gapMax: 110, base: 40, growth: 1.4, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
+// Hordes: first arrives after DIFFICULTY.first seconds (long enough to scavenge, wall in and recruit), then at random intervals, growing 1.4x each time.
+const HORDE = { gapMin: 90, gapMax: 160, base: 28, growth: 1.28, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
 const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 12 };
 
 // ---- combat ---------------------------------------------------------------

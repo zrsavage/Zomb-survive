@@ -91,7 +91,7 @@ const Base = {
         }
         case 'turret':
           f.on = ratio > 0.25 && demand > 0;
-          if (f.on) { fight(f, dt, { starving: false, noiseMode: 2, noMelee: true, range: GUN.range + 1, cd: GUN.cd * 1.15 }); }
+          if (f.on) { fight(f, dt, { starving: false, noiseMode: 3, noMelee: true, range: GUN.range + 1, cd: GUN.cd * 1.15 }); }
           break;
       }
     }

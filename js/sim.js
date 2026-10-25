@@ -171,7 +171,7 @@ function buildTown(seed, name, opts) {
   const D = DIFFICULTY[diffKey] || DIFFICULTY.normal;
   G = {
     seed, diff: diffKey || 'normal', townName: name, level: 1, ammo: 40, mat: 45, food: 30, med: 4, fuel: 0, water: WATER.start, hygiene: HYGIENE.start, ap: 0, inc: 0, blades: 0, keys: 0, craft: 'ammo',
-    fog: 0, thirstT: WATER.thirstGap, incT: 0, supply: 1, supplyLvl: 0, depleted: 0, outposts: [], herdT: 170, herdScan: 0, herdId: 0, herdMsg: null, batt: 0, truckT: 0, idle: [], crews: [], sel: [], sid: Campaign.sid,
+    fog: 0, thirstT: WATER.thirstGap, incT: 0, supply: 1, supplyLvl: 0, depleted: 0, outposts: [], herdT: 450, herdScan: 0, herdId: 0, herdMsg: null, batt: 0, truckT: 0, idle: [], crews: [], sel: [], sid: Campaign.sid,
     nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
     coreHp: LEVELS[0].coreHp, kills: 0, elapsed: Campaign.t,
     hordeN: 0, hordesBeaten: 0, nextHorde: D.first + (opts.grace || 0), hordeId: 0, rescue: null,
@@ -320,7 +320,7 @@ function updateZombies(dt) {
 
     // bite the survivor
     const pdx = P.px - z.x, pdy = P.py - z.y;
-    if (P.dead <= 0 && pdx * pdx + pdy * pdy < 0.5) {
+    if (P.dead <= 0 && !(P.safe > 0) && pdx * pdx + pdy * pdy < 0.5) {
       P.hp -= zt.dmg * dt; P.hurt = 1.5; z.face = pdx > 0 ? 1 : -1; z.st = 1; Snd.hurt();
       if (P.hp <= 0) killPlayer();
       continue;
@@ -341,7 +341,7 @@ function updateZombies(dt) {
       if (target.hp <= 0) killDefender(target);
       continue;
     }
-    if (Math.hypot(z.x - cx, z.y - cy) < 2.2) {
+    if (z.mode === 2 && Math.hypot(z.x - cx, z.y - cy) < 2.2) {
       G.coreHp -= zt.dmg * dt; z.face = cx > z.x ? 1 : -1; z.st = 1;
       if (G.coreHp <= 0 && !G.over) Campaign.campFell();
       continue;
@@ -386,7 +386,7 @@ function updateZombies(dt) {
       continue;
     }
     let D = dist, N = nextTile;
-    if (zt.noClimb) { if (z.mode === 1) z.mode = 2; if (z.mode === 2) { D = ddist; N = dnext; } }      // dogs cannot climb: they need a gap
+    if (zt.noClimb && z.mode === 2) { D = ddist; N = dnext; }      // raiding dogs cannot climb: they need a gap
     if (z.mode === 1) {
       D = pdist; N = pnext;
       if (pdx * pdx + pdy * pdy > AMBIENT.forget * AMBIENT.forget) { z.lose += dt; if (z.lose > 5) { z.mode = 0; continue; } } else z.lose = 0;
@@ -408,6 +408,7 @@ function updateZombies(dt) {
     const dx = tcx - z.x, dy = tcy - z.y, dd = Math.hypot(dx, dy) || 1;
     const onWall = wall[ti] > 0;
 
+    if (zt.noClimb && ni >= 0 && wall[ni] && !onWall) { z.st = 3; continue; }       // a chasing dog stops at the wall instead of climbing
     if (ni >= 0 && wall[ni] && !onWall && Math.max(Math.abs(dx), Math.abs(dy)) <= 0.9) {
       // queue at the wall and climb over the pile
       const p = pile[ni];
@@ -508,11 +509,13 @@ function updateDecoys(dt) {
 }
 function alertNoise(x, y, r, mode) {           // gunfire draws idle zombies in
   const r2 = r * r;
+  let any = false;
   for (const z of zombies) {
     if (z.mode !== 0) continue;
     const dx = z.x - x, dy = z.y - y;
-    if (dx * dx + dy * dy < r2) { z.mode = mode; z.lose = 0; }
+    if (dx * dx + dy * dy < r2) { z.mode = mode; z.lose = 0; z.look = 0; z.prev = 0; any = true; }
   }
+  if (any && mode === 3) computeNoiseField(x, y);
 }
 
 // ---- fighting (shared by defenders and the survivor) ---------------------------------------------------------------
@@ -534,7 +537,7 @@ function fight(e, dt, o) {
       addBurst(near.x, near.y - 0.3, '#9ad06a', 2);
       tracers.push({ x1: near.x - 0.25, y1: near.y - 0.5, x2: near.x + 0.25, y2: near.y - 0.1, life: 0.12, slash: true });
       Snd.stab(near.x, near.y);
-      if (near.mode === 0) { near.mode = o.noiseMode; near.lose = 0; }
+      if (near.mode === 0) { near.mode = o.noiseMode === 3 ? 2 : o.noiseMode; near.lose = 0; }
       if (e.s) addXp(e.s, 'melee', 1.2);
     }
     return;
@@ -545,6 +548,8 @@ function fight(e, dt, o) {
   for (let j = 0; j < zombies.length; j++) {
     const z = zombies[j]; if (z.hp <= 0) continue;
     const dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
+    if (o.noiseMode === 1 && z.mode !== 1 && q > 9) continue;      // the survivor does not waste rounds on idle dead that haven't noticed them
+    if (o.noiseMode !== 1 && G.ammo < 30 && (z.mode === 0 || z.mode === 3) && q > 6) continue;      // low on ammo: defenders hold fire on dawdlers that are not at the wall
     if (q < bd) { bd = q; best = z; }
   }
   if (best) {
@@ -580,7 +585,7 @@ function updateDefenders(dt) {
     if (d.s.lover) { const l = defenders.find(o => o.s.id === d.s.lover); if (l && (l.px - d.px) ** 2 + (l.py - d.py) ** 2 < 49) { rel.dmg = REL.loverDmg; rel.cd = 0.95; } }
     if (d.s.rival) { const r = defenders.find(o => o.s.id === d.s.rival); if (r && (r.px - d.px) ** 2 + (r.py - d.py) ** 2 < 25) rel.cd *= REL.rivalCd; }
     fight(d, dt, {
-      starving, noiseMode: 2, range: tower ? GUN.towerRange : GUN.range, cd: tower ? GUN.towerCd : GUN.cd,
+      starving, noiseMode: 3, range: tower ? GUN.towerRange : GUN.range, cd: tower ? GUN.towerCd : GUN.cd,
       rangeMul: (sn ? SNIPER.range : 1) * tmul(d.s, 'range'), dmgMul: (sn ? SNIPER.dmg : 1) * tmul(d.s, 'dmg') * skillMul(d.s, 'shoot') * rel.dmg,
       cdMul: (sn ? SNIPER.cd : 1) * tmul(d.s, 'cd') * moraleCd() * (d.s.grief > 0 ? 1.25 : 1) * (1 - 0.03 * skillLv(d.s, 'shoot')) * ruleMul('fire') * rel.cd * Base.floodMul(d),
       meleeMul: tmul(d.s, 'melee') * skillMul(d.s, 'melee'), ammoCost: tmul(d.s, 'ammo'), sniper: sn,
@@ -660,6 +665,7 @@ const lootTime = () => LOOT_TIME * (has('scav') ? 0.7 : 1);
 function killPlayer() {
   if (P.dead > 0) return;
   P.dead = PLAYER.respawn; P.hp = 0; P.loot = 0; P.moving = false; G.deaths++;
+  for (const z of zombies) if (z.mode === 1 || z.mode === 3) { z.mode = 0; z.lose = 0; }     // the pack that killed you loses the trail
   P.px = CORE.x + 0.5; P.py = CORE.y + 2.8;                 // chasers lose the trail and head for the walls
   G.mat = Math.floor(G.mat * (1 - PLAYER.deathPenalty)); G.ammo = Math.floor(G.ammo * (1 - PLAYER.deathPenalty)); G.food = Math.floor(G.food * (1 - PLAYER.deathPenalty));
   shake(4); Snd.error();
@@ -671,7 +677,7 @@ function updatePlayer(dt) {
   if (P.dead > 0) {
     G.noticeR = AMBIENT.notice * NOISE.still;
     P.dead -= dt; P.moving = false; P.st = 'idle';
-    if (P.dead <= 0) { P.dead = 0; P.hp = PLAYER.hp * 0.6; P.hurt = 0; log('A new survivor takes the field.'); }
+    if (P.dead <= 0) { P.dead = 0; P.hp = PLAYER.hp * 0.6; P.hurt = 0; P.safe = 4; log('A new survivor takes the field.'); }
     return;
   }
   let mx = 0, my = 0;
@@ -694,7 +700,7 @@ function updatePlayer(dt) {
     if (mx) P.face = mx > 0 ? 1 : -1;
     P.anim += dt * 9 * (keys.shift ? 1.4 : 1);
   }
-  P.hurt -= dt; if (P.stab > 0) P.stab -= dt;
+  P.hurt -= dt; if (P.stab > 0) P.stab -= dt; if (P.safe > 0) P.safe -= dt;
   const safe = claimed[(P.py | 0) * W + (P.px | 0)] || Math.hypot(P.px - CORE.x, P.py - CORE.y) < 6;
   if (P.hurt <= 0) {
     const medic = safe && G.idle.some(s => s.role === 'medic' && !s.sick) ? MEDIC.playerBonus : 0;
@@ -744,7 +750,7 @@ function updatePlayer(dt) {
   }
 
   const tile = wall[(P.py | 0) * W + (P.px | 0)];
-  fight(P, dt, { starving: false, noiseMode: 1, range: (tile === K.TOWER || tile === K.OUTPOST) ? GUN.towerRange : GUN.range, cd: GUN.cd * 0.75 });
+  fight(P, dt, { starving: false, noiseMode: 1, ammoCost: PLAYER.ammoCost, range: (tile === K.TOWER || tile === K.OUTPOST) ? GUN.towerRange : GUN.range, cd: GUN.cd * 0.75 });
   P.st = P.st === 'idle' && moving ? 'walk' : P.st;
 }
 function scavenge(b) {
@@ -831,13 +837,17 @@ function updateEconomy(dt) {
   const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0) * ruleMul('upkeep') * season().upkeep;
   const base = 1 + 0.3 * (G.level - 1);
   const im = ruleMul('income');
-  const ra = 0.04 * base, rm = 0.1 * base, rf = 0.08 * base - upkeep;                       // the camp's own trickle; buildings are handled by extract()
+  const ra = 0.1 * base, rm = 0.1 * base, rf = 0.08 * base - upkeep;                       // the camp's own trickle; buildings are handled by extract()
   G.net = { a: ra + G.income.a * im, m: rm + G.income.m * im, f: rf + G.income.f * im, med: G.income.med * im, fuel: G.income.fuel * im - G.power.burn, water: G.income.water * im };
   const cap = storeCap();
   Survival.extract(dt);
   G.ammo = clamp(G.ammo + ra * dt, 0, cap);
   G.mat = clamp(G.mat + rm * dt, 0, cap);
   G.food = clamp(G.food + rf * dt, 0, cap);
+  if (G.ammo < 30 && G.mat > 30) {                                  // before a workshop exists, someone hand-loads rounds from scrap so the camp never runs completely dry
+    G.handT = (G.handT || 0) + dt;
+    if (G.handT >= 4) { G.handT = 0; G.mat -= 3; G.ammo += 1; }
+  }
 
   G.repairT -= dt;
   if (G.repairT <= 0) {
@@ -932,7 +942,7 @@ function fireEvent() {
   if (!kind) return;
   if (kind === 'fog') { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; }
   if (kind === 'stranger') { const s = newSurvivor(); addRecruit(s, 'wandered in and asked to stay'); moraleGain('refugee'); Snd.pickup(); return; }
-  if (kind === 'stragglers') { startHorde({ minor: true, mult: 0.3 }); return; }          // no warning: a few dozen drift in
+  if (kind === 'stragglers') { if (!defenders.length) { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; } startHorde({ minor: true, mult: 0.3 }); return; }          // no warning: a few dozen drift in
   if (kind === 'drop') {
     for (let t = 0; t < 40; t++) {
       const x = 2 + (rng() * (W - 4) | 0), y = 2 + (rng() * (H - 4) | 0), i = y * W + x, d = Math.hypot(x - CORE.x, y - CORE.y);

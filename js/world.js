@@ -8,13 +8,13 @@ const wall = new Uint8Array(W * H);            // 0 none, else K.* kind
 const wallHp = new Float32Array(W * H);
 const wallTier = new Uint8Array(W * H);         // 0 timber, 1 reinforced, 2 concrete
 const elec = new Uint8Array(W * H);             // 1 = electrified wall
-const ddist = new Float32Array(W * H), dnext = new Int32Array(W * H);       // flow field for things that cannot climb
+const ddist = new Float64Array(W * H), dnext = new Int32Array(W * H);       // flow field for things that cannot climb
 const claimed = new Uint8Array(W * H);
 const explored = new Uint8Array(W * H);
 const vis = new Uint8Array(W * H);             // currently in sight
-const dist = new Float32Array(W * H), nextTile = new Int32Array(W * H);     // flow field to the camp
-const pdist = new Float32Array(W * H), pnext = new Int32Array(W * H);       // flow field to the survivor
-const ndist = new Float32Array(W * H), nnext = new Int32Array(W * H);       // flow field to the latest noise
+const dist = new Float64Array(W * H), nextTile = new Int32Array(W * H);     // flow field to the camp
+const pdist = new Float64Array(W * H), pnext = new Int32Array(W * H);       // flow field to the survivor
+const ndist = new Float64Array(W * H), nnext = new Int32Array(W * H);       // flow field to the latest noise
 let buildings = [], lamps = [];
 let defAt = new Array(W * H).fill(null);
 let trapAt = new Array(W * H).fill(null);
@@ -139,7 +139,8 @@ function computeField(sources, D, N, solid) {
     return top;
   };
   for (const i of sources) { D[i] = 0; push(0, i); }
-  while (heap.length) {
+  let guard = 0;
+  while (heap.length && guard++ < 400000) {          // distances are Float64 so equal values compare equal; the cap is a last-resort safety net
     const [d, i] = pop();
     if (d > D[i]) continue;
     const x = i % W, y = (i / W) | 0;
