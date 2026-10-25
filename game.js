@@ -30,12 +30,15 @@ const BUILDING_TYPES = {
 };
 
 const ZTYPES = {
-  walker: { hp: 20,  speed: 1.0, dmg: 6,  wallDmg: 2,  climb: 1.6, scale: 1.0 },
-  runner: { hp: 16,  speed: 2.3, dmg: 5,  wallDmg: 1.5, climb: 0.9, scale: 0.9 },
-  brute:  { hp: 140, speed: 0.75, dmg: 16, wallDmg: 24, climb: 0,   scale: 1.5 },
+  walker: { hp: 20,  speed: 1.0, dmg: 6,  climb: 1.8, scale: 1.0 },
+  runner: { hp: 16,  speed: 2.3, dmg: 5,  climb: 1.0, scale: 0.9 },
+  brute:  { hp: 140, speed: 0.75, dmg: 16, climb: 3.0, scale: 1.5 },
 };
 
-const DAY_LEN = 50, NIGHT_LEN = 60, MAX_ZOMBIES = 1500;
+const DAY_LEN = 90, NIGHT_LEN = 60, MAX_ZOMBIES = 6000;
+// Walls hold: zombies never break through, they pile up and climb over the heap.
+// Each zombie queued at a wall tile makes the pile higher, so the others climb faster.
+const PILE_SPEEDUP = 0.12, PILE_MAX_SPEEDUP = 6, PILE_PRESSURE = 0.02;   // pressure = wall hp/s lost per queued zombie
 const GUN = { dmg: 24, range: 8, cd: 0.8, towerRange: 11, towerCd: 0.55 };
 const MELEE = { dmg: 20, range: 1.6, cd: 0.35 };
 
@@ -305,7 +308,7 @@ function newGame() {
   wall.fill(0); wallHp.fill(0); defAt = new Array(W * H).fill(null);
   zombies = []; defenders = []; tracers = []; parts = [];
   G = {
-    level: 1, ammo: 150, mat: 200, food: 90,
+    level: 1, ammo: 400, mat: 250, food: 90,
     coreHp: LEVELS[0].coreHp, kills: 0,
     night: false, nightNum: 0, phaseT: 0, spawnAcc: 0, nightTotal: 0, nightsSurvived: 0,
     over: false, paused: false, speed: 1, tool: 'wall',
@@ -363,6 +366,7 @@ function spawnZombie() {
 
 // ---- zombie logic ---------------------------------------------------------------
 const cellHead = new Int32Array(W * H), cellNext = [];
+let pile = new Uint16Array(W * H), pileNow = new Uint16Array(W * H);
 function updateZombies(dt) {
   const n = zombies.length;
   cellHead.fill(-1); cellNext.length = n;
@@ -371,6 +375,7 @@ function updateZombies(dt) {
     cellNext[k] = cellHead[c]; cellHead[c] = k;
   }
   const cx = CORE.x + 0.5, cy = CORE.y + 0.5;
+  [pile, pileNow] = [pileNow, pile]; pileNow.fill(0);
   for (let k = n - 1; k >= 0; k--) {
     const z = zombies[k], zt = ZTYPES[z.type];
     if (z.hp <= 0) { killZombie(k); continue; }
@@ -406,17 +411,19 @@ function updateZombies(dt) {
     let dx = tcx - z.x, dy = tcy - z.y;
     const dd = Math.hypot(dx, dy) || 1;
     const onWall = wall[ti] > 0;
+    z.lift = 0;
 
     if (wall[ni] && !onWall) {
-      // at a wall: climb it (or smash it, for brutes)
-      if (Math.max(Math.abs(dx), Math.abs(dy)) <= 0.72) {
-        wallHp[ni] -= zt.wallDmg * dt;
+      // queue at the wall and climb over the pile
+      if (Math.max(Math.abs(dx), Math.abs(dy)) <= 0.9) {
+        const p = pile[ni];
+        pileNow[ni]++;
+        z.lift = Math.min(10, p * 0.25);
+        wallHp[ni] -= PILE_PRESSURE * p * dt;
         z.face = dx > 0 ? 1 : -1;
-        if (wallHp[ni] <= 0) { breakWall(ni); continue; }
-        if (zt.climb > 0) {
-          z.climb += dt;
-          if (z.climb >= zt.climb) { z.climb = 0; z.x = tcx + (rng() - 0.5) * 0.3; z.y = tcy + (rng() - 0.5) * 0.3; }
-        }
+        if (wallHp[ni] <= 1) wallHp[ni] = 1;            // walls hold
+        z.climb += dt * Math.min(PILE_MAX_SPEEDUP, 1 + p * PILE_SPEEDUP);
+        if (z.climb >= zt.climb) { z.climb = 0; z.lift = 0; z.x = tcx + (rng() - 0.5) * 0.3; z.y = tcy + (rng() - 0.5) * 0.3; }
         separate(k, z, dt);
         continue;
       }
@@ -444,7 +451,7 @@ function separate(k, z, dt) {
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
     const nx = tx + dx, ny = ty + dy;
     if (!inb(nx, ny)) continue;
-    for (let j = cellHead[ny * W + nx]; j >= 0 && seen < 8; j = cellNext[j]) {
+    for (let j = cellHead[ny * W + nx]; j >= 0 && seen < 4; j = cellNext[j]) {
       if (j === k) continue;
       const o = zombies[j]; if (!o) continue;
       const ox = z.x - o.x, oy = z.y - o.y, d2 = ox * ox + oy * oy;
@@ -456,8 +463,8 @@ function separate(k, z, dt) {
 function killZombie(k) {
   const z = zombies[k];
   G.kills++;
-  if (rng() < 0.35) G.mat = Math.min(storeCap(), G.mat + 1);
-  if (rng() < 0.06) G.food = Math.min(storeCap(), G.food + 1);
+  if (rng() < 0.1) G.mat = Math.min(storeCap(), G.mat + 1);
+  if (rng() < 0.03) G.food = Math.min(storeCap(), G.food + 1);
   const g = decals.getContext('2d');
   g.fillStyle = rng() < 0.5 ? '#6a1c1c' : '#4a2a1a'; g.globalAlpha = 0.7;
   for (let i = 0; i < 4; i++) g.fillRect(z.x * T + (rng() - 0.5) * 8, z.y * T + (rng() - 0.5) * 8, 1 + (rng() * 2 | 0), 1 + (rng() * 2 | 0));
@@ -465,13 +472,6 @@ function killZombie(k) {
   addBurst(z.x, z.y, '#7a1c1c', 3);
   zombies[k] = zombies[zombies.length - 1]; zombies.pop();
 }
-function breakWall(i) {
-  wall[i] = 0; wallHp[i] = 0;
-  const d = defAt[i]; if (d) removeDefender(d);
-  G.fieldDirty = true;
-  addBurst(i % W + 0.5, ((i / W) | 0) + 0.5, '#9a7a4a', 8);
-}
-
 // ---- defenders ---------------------------------------------------------------
 function updateDefenders(dt) {
   const starving = G.food <= 0;
@@ -563,8 +563,8 @@ function updatePhase(dt) {
 }
 function startNight() {
   G.night = true; G.phaseT = 0; G.nightNum++;
-  G.nightTotal = 30 + 25 * G.nightNum;
-  toast('Night ' + G.nightNum + ' - about ' + G.nightTotal + ' of them are coming');
+  G.nightTotal = 600 + 400 * G.nightNum;
+  toast('Night ' + G.nightNum + ' - ' + G.nightTotal + ' of them are coming');
 }
 
 // ---- build actions ---------------------------------------------------------------
@@ -697,7 +697,7 @@ function render() {
     } else {
       const zt = ZTYPES[o.type];
       const img = o.type === 'walker' ? SPR[o.variant] : SPR[o.type];
-      const bob = Math.sin(o.anim) * 0.8 - (o.climb > 0 ? 3 : 0);
+      const bob = Math.sin(o.anim) * 0.8 - o.lift;
       drawSprite(img, o.x, o.y, zt.scale, o.face < 0, bob);
       if (o.type === 'brute' && o.hp < zt.hp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.x * T - 6, o.y * T - 22, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.x * T - 6, o.y * T - 22, 12 * o.hp / zt.hp, 2); }
     }
