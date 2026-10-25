@@ -6,14 +6,24 @@
 <title>Zomb Survive</title>
 <style>
   :root{
-    --bg:#0e1210; --panel:#161c18ee; --line:#2b372f; --txt:#d8e6d4; --dim:#8da08a;
+    --bg:#0b0f0d; --panel:#131a16ee; --panel2:#1a231e; --line:#2b372f; --txt:#d8e6d4; --dim:#8da08a;
     --ammo:#e8c547; --mat:#c98b52; --food:#7fcf6a; --bad:#e8524a; --good:#5ec26a; --acc:#4fa3e8;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
     font:13px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden;user-select:none}
   canvas#c{display:block;position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair}
-  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+  .panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:8px 10px;box-shadow:0 4px 18px #0009;backdrop-filter:blur(3px)}
+  h4{margin:4px 0 0;font-size:11px;color:var(--dim);font-weight:600;letter-spacing:.09em;text-transform:uppercase}
+  button{font:inherit;color:var(--txt);background:#212b25;border:1px solid var(--line);border-radius:5px;padding:5px 8px;text-align:left;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center}
+  button:hover:not(:disabled){background:#2b382f}
+  button.on{border-color:var(--acc);background:#223442}
+  button:disabled{opacity:.42;cursor:not-allowed}
+  kbd{color:var(--dim);font:inherit;margin-right:3px}
+  .cost{color:var(--dim);font-size:12px}
+  .warn{color:var(--bad)} .ok{color:var(--good)}
+  .row{display:flex;justify-content:space-between;gap:10px}
+
   #top{top:8px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;white-space:nowrap;max-width:calc(100vw - 16px);overflow:hidden}
   .res b{display:inline-block;width:10px;height:10px;margin-right:5px;border-radius:2px;vertical-align:-1px}
   .res small{color:var(--dim)}
@@ -21,34 +31,50 @@
   #horde.alert{color:#fff;border-color:var(--bad);background:#3a1512ee}
   #horde.heard{color:#fff;border-color:var(--bad);background:#4a1812ee;animation:pulse .6s infinite alternate}
   @keyframes pulse{to{background:#7a2018ee}}
-  #tools{left:8px;top:8px;width:200px;display:flex;flex-direction:column;gap:6px}
-  #tools h4,#side h4{margin:2px 0 0;font-size:11px;color:var(--dim);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
-  button{font:inherit;color:var(--txt);background:#212b25;border:1px solid var(--line);border-radius:5px;padding:6px 8px;
-    text-align:left;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
-  button:hover{background:#2b382f}
-  button.on{border-color:var(--acc);background:#223442}
-  button:disabled{opacity:.45;cursor:not-allowed}
-  button kbd{color:var(--dim);font:inherit}
-  button .cost{color:var(--dim)}
-  #side{right:8px;top:8px;width:230px;display:flex;flex-direction:column;gap:6px}
-  #side .row{display:flex;justify-content:space-between}
-  .warn{color:var(--bad)} .ok{color:var(--good)}
+  #rescue{top:92px;left:50%;transform:translateX(-50%);display:none;background:#12301aee;border-color:var(--good);font-size:15px;white-space:nowrap}
+
+  #tools{left:8px;top:8px;width:206px;display:flex;flex-direction:column;gap:5px;max-height:calc(100vh - 80px);overflow:auto}
   #speed{display:flex;gap:4px}
-  #speed button{flex:1;justify-content:center;padding:5px 0}
-  #mini{position:fixed;right:8px;bottom:8px;width:256px;height:176px;image-rendering:pixelated;border:1px solid var(--line);border-radius:6px;background:#05080a}
-  #toast{position:fixed;top:100px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;
-    background:#000b;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:15px;max-width:90vw;text-align:center}
+  #speed button{flex:1;justify-content:center;padding:4px 0}
+  .tool .nm{display:flex;gap:2px}
+
+  #side{right:8px;top:8px;width:250px;display:flex;flex-direction:column;gap:5px;max-height:calc(100vh - 200px);overflow:auto}
+  #people .chip{display:flex;gap:6px;align-items:center;padding:3px 5px;border:1px solid transparent;border-radius:4px;cursor:pointer}
+  #people .chip:hover{background:#222d27}
+  #people .chip.sel{border-color:var(--acc);background:#1f3140}
+  .badge{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:3px;color:#111;font-weight:700;font-size:11px}
+  .mini-btn{padding:1px 6px;font-size:11px;background:#3a2a22}
+  #crews div,#log div{color:var(--dim);font-size:12px}
+  #log div:first-child{color:var(--txt)}
+  .bar{height:4px;background:#2a332d;border-radius:2px;margin-top:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+
+  #mini{position:fixed;right:8px;bottom:8px;width:256px;height:176px;image-rendering:pixelated;border:1px solid var(--line);border-radius:7px;background:#05080a;box-shadow:0 4px 18px #0009}
+  #toast{position:fixed;top:128px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;background:#000c;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:14px;max-width:min(90vw,720px);text-align:center;z-index:4}
   #toast.show{opacity:1}
   #prompt{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000b;border:1px solid var(--line);display:none}
-  #help{left:8px;bottom:8px;color:var(--dim);max-width:460px}
-  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000b;z-index:5}
+  #help{left:8px;bottom:8px;color:var(--dim);max-width:520px;font-size:12px}
+
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,94vw);display:none;z-index:3;max-height:80vh;overflow:auto}
+  .modal.show{display:block}
+  .modal h3{margin:0 0 8px;font-size:16px}
+  .tech{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
+  .tech small{color:var(--dim);display:block}
+  #trade{right:276px;top:8px;width:260px;display:none}
+  #trade button{width:100%;margin-top:4px}
+
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0b1410cc,#000d);z-index:6}
   #overlay.hidden{display:none}
-  #card{max-width:560px;padding:22px 26px;background:#141a16;border:1px solid var(--line);border-radius:10px}
-  #card h1{margin:0 0 6px;font-size:26px;letter-spacing:.04em}
+  #card{width:min(640px,94vw);max-height:92vh;overflow:auto;padding:24px 28px;background:#111813;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 50px #000}
+  #card h1{margin:0 0 4px;font-size:30px;letter-spacing:.06em}
+  #card .sub{color:var(--dim);margin-bottom:10px}
   #card p{margin:8px 0;color:#bccdb8}
   #card ul{margin:8px 0 14px;padding-left:18px;color:#bccdb8}
   #card li{margin:3px 0}
-  #card button{display:inline-block;background:#2f6a3a;border-color:#4a9a58;font-size:15px;padding:9px 18px}
+  #menuBtns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  #menuBtns button{justify-content:center;font-size:15px;padding:9px 18px;background:#2f6a3a;border-color:#4a9a58}
+  #menuBtns button.alt{background:#222c26;border-color:var(--line)}
+  .seg{display:flex;gap:6px}.seg button{flex:1;justify-content:center}
+  #card input[type=range]{width:100%}
   @media (max-width:900px){#side{display:none}#help{display:none}#mini{width:160px;height:110px}}
 </style>
 </head>
@@ -60,19 +86,17 @@
   <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
   <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
   <div class="res">Health <span id="pHp">100</span></div>
-  <div class="res">Zombies in sight <span id="zCount">0</span></div>
+  <div class="res">In sight <span id="zCount">0</span></div>
 </div>
 <div id="horde" class="panel">No horde sighted</div>
+<div id="rescue" class="panel"></div>
 
 <div id="tools" class="panel">
   <h4>Build</h4>
-  <button data-tool="wall"><span><kbd>1</kbd> Wall</span><span class="cost" id="cWall"></span></button>
-  <button data-tool="tower"><span><kbd>2</kbd> Tower</span><span class="cost" id="cTower"></span></button>
-  <button data-tool="lookout"><span><kbd>3</kbd> Lookout</span><span class="cost" id="cLook"></span></button>
-  <button data-tool="def"><span><kbd>4</kbd> Post survivor</span><span class="cost" id="cDef"></span></button>
-  <button data-tool="erase"><span><kbd>5</kbd> Demolish</span><span class="cost">50%</span></button>
+  <div id="toolList" style="display:flex;flex-direction:column;gap:4px"></div>
   <h4>Camp</h4>
-  <button id="btnUp"><span><kbd>U</kbd> Upgrade camp</span><span class="cost" id="cUp"></span></button>
+  <button id="btnUp"><span><kbd>U</kbd>Upgrade camp</span><span class="cost" id="cUp"></span></button>
+  <button id="btnRes"><span><kbd>R</kbd>Research</span><span class="cost" id="cRes"></span></button>
   <h4>Time</h4>
   <div id="speed">
     <button data-speed="0">II</button><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
@@ -81,44 +105,41 @@
 
 <div id="side" class="panel">
   <h4>Camp</h4>
-  <div class="row"><span>Camp level</span><span id="iLvl"></span></div>
-  <div class="row"><span>Camp health</span><span id="iCore"></span></div>
+  <div class="row"><span>Level</span><span id="iLvl"></span></div>
+  <div class="row"><span>Health</span><span id="iCore"></span></div>
   <div class="row"><span>Territory</span><span id="iTerr"></span></div>
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
-  <h4>People</h4>
-  <div class="row"><span>Survivors idle</span><span id="iIdle"></span></div>
-  <div class="row"><span>Posted on walls</span><span id="iDef"></span></div>
-  <div class="row"><span>Lookouts</span><span id="iLook"></span></div>
+  <div class="row"><span>People / Lookouts</span><span id="iPpl"></span></div>
+  <h4>Idle survivors <small style="text-transform:none;letter-spacing:0">(click to select)</small></h4>
+  <div id="people"></div>
+  <div id="crewsH"><h4>Crews out</h4><div id="crews"></div></div>
   <h4>Record</h4>
-  <div class="row"><span>Time survived</span><span id="iTime"></span></div>
-  <div class="row"><span>Hordes beaten</span><span id="iHordes"></span></div>
-  <div class="row"><span>Zombies killed</span><span id="iKills"></span></div>
-  <div class="row"><span>Explored</span><span id="iExp"></span></div>
+  <div class="row"><span>Time / Hordes</span><span id="iTime"></span></div>
+  <div class="row"><span>Killed / Explored</span><span id="iKills"></span></div>
+  <h4>Log</h4>
+  <div id="log"></div>
 </div>
 
+<div id="trade" class="panel"></div>
+<div id="research" class="panel modal"></div>
+
 <canvas id="mini" width="64" height="44"></canvas>
-<div id="help" class="panel">WASD: move (Shift sprint) &nbsp; E (hold): scavenge &nbsp; Click/drag: build &nbsp; Wheel: zoom &nbsp; Right-drag: look around &nbsp; Space: pause</div>
+<div id="help" class="panel">WASD move (Shift sprint) · hold E scavenge · click/drag build · wheel zoom · right-drag look · R research · M mute · Space pause · Esc menu</div>
 <div id="prompt"></div>
 <div id="toast"></div>
 
-<div id="overlay">
-  <div id="card">
-    <h1 id="ovTitle">ZOMB SURVIVE</h1>
-    <div id="ovBody">
-      <p>You are the only one left at this camp. The town is full of the dead, and there is no day or night to tell you when the next horde is coming.</p>
-      <ul>
-        <li><b>Scavenge</b> buildings (hold <b>E</b>) for materials, food and ammo. Some hide survivors.</li>
-        <li><b>Scout</b> the fog. You only see what you or your lookouts can see, and noise (gunfire) draws zombies in.</li>
-        <li><b>Fortify</b> the camp with walls and towers. Zombies never break walls. They pile up and climb over, so kill them as they climb.</li>
-        <li><b>Build lookouts</b> to spot hordes before they arrive. Without them you get almost no warning.</li>
-        <li>A sealed camp attracts refugees. Post survivors on the walls: they shoot, then stab.</li>
-      </ul>
-    </div>
-    <button id="btnStart">Start</button>
-  </div>
-</div>
+<div id="overlay"><div id="card"></div></div>
 
-<script src="game.js"></script>
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/world.js"></script>
+<script src="js/art.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/render.js"></script>
+<script src="js/save.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>
