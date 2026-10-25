@@ -95,6 +95,8 @@ const Snd = {
     this.tone({ x, y, type: 'sine', f0: 90, f1: 30, dur: 0.6, gain: 0.8 });
   },
   toll() { if (this.ctx && this._gate('toll', 500)) { this.tone({ type: 'sine', f0: 196, f1: 190, dur: 2.2, gain: 0.45, attack: 0.01 }); this.tone({ type: 'sine', f0: 392, f1: 388, dur: 1.6, gain: 0.18, attack: 0.01 }); } },
+  radio() { if (this.ctx) { this.burst({ type: 'bandpass', f0: 1800, f1: 900, dur: 0.5, gain: 0.5, q: 1.5 }); setTimeout(() => this.tone({ type: 'square', f0: 880, f1: 880, dur: 0.12, gain: 0.18, lp: 2400 }), 520); setTimeout(() => this.tone({ type: 'square', f0: 660, f1: 660, dur: 0.12, gain: 0.18, lp: 2400 }), 700); } },
+  beep(x, y) { if (this.ctx && this._gate('beep', 300)) this.tone({ x, y, type: 'square', f0: 1200, f1: 1200, dur: 0.1, gain: 0.3, lp: 3000 }); },
   hurt() { if (this.ctx && this._gate('hurt', 200)) this.tone({ type: 'sawtooth', f0: 240, f1: 120, dur: 0.22, gain: 0.35, lp: 900 }); },
   build() { if (this.ctx && this._gate('build', 50)) { this.burst({ type: 'bandpass', f0: 500, f1: 200, dur: 0.1, gain: 0.5, q: 2 }); this.tone({ type: 'square', f0: 140, f1: 90, dur: 0.07, gain: 0.2, lp: 700 }); } },
   demolish() { if (this.ctx && this._gate('demo', 60)) this.burst({ type: 'lowpass', f0: 700, f1: 100, dur: 0.18, gain: 0.5 }); },

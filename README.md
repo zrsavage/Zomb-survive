@@ -15,6 +15,14 @@ You are the last survivor at a ruined camp. There is no day/night cycle: hordes 
 
 Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the horde), leaper (vaults walls), bloater (explodes). Hordes grow 1.4x each time and reach the thousands.
 
+## Storyteller, rules, skills, noise, radio, relationships
+- **Storyteller** (pick at New Game): *Cassandra* (steady, hordes scale with your strength), *Phoebe* (chill, longer lulls, more help), *Randy* (chaos). A tension model decides what happens: when you struggle you get supply drops, traders and strangers; when you are comfortable you get storms, sickness and unannounced straggler groups. After heavy losses it gives you a breather.
+- **Camp rules** (`P`): six policies with trade-offs (Rationing, Overtime, Feasts and Music, Open Arms, Martial Law, Conscript Scavengers). One change per 90s.
+- **Skills**: shooting, melee, medicine, building and scavenging level up with use (0-5 stars); each class starts trained in its own. Max level earns a title (Marksman, Duelist, Field Surgeon, Master Builder, Pathfinder).
+- **Noise**: gunfire, hammering and sprinting carry (expanding rings show how far). Standing still makes you much harder to notice. **Decoys** (`V`) draw idle zombies and part of a horde toward them. *Suppressors* research cuts gunfire range.
+- **Radio**: research *Ham Radio* for branching transmissions (convoy, pleas for help, raiders, supply tips, lost survivors, a deserter asking to return, a numbers station). Some chains unlock a second ending: a **convoy** to the safe zone. While the helicopter is coming, the pilot radios too.
+- **Relationships**: survivors become friends, lovers or rivals over time. Lovers fight harder side by side and lift morale; rivals bicker; losing a lover hurts badly.
+
 ## Phone / tablet (desktop is still the primary target)
 - Touch controls appear automatically: virtual stick to move, **SCAV** (hold) to scavenge, **RUN** toggle, tap or drag to build, two fingers to pan/zoom. The tools live in a bottom bar; the people/log panel is a drawer (chess-piece button) and the pause menu is the hamburger button.
 - Phones default to **Low** quality (cheaper lighting, no ground fog, fewer particles, smaller zombie cap). Change it any time in the menu.

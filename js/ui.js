@@ -14,6 +14,7 @@ const TOOLS = [
   { id: 'lookout', key: '4', label: 'Lookout',       cost: () => effCost('lookout'), tip: 'Spots hordes early and reveals the map. Place anywhere.' },
   { id: 'spike',   key: '5', label: 'Spike trap',    cost: () => effCost('spike'),   tip: 'Cuts down zombies that walk over it. Wears out.' },
   { id: 'barrel',  key: '6', label: 'Fire barrel',   cost: () => effCost('barrel'),  tip: 'Ignites when a crowd gathers. One use.' },
+  { id: 'decoy',   key: 'V', label: 'Decoy',         cost: () => effCost('decoy'),   tip: 'Noise-maker: for 15s it draws idle zombies, and part of a horde, toward it.' },
   { id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
   { id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building. Risky but pays more.' },
   { id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
@@ -23,6 +24,7 @@ const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a'].filt
 const fmtRate = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '/s';
 
 const UI = (() => {
+  let lastRules = '', lastRadio = '';
   let menuMode = null, lastPeople = '', lastRes = '', lastCrews = null, lastLog = '';
 
   // ---- build the static parts -------------------------------------------------------------
@@ -41,6 +43,7 @@ const UI = (() => {
     $('btnUp').addEventListener('click', upgradeCore);
     $('btnRes').addEventListener('click', toggleResearch);
     $('btnFallen').addEventListener('click', toggleMemorial);
+    $('btnRules').addEventListener('click', toggleRules);
   }
 
   // ---- HUD ---------------------------------------------------------------
@@ -62,7 +65,7 @@ const UI = (() => {
     if (G.hordeMsg) { hd.className = 'panel ' + G.hordeMsg.cls; hd.textContent = G.hordeMsg.text; }
     else { hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
-    if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = 'Helicopter extraction in ' + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
+    if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = (G.rescueKind === 'convoy' ? 'Convoy arrives in ' : 'Helicopter extraction in ') + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
 
     document.querySelectorAll('[data-tool]').forEach(b => {
       const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost();
@@ -94,7 +97,11 @@ const UI = (() => {
       pr.textContent = b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
     } else pr.style.display = 'none';
 
-    renderPeople(); renderCrews(); renderLog(); renderTrade();
+    const st = STORYTELLERS[G.story] || STORYTELLERS.cassandra;
+    $('iStory').textContent = st.label; $('iStory').title = st.desc + ' Tension: ' + Math.round(Director.tension() * 100) + '%';
+    const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';
+    renderPeople(); renderCrews(); renderLog(); renderTrade(); renderRadio();
+    if ($('rules').classList.contains('show')) renderRules();
     if ($('research').classList.contains('show')) renderResearch();
   }
 
@@ -144,10 +151,11 @@ const UI = (() => {
   }
 
   function survivorTip(s) {
-    const r = ROLES[s.role], friend = s.friend && findSurvivor(s.friend);
+    const r = ROLES[s.role], friend = s.friend && findSurvivor(s.friend), lover = s.lover && findSurvivor(s.lover), rival = s.rival && findSurvivor(s.rival);
     return s.name + ' - ' + r.label + '\n' + r.desc + '\n"' + (s.story || '') + '"\n' +
       (s.traits || []).map(t => TRAITS[t].label + ': ' + TRAITS[t].desc).join('\n') +
-      (friend ? '\nFriend: ' + friend.name : '') + '\nKills: ' + (s.kills || 0) + (s.grief > 0 ? '\nGrieving a lost friend' : '');
+      (skillText(s) ? '\nSkills: ' + skillText(s) : '') +
+      (friend ? '\nFriend: ' + friend.name : '') + (lover ? '\nLover: ' + lover.name : '') + (rival ? '\nRival: ' + rival.name : '') + '\nKills: ' + (s.kills || 0) + (s.grief > 0 ? '\nGrieving a lost friend' : '');
   }
   // ---- memorial ---------------------------------------------------------------
   function memorialHtml(limit) {
@@ -164,6 +172,44 @@ const UI = (() => {
       $('mClose').addEventListener('click', toggleMemorial);
     }
     Snd.click();
+  }
+
+  // ---- camp rules ---------------------------------------------------------------
+  function toggleRules() {
+    const el = $('rules'); el.classList.toggle('show'); lastRules = '';
+    if (el.classList.contains('show')) renderRules();
+    Snd.click();
+  }
+  function renderRules() {
+    const key = Object.keys(G.rules).join() + G.level + Math.ceil(G.ruleCd);
+    if (key === lastRules) return; lastRules = key;
+    const el = $('rules');
+    el.innerHTML = '<div class="row"><h3>Camp rules</h3><button id="rlClose" style="padding:2px 8px">Close (P)</button></div>' +
+      '<div style="color:var(--dim);margin-bottom:4px">Every policy trades something for something else. ' + (G.ruleCd > 0 ? 'Next change in ' + Math.ceil(G.ruleCd) + 's.' : 'You can change one now.') + '</div>';
+    for (const id in RULES) {
+      const r = RULES[id], on = ruleOn(id), locked = G.level < r.level;
+      const d = document.createElement('div'); d.className = 'tech';
+      d.innerHTML = '<div><b>' + r.label + '</b>' + (locked ? ' <small>needs camp level ' + r.level + '</small>' : '') + '<small>' + r.desc + '</small></div>';
+      const b = document.createElement('button'); b.textContent = on ? 'Repeal' : 'Decree'; b.classList.toggle('on', on); b.disabled = locked;
+      b.addEventListener('click', () => { toggleRule(id); lastRules = ''; renderRules(); });
+      d.appendChild(b); el.appendChild(d);
+    }
+    $('rlClose').addEventListener('click', toggleRules);
+  }
+
+  // ---- radio ---------------------------------------------------------------
+  function renderRadio() {
+    const el = $('radio'), m = Radio.current();
+    if (!m) { el.classList.remove('show'); lastRadio = ''; return; }
+    const key = m.id + G.ammo + G.food + roomForPerson();
+    el.classList.add('show');
+    if (key === lastRadio) return; lastRadio = key;
+    el.innerHTML = '<h4>Incoming transmission</h4><h3>' + m.title + '</h3><div class="txt">' + m.text() + '</div>';
+    m.choices.forEach((c, i) => {
+      const b = document.createElement('button'); b.textContent = c.label; b.disabled = !!(c.cond && !c.cond());
+      b.addEventListener('click', () => { Radio.choose(i); lastRadio = ''; renderRadio(); });
+      el.appendChild(b);
+    });
   }
 
   // ---- research ---------------------------------------------------------------
@@ -193,11 +239,14 @@ const UI = (() => {
   }
 
   // ---- menus ---------------------------------------------------------------
-  const menuOpen = () => menuMode !== null;
+  const menuOpen = () => menuMode !== null || !!(G && G.radioMsg);
   function showMenu(mode) {
     menuMode = mode;
     const c = $('card'), ov = $('overlay');
     const diff = (localStorage.getItem('zomb-diff') || 'normal');
+    const story = localStorage.getItem('zomb-story') || 'cassandra';
+    const storyBtns = '<div class="seg" id="storySeg">' + Object.keys(STORYTELLERS).map(k => '<button data-story="' + k + '" class="' + (k === story ? 'on' : '') + '">' + STORYTELLERS[k].label + '</button>').join('') + '</div>' +
+      '<div id="storyDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + STORYTELLERS[story].desc + '</div>';
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
     const vol = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
       '<div style="margin-top:10px">Graphics quality <span style="color:var(--dim)">(Low is recommended on phones)</span></div><div class="seg" id="qualSeg">' +
@@ -212,16 +261,16 @@ const UI = (() => {
         '<li><b>Build lookouts</b> to see hordes coming. Without them you only get a faint rumble.</li>' +
         '<li><b>Recruit</b> survivors with roles: fighters, snipers, medics, builders, scavengers.</li>' +
         '<li><b>Research</b> upgrades, <b>trade</b>, and weather events. At camp level ' + RADIO_LEVEL + ' build the <b>radio tower</b> and survive ' + fmtTime(RESCUE_TIME) + ' until the helicopter arrives.</li></ul>' +
-        '<div>Difficulty</div>' + diffBtns + vol +
+        '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + vol +
         '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button></div>';
     } else if (mode === 'pause') {
       h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' + vol +
         '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
     } else {
-      h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'The helicopter lifts you out of the dead town.' : 'The dead take the town.') + '</div>' +
+      h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? (G.rescueKind === 'convoy' ? 'The convoy carries your people to the safe zone.' : 'The helicopter lifts you out of the dead town.') : 'The dead take the town.') + '</div>' +
         '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
         '<h4 style="margin-top:12px">The fallen</h4><div style="max-height:30vh;overflow:auto">' + memorialHtml(8) + '</div>' +
-        '<div>Difficulty</div>' + diffBtns + '<div id="menuBtns"><button id="mNew">New game</button></div>';
+        '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + '<div id="menuBtns"><button id="mNew">New game</button></div>';
     }
     c.innerHTML = h; ov.classList.remove('hidden');
     const on = (id, fn) => { const e = $(id); if (e) e.addEventListener('click', () => { Snd.resume(); Snd.click(); fn(); }); };
@@ -233,7 +282,11 @@ const UI = (() => {
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
     }));
     const v = $('volume'); if (v) v.addEventListener('input', () => { Snd.resume(); Snd.setVolume(v.value / 100); });
-    on('mNew', () => { newGame(localStorage.getItem('zomb-diff') || 'normal'); hideMenu(); });
+    document.querySelectorAll('[data-story]').forEach(b => b.addEventListener('click', () => {
+      localStorage.setItem('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
+      document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
+    }));
+    on('mNew', () => { newGame(localStorage.getItem('zomb-diff') || 'normal', undefined, localStorage.getItem('zomb-story') || 'cassandra'); hideMenu(); });
     on('mContinue', () => { if (Save.load()) hideMenu(); else toast('Could not load the save'); });
     on('mFull', toggleFullscreen);
     on('mResume', hideMenu);
@@ -351,6 +404,7 @@ const UI = (() => {
       else if (k === 'u') upgradeCore();
       else if (k === 'r') toggleResearch();
       else if (k === 'g') toggleMemorial();
+      else if (k === 'p') toggleRules();
       else if (k === 'm') toast(Snd.toggleMute() ? 'Sound off' : 'Sound on');
       else if (k === 'f') toggleFullscreen();
       else if (k === ' ') { G.paused = !G.paused; e.preventDefault(); }

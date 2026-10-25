@@ -22,7 +22,7 @@ const WALL_HP = { 1: 120, 2: 260, 3: 90, 4: 100, 5: 500 };
 const WALL_PATH_COST = 12;       // how much zombies dislike climbing (they take gaps if close)
 const COST = {
   wall: { m: 3 }, tower: { m: 12 }, gate: { m: 6 }, lookout: { m: 10 },
-  spike: { m: 6 }, barrel: { m: 16 }, radio: { m: 400, f: 120, a: 100 },
+  spike: { m: 6 }, barrel: { m: 16 }, decoy: { m: 4, a: 8 }, radio: { m: 400, f: 120, a: 100 },
 };
 const RADIO_LEVEL = 4;           // camp level needed to build the radio tower
 const RESCUE_TIME = 240;         // seconds you must hold out after the radio goes up
@@ -111,6 +111,8 @@ const RESEARCH = [
   { id: 'watch',   name: 'Watch Network',    desc: 'Lookouts see 50% farther and reveal more map.',      cost: { m: 130 },         time: 45 },
   { id: 'scav',    name: 'Scavenging Kit',   desc: 'Loot yields +35% and takes 30% less time.',          cost: { m: 90, f: 40 },   time: 35 },
   { id: 'medicine',name: 'Field Medicine',   desc: 'Everyone heals twice as fast, medics too.',          cost: { m: 80, f: 60 },   time: 40 },
+  { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
+  { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 
 // ---- events ---------------------------------------------------------------
@@ -174,3 +176,30 @@ const MORALE = {
   gains: { horde: 6, research: 3, upgrade: 5, crate: 2, refugee: 1 },
   slowAbove: 75, slowBelow: 35, slowerBelow: 20, noRefugeesBelow: 30, desertBelow: 15, desertGap: 30, grief: 90, memorialMax: 60,
 };
+
+// ---- storyteller, camp rules, skills, noise -----------------------------------------------
+const STORYTELLERS = {
+  cassandra: { label: 'Cassandra', desc: 'Steady escalation. Hordes grow with your strength and ease off after heavy losses.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45 },
+  phoebe:    { label: 'Phoebe',    desc: 'Chill. Longer lulls, smaller hordes, more help arriving when you struggle.',        gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70 },
+  randy:     { label: 'Randy',     desc: 'Chaos. Gaps and sizes are random: a tiny horde, then a monster, then nothing.',     gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0 },
+};
+const RULES = {
+  ration:    { label: 'Rationing',            level: 1, desc: 'Food upkeep -40%. People grumble.',                                            morale: -6, upkeep: 0.6, excl: ['feast'] },
+  overtime:  { label: 'Overtime',             level: 1, desc: '+25% building income and 1.5x repairs. Exhausting: more sickness.',            morale: -7, income: 1.25, repair: 1.5, sickness: 2 },
+  feast:     { label: 'Feasts and Music',     level: 2, desc: 'Morale +8, but food upkeep +25%.',                                             morale: 8,  upkeep: 1.25, excl: ['ration'] },
+  open:      { label: 'Open Arms',            level: 2, desc: 'Refugees arrive twice as fast. Crowded: morale -2.',                           morale: -2, refugee: 2, excl: ['martial'] },
+  martial:   { label: 'Martial Law',          level: 2, desc: 'Defenders fire 10% faster, nobody can desert, refugees half as often. Morale -8.', morale: -8, fire: 0.9, refugee: 0.5, noDesert: true, excl: ['open'] },
+  conscript: { label: 'Conscript Scavengers', level: 3, desc: 'Crews are 25% faster but 15% riskier. Morale -3.',                             morale: -3, crewTime: 0.75, crewRisk: 1.15 },
+};
+const RULE_COOLDOWN = 90;          // seconds between changing policies
+const SKILLS = {
+  shoot: { label: 'Shooting',   title: 'Marksman',      desc: '+5% damage and 3% faster fire per level' },
+  melee: { label: 'Melee',      title: 'Duelist',       desc: '+5% stab damage per level' },
+  med:   { label: 'Medicine',   title: 'Field Surgeon', desc: '+15% healing per level' },
+  build: { label: 'Building',   title: 'Master Builder',desc: 'Faster, cheaper repairs' },
+  scav:  { label: 'Scavenging', title: 'Pathfinder',    desc: '+5% crew loot and 3% less risk per level' },
+};
+const SKILL_XP = [0, 40, 120, 260, 480, 800];        // xp needed for level 0..5
+const ROLE_SKILL = { fighter: 'melee', sniper: 'shoot', medic: 'med', builder: 'build', scavenger: 'scav' };
+const NOISE = { gun: 12, sniper: 14, build: 5, decoy: 16, decoyTime: 15, decoyGap: 2, silencer: 0.55, sprint: 1.4, still: 0.6, look: 4, ring: 0.9 };
+const REL = { checkGap: 20, friend: 0.2, rival: 0.12, lover: 0.18, reconcile: 0.05, loverMorale: 1.5, rivalMorale: -1, loverGrief: 180, loverHit: 18, loverDmg: 1.08, rivalCd: 1.08 };

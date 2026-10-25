@@ -11,10 +11,11 @@ const explored = new Uint8Array(W * H);
 const vis = new Uint8Array(W * H);             // currently in sight
 const dist = new Float32Array(W * H), nextTile = new Int32Array(W * H);     // flow field to the camp
 const pdist = new Float32Array(W * H), pnext = new Int32Array(W * H);       // flow field to the survivor
+const ndist = new Float32Array(W * H), nnext = new Int32Array(W * H);       // flow field to the latest noise
 let buildings = [], lamps = [];
 let defAt = new Array(W * H).fill(null);
 let trapAt = new Array(W * H).fill(null);
-let zombies = [], defenders = [], hordes = [], traps = [], crates = [];
+let zombies = [], defenders = [], hordes = [], traps = [], crates = [], decoys = [], rings = [];
 let tracers = [], parts = [], texts = [], flashes = [];
 let P = null;                                  // the survivor
 let G = null;                                  // game state
@@ -142,6 +143,10 @@ function computeBaseField() {
 function computePlayerField() {
   const tx = clamp(P.px | 0, 0, W - 1), ty = clamp(P.py | 0, 0, H - 1);
   computeField([ty * W + tx], pdist, pnext);
+}
+
+function computeNoiseField(x, y) {
+  computeField([clamp(y | 0, 0, H - 1) * W + clamp(x | 0, 0, W - 1)], ndist, nnext);
 }
 
 // ---- territory ---------------------------------------------------------------

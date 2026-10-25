@@ -43,15 +43,28 @@ function newSurvivor(role) {
   role = role || weighted(ROLES, 'weight');
   const taken = new Set([...G.idle, ...defenders.map(d => d.s), ...G.crews.flatMap(c => c.members)].map(s => s.name));
   let name; for (let t = 0; t < 12; t++) { name = pick(NAMES) + ' ' + pick(SURNAMES); if (!taken.has(name)) break; }
-  const s = { id: G.sid++, name, role, sick: 0, cure: 0, traits: rollTraits(), story: pick(BACKSTORY[role]), friend: null, kills: 0, grief: 0, joined: G.elapsed };
+  const xp = { shoot: 0, melee: 0, med: 0, build: 0, scav: 0 };
+  for (const k in xp) if (rng() < 0.25) xp[k] = (SKILL_XP[1] * rng()) | 0;
+  xp[ROLE_SKILL[role]] = SKILL_XP[1] + ((SKILL_XP[2] - SKILL_XP[1]) * rng() | 0);          // a class starts trained in its own skill
+  const s = { id: G.sid++, name, role, sick: 0, cure: 0, traits: rollTraits(), story: pick(BACKSTORY[role]), friend: null, lover: null, rival: null, xp, kills: 0, grief: 0, joined: G.elapsed };
   if (rng() < 0.25) { const f = pick(allPeople().concat([null])); if (f && !f.friend) { s.friend = f.id; f.friend = s.id; } }   // old friends arrive together
   return s;
 }
 const findSurvivor = id => allPeople().find(s => s.id === id);
+// ---- skills (level up with use) ---------------------------------------------------------------
+function skillLv(s, k) { const x = (s.xp && s.xp[k]) || 0; let l = 0; for (let i = 1; i < SKILL_XP.length; i++) if (x >= SKILL_XP[i]) l = i; return l; }
+const skillMul = (s, k) => { const l = skillLv(s, k); return 1 + 0.05 * l + (l >= 5 ? 0.1 : 0); };
+function addXp(s, k, n) {
+  if (!s.xp) s.xp = {};
+  const before = skillLv(s, k); s.xp[k] = (s.xp[k] || 0) + n; const after = skillLv(s, k);
+  if (after > before) { log(who(s) + ' reached ' + SKILLS[k].label + ' ' + after + (after >= 5 ? ' - ' + SKILLS[k].title + '!' : '')); Snd.pickup(); }
+}
+const skillText = s => Object.keys(SKILLS).map(k => [k, skillLv(s, k)]).filter(([k, l]) => l > 0).map(([k, l]) => SKILLS[k].label + ' ' + '\u2605'.repeat(l)).join(', ');
 
 // ---- morale and the fallen ---------------------------------------------------------------
-function memorialize(s, cause) {
-  G.memorial.push({ name: s.name, role: s.role, traits: (s.traits || []).slice(), cause, time: G.elapsed, lived: G.elapsed - (s.joined || 0), kills: s.kills || 0 });
+function memorialize(s, cause, keep) {
+  if (!keep) { G.recentDeaths++; Director.addStress(0.25); }
+  G.memorial.push({ name: s.name, role: s.role, traits: (s.traits || []).slice(), cause, time: G.elapsed, lived: G.elapsed - (s.joined || 0), kills: s.kills || 0, s: keep ? JSON.parse(JSON.stringify(s)) : undefined });
   if (G.memorial.length > MORALE.memorialMax) G.memorial.shift();
   Snd.toll();
 }
@@ -59,6 +72,13 @@ function moraleHit(kind, s) {                       // brave people absorb loss 
   const others = allPeople().filter(x => x !== s);
   const avg = others.length ? others.reduce((m, x) => m + tmul(x, 'moraleLoss'), 0) / others.length : 1;
   G.morale = clamp(G.morale - MORALE.hits[kind] * avg, 0, 100);
+  const lover = s && allPeople().find(x => x.lover === s.id);
+  if (lover) {
+    lover.lover = null; lover.grief = REL.loverGrief;
+    G.morale = clamp(G.morale - REL.loverHit * tmul(lover, 'moraleLoss'), 0, 100);
+    log(lover.name + ' is devastated by the loss of ' + s.name);
+  }
+  const rival = s && allPeople().find(x => x.rival === s.id); if (rival) rival.rival = null;
   const friend = s && allPeople().find(x => x.friend === s.id);
   if (friend) {
     friend.friend = null; friend.grief = MORALE.grief;
@@ -69,23 +89,43 @@ function moraleHit(kind, s) {                       // brave people absorb loss 
 const moraleGain = kind => { G.morale = clamp(G.morale + MORALE.gains[kind], 0, 100); };
 const moraleLabel = m => m < 15 ? 'Despair' : m < 35 ? 'Low' : m < 65 ? 'Steady' : m < 85 ? 'Good' : 'High';
 const moraleCd = () => G.morale >= MORALE.slowAbove ? 0.92 : G.morale < MORALE.slowerBelow ? 1.25 : G.morale < MORALE.slowBelow ? 1.1 : 1;
+function updateRelationships(dt) {
+  G.relT -= dt; if (G.relT > 0) return;
+  G.relT = REL.checkGap;
+  const ppl = allPeople(); if (ppl.length < 2 || G.morale < MORALE.desertBelow) return;
+  const a = pick(ppl), b = pick(ppl); if (a === b) return;
+  const bond = (k) => { a[k] = b.id; b[k] = a.id; };
+  if (a.lover === b.id) return;
+  if (a.friend === b.id) {
+    if (!a.lover && !b.lover && rng() < REL.lover) { a.friend = b.friend = null; bond('lover'); log(who(a) + ' and ' + who(b) + ' have fallen in love'); }
+    return;
+  }
+  if (a.rival === b.id) { if (rng() < REL.reconcile) { a.rival = b.rival = null; bond('friend'); log(who(a) + ' and ' + who(b) + ' made peace and became friends'); } return; }
+  const sour = [a, b].reduce((n, s) => n + ((s.traits || []).includes('bloodthirsty') || (s.traits || []).includes('gloomy') ? 0.08 : 0), 0);
+  const r = rng();
+  if (!a.friend && !b.friend && r < REL.friend) { bond('friend'); log(who(a) + ' and ' + who(b) + ' have become friends'); }
+  else if (!a.rival && !b.rival && r < REL.friend + REL.rival + sour) { bond('rival'); log(who(a) + ' and ' + who(b) + ' have developed a rivalry'); }
+}
 function updateMorale(dt) {
   let target = 58;
   if (G.sealed) target += 8;
   if (G.food <= 0) target -= 30; else if (G.food < 10) target -= 10; else if (G.food > 40) target += 5;
   if (G.coreHp < LEVELS[G.level - 1].coreHp * 0.5) target -= 10;
   if (G.lookouts.length) target += 3;
-  target += clamp(allPeople().reduce((m, s) => m + tsum(s, 'cheer'), 0), -12, 12);
+  const ppl = allPeople();
+  target += clamp(ppl.reduce((m, s) => m + tsum(s, 'cheer'), 0), -12, 12);
+  target += ruleSum('morale');
+  target += ppl.filter(s => s.lover && s.id < s.lover).length * REL.loverMorale + ppl.filter(s => s.rival && s.id < s.rival).length * REL.rivalMorale;
   target = clamp(target, 5, 95);
   G.moraleTarget = target;
   G.morale += clamp(target - G.morale, -MORALE.drift * dt, MORALE.drift * dt);
   for (const s of allPeople()) if (s.grief > 0) s.grief -= dt;
-  if (G.morale < MORALE.desertBelow) {            // people start walking out on a hopeless camp
+  if (G.morale < MORALE.desertBelow && !ruleFlag('noDesert')) {            // people start walking out on a hopeless camp
     G.desertT -= dt;
     if (G.desertT <= 0) {
       G.desertT = MORALE.desertGap;
       const s = G.idle.filter(x => !x.sick)[rng() * G.idle.length | 0];
-      if (s && rng() < 0.6) { G.idle.splice(G.idle.indexOf(s), 1); G.sel = G.sel.filter(id => id !== s.id); memorialize(s, 'left the camp in despair'); log(who(s) + ' gave up on the camp and left'); moraleHit('desert', s); }
+      if (s && rng() < 0.6) { G.idle.splice(G.idle.indexOf(s), 1); G.sel = G.sel.filter(id => id !== s.id); memorialize(s, 'left the camp in despair', true); log(who(s) + ' gave up on the camp and left'); moraleHit('desert', s); }
     }
   } else G.desertT = MORALE.desertGap;
 }
@@ -107,13 +147,13 @@ function floatText(x, y, str, color) { if (texts.length < 30) texts.push({ x, y,
 function shake(a) { G.shake = Math.max(G.shake, a); }
 
 // ---- game setup ---------------------------------------------------------------
-function newGame(diffKey, seed) {
+function newGame(diffKey, seed, storyKey) {
   seed = seed || ((Math.random() * 2 ** 31) | 0);
   rng = mulberry32(seed ^ 0x9e3779b9);
   genTown(seed);
   wall.fill(0); wallHp.fill(0); explored.fill(0); vis.fill(0);
   defAt = new Array(W * H).fill(null); trapAt = new Array(W * H).fill(null);
-  zombies = []; defenders = []; hordes = []; traps = []; crates = []; tracers = []; parts = []; texts = []; flashes = [];
+  zombies = []; defenders = []; hordes = []; traps = []; crates = []; decoys = []; rings = []; tracers = []; parts = []; texts = []; flashes = [];
   const D = DIFFICULTY[diffKey] || DIFFICULTY.normal;
   G = {
     seed, diff: diffKey || 'normal', level: 1, ammo: 40, mat: 45, food: 30, idle: [], crews: [], sel: [], sid: 1,
@@ -128,6 +168,7 @@ function newGame(diffKey, seed) {
     res: { done: {}, active: null }, storm: 0, thunderT: 8, flash: 0, trader: null,
     eventT: EVENTS.firstAt, log: [], shake: 0, rumble: 0, danger: 0, dangerT: 0,
     time: 0, hover: null, deaths: 0, morale: MORALE.start, moraleTarget: MORALE.start, desertT: MORALE.desertGap, memorial: [],
+    story: storyKey || 'cassandra', rules: {}, ruleCd: 0, flags: {}, radioT: 200, radioMsg: null, rescueKind: 'heli', stress: 0, stressT: 1, recentDeaths: 0, relT: REL.checkGap, noticeR: AMBIENT.notice, nfT: 0,
   };
   P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0 };
   Art.renderTerrain();
@@ -178,12 +219,15 @@ function spawnAmbient() {          // trickle in zombies out of sight so the tow
     zombies.push(makeZombie(x + 0.5, y + 0.5, 0)); return;
   }
 }
-function startHorde() {
-  const n = ++G.hordeN, D = DIFFICULTY[G.diff];
-  const size = Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (0.9 + rng() * 0.2) * D.size);
-  hordes.push({ id: ++G.hordeId, n, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
+function startHorde(opts = {}) {
+  const minor = !!opts.minor, D = DIFFICULTY[G.diff];
+  const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
+  const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1)));
+  hordes.push({ id: ++G.hordeId, n, minor, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
+  if (minor) return;
+  G.recentDeaths = 0;
   const gap = G.rescue !== null ? HORDE.finalGapMin + rng() * (HORDE.finalGapMax - HORDE.finalGapMin)
-    : (HORDE.gapMin + rng() * (HORDE.gapMax - HORDE.gapMin)) * Math.max(0.6, 1 - 0.03 * n) * D.gap;
+    : (HORDE.gapMin + rng() * (HORDE.gapMax - HORDE.gapMin)) * Math.max(0.6, 1 - 0.03 * n) * D.gap * Director.hordeGap();
   G.nextHorde = gap;
 }
 function spawnHordeZombie(h) {
@@ -268,7 +312,7 @@ function updateZombies(dt) {
     // idle zombies shuffle about until they notice the survivor
     if (z.mode === 0) {
       z.st = 3;
-      if (pdx * pdx + pdy * pdy < AMBIENT.notice * AMBIENT.notice) { z.mode = 1; z.lose = 0; continue; }
+      if (pdx * pdx + pdy * pdy < G.noticeR * G.noticeR) { z.mode = 1; z.lose = 0; continue; }
       z.wt -= dt;
       if (z.wt <= 0) { z.wt = 1.5 + rng() * 3; const a = rng() * 6.283; z.wx = Math.cos(a); z.wy = Math.sin(a); if (rng() < 0.4) { z.wx = 0; z.wy = 0; } }
       if (z.wx || z.wy) z.st = 0;
@@ -280,8 +324,12 @@ function updateZombies(dt) {
     if (z.mode === 1) {
       D = pdist; N = pnext;
       if (pdx * pdx + pdy * pdy > AMBIENT.forget * AMBIENT.forget) { z.lose += dt; if (z.lose > 5) { z.mode = 0; continue; } } else z.lose = 0;
+    } else if (z.mode === 3) {                                  // investigating a noise
+      D = ndist; N = nnext;
+      if (D[ti] === Infinity) { z.mode = z.prev === 2 ? 2 : 0; continue; }
+      if (D[ti] < 1.6 || N[ti] < 0) { z.st = 3; z.look += dt; if (z.look > NOISE.look) { z.mode = z.prev === 2 ? 2 : 0; z.look = 0; } continue; }
     }
-    if (D[ti] === Infinity) { if (z.mode === 1) z.mode = 0; else { zombies[k] = zombies[zombies.length - 1]; zombies.pop(); } continue; }
+    if (D[ti] === Infinity) { if (z.mode === 1 || z.mode === 3) z.mode = 0; else { zombies[k] = zombies[zombies.length - 1]; zombies.pop(); } continue; }
 
     let tcx, tcy, ni = -1;
     if (N[ti] < 0) { tcx = P.px; tcy = P.py; }                // standing on the target tile
@@ -365,6 +413,23 @@ function killDefender(d) {
   memorialize(d.s, 'killed on the wall'); moraleHit('defender', d.s);
   log(who(d.s) + ' was killed on the wall');
 }
+const gunRadius = sn => (sn ? NOISE.sniper : NOISE.gun) * (has('silencers') ? NOISE.silencer : 1);
+function investigate(x, y, r, horde) {            // draw idle zombies (and, for decoys, part of a horde) toward a point
+  const r2 = r * r; let any = false;
+  for (const z of zombies) {
+    if (!(z.mode === 0 || (horde && z.mode === 2 && z.h && rng() < 0.6))) continue;
+    const dx = z.x - x, dy = z.y - y;
+    if (dx * dx + dy * dy < r2) { z.prev = z.mode; z.mode = 3; z.look = 0; any = true; }
+  }
+  if (any) computeNoiseField(x, y);
+}
+function updateDecoys(dt) {
+  for (let i = decoys.length - 1; i >= 0; i--) {
+    const d = decoys[i]; d.t -= dt; d.e -= dt;
+    if (d.e <= 0) { d.e = NOISE.decoyGap; investigate(d.x, d.y, NOISE.decoy, true); if (rings.length < 24) rings.push({ x: d.x, y: d.y, r: NOISE.decoy, t: 0, max: 1.2 }); Snd.beep(d.x, d.y); }
+    if (d.t <= 0) decoys.splice(i, 1);
+  }
+}
 function alertNoise(x, y, r, mode) {           // gunfire draws idle zombies in
   const r2 = r * r;
   for (const z of zombies) {
@@ -393,6 +458,7 @@ function fight(e, dt, o) {
       tracers.push({ x1: near.x - 0.25, y1: near.y - 0.5, x2: near.x + 0.25, y2: near.y - 0.1, life: 0.12, slash: true });
       Snd.stab(near.x, near.y);
       if (near.mode === 0) { near.mode = o.noiseMode; near.lose = 0; }
+      if (e.s) addXp(e.s, 'melee', 1.2);
     }
     return;
   }
@@ -413,7 +479,8 @@ function fight(e, dt, o) {
     if (parts.length < Q.parts) parts.push({ x: e.px, y: e.py - 0.4, vx: -e.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
     addBurst(best.x, best.y - 0.4, '#a02020', 2, { grav: 3 });
     Snd.shot(e.px, e.py, !!o.sniper);
-    if (e.noiseT <= 0) { e.noiseT = 0.6; alertNoise(e.px, e.py, AMBIENT.noise, o.noiseMode); }
+    if (e.s) addXp(e.s, 'shoot', 1);
+    if (e.noiseT <= 0) { e.noiseT = 0.6; const gr = gunRadius(o.sniper); alertNoise(e.px, e.py, gr, o.noiseMode); if (rings.length < 24) rings.push({ x: e.px, y: e.py, r: gr, t: 0, max: NOISE.ring }); }
   }
 }
 function updateDefenders(dt) {
@@ -422,15 +489,20 @@ function updateDefenders(dt) {
     const d = defenders[k];
     if (d.hurt) d.hurt -= dt;
     const tower = wall[d.y * W + d.x] === K.TOWER, sn = d.s.role === 'sniper';
+    const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
+    if (d.s.lover) { const l = defenders.find(o => o.s.id === d.s.lover); if (l && (l.px - d.px) ** 2 + (l.py - d.py) ** 2 < 49) { rel.dmg = REL.loverDmg; rel.cd = 0.95; } }
+    if (d.s.rival) { const r = defenders.find(o => o.s.id === d.s.rival); if (r && (r.px - d.px) ** 2 + (r.py - d.py) ** 2 < 25) rel.cd *= REL.rivalCd; }
     fight(d, dt, {
       starving, noiseMode: 2, range: tower ? GUN.towerRange : GUN.range, cd: tower ? GUN.towerCd : GUN.cd,
-      rangeMul: (sn ? SNIPER.range : 1) * tmul(d.s, 'range'), dmgMul: (sn ? SNIPER.dmg : 1) * tmul(d.s, 'dmg'),
-      cdMul: (sn ? SNIPER.cd : 1) * tmul(d.s, 'cd') * moraleCd() * (d.s.grief > 0 ? 1.25 : 1),
-      meleeMul: tmul(d.s, 'melee'), ammoCost: tmul(d.s, 'ammo'), sniper: sn,
+      rangeMul: (sn ? SNIPER.range : 1) * tmul(d.s, 'range'), dmgMul: (sn ? SNIPER.dmg : 1) * tmul(d.s, 'dmg') * skillMul(d.s, 'shoot') * rel.dmg,
+      cdMul: (sn ? SNIPER.cd : 1) * tmul(d.s, 'cd') * moraleCd() * (d.s.grief > 0 ? 1.25 : 1) * (1 - 0.03 * skillLv(d.s, 'shoot')) * ruleMul('fire') * rel.cd,
+      meleeMul: tmul(d.s, 'melee') * skillMul(d.s, 'melee'), ammoCost: tmul(d.s, 'ammo'), sniper: sn,
     });
     if (d.s.role === 'medic') {                // medics patch up the people around them
-      const r2 = MEDIC.radius ** 2, heal = MEDIC.heal * (has('medicine') ? 2 : 1) * dt;
-      for (const o of defenders) if (o !== d && o.hp < o.maxHp && (o.px - d.px) ** 2 + (o.py - d.py) ** 2 < r2) o.hp = Math.min(o.maxHp, o.hp + heal);
+      const r2 = MEDIC.radius ** 2, heal = MEDIC.heal * (has('medicine') ? 2 : 1) * (1 + 0.15 * skillLv(d.s, 'med')) * dt;
+      let healed = false;
+      for (const o of defenders) if (o !== d && o.hp < o.maxHp && (o.px - d.px) ** 2 + (o.py - d.py) ** 2 < r2) { o.hp = Math.min(o.maxHp, o.hp + heal); healed = true; }
+      if (healed) addXp(d.s, 'med', 2 * dt);
     }
   }
 }
@@ -509,6 +581,7 @@ function killPlayer() {
 const joy = { x: 0, y: 0 };                                  // virtual stick for touch controls
 function updatePlayer(dt) {
   if (P.dead > 0) {
+    G.noticeR = AMBIENT.notice * NOISE.still;
     P.dead -= dt; P.moving = false; P.st = 'idle';
     if (P.dead <= 0) { P.dead = 0; P.hp = PLAYER.hp * 0.6; P.hurt = 0; log('A new survivor takes the field.'); }
     return;
@@ -523,6 +596,7 @@ function updatePlayer(dt) {
   if (jl > 0.18) { mx = joy.x; my = joy.y; mag = Math.min(1, jl); }
   const moving = !!(mx || my);
   P.moving = moving;
+  G.noticeR = AMBIENT.notice * (moving ? (keys.shift ? NOISE.sprint : 1) : NOISE.still);
   if (moving) {
     G.cam.free = false;
     const k = wall[(P.py | 0) * W + (P.px | 0)];
@@ -552,7 +626,13 @@ function updatePlayer(dt) {
   // supply crates
   for (let i = crates.length - 1; i >= 0; i--) {
     const c = crates[i]; c.t -= dt;
-    if (Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
+    if (c.type === 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 1.6) {
+      crates.splice(i, 1);
+      const s = recruit('was found alive and follows you home'); if (!s) log('You found someone, but there is no room in the camp');
+      if (rng() < 0.5) { for (let k = 0; k < 8; k++) zombies.push(Object.assign(makeZombie(c.x + (rng() - 0.5) * 6, c.y + (rng() - 0.5) * 6, 1, 0), { mode: 1 })); log('The noise drew company!'); }
+      Snd.pickup(); continue;
+    }
+    if (c.type !== 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
       const L = EVENTS.crateLoot, roll = v => Math.round(v * (0.8 + rng() * 0.5));
       const m = roll(L.m), f = roll(L.f), a = roll(L.a);
       G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
@@ -595,7 +675,7 @@ function sendCrew(b) {
   if (G.ammo < CREW.ammoCost) return warn('A crew needs ' + CREW.ammoCost + ' ammo');
   G.ammo -= CREW.ammoCost;
   const d = Math.hypot(b.x + b.w / 2 - CORE.x, b.y + b.h / 2 - CORE.y);
-  const dur = (CREW.baseTime + d * CREW.perTile) * (has('scav') ? 0.8 : 1) * (members.reduce((m, s) => m + tmul(s, 'crewTime'), 0) / members.length);
+  const dur = (CREW.baseTime + d * CREW.perTile) * (has('scav') ? 0.8 : 1) * ruleMul('crewTime') * (members.reduce((m, s) => m + tmul(s, 'crewTime'), 0) / members.length);
   let near = 0; for (const z of zombies) if (z.mode === 0 && Math.hypot(z.x - (b.x + b.w / 2), z.y - (b.y + b.h / 2)) < 9) near++;
   const fighters = members.filter(s => s.role === 'fighter' || s.role === 'sniper').length;
   const risk = clamp(CREW.baseRisk + d * CREW.perTileRisk + Math.min(0.18, near * 0.012) - 0.04 * fighters, 0.04, 0.65);
@@ -612,10 +692,11 @@ function updateCrews(dt) {
     G.crews.splice(i, 1);
     const b = buildings[c.bi], t = BUILDING_TYPES[b.type];
     b.crew = false; b.looted = true;
-    const survivors = c.members.filter(s => rng() >= c.risk * tmul(s, 'risk')), lost = c.members.length - survivors.length;
+    const survivors = c.members.filter(s => rng() >= c.risk * tmul(s, 'risk') * ruleMul('crewRisk') * (1 - 0.03 * skillLv(s, 'scav'))), lost = c.members.length - survivors.length;
     for (const s of c.members) if (!survivors.includes(s)) { memorialize(s, 'lost on a scavenging run at the ' + t.label.toLowerCase()); moraleHit('crew', s); }
     const scav = c.members.filter(s => s.role === 'scavenger').length;
-    const mul = (CREW.lootMul + CREW.perMember * (c.members.length - 1) + CREW.scavBonus * scav + (has('scav') ? 0.35 : 0)) * (c.members.reduce((m, s) => m + tmul(s, 'loot'), 0) / c.members.length);
+    const mul = (CREW.lootMul + CREW.perMember * (c.members.length - 1) + CREW.scavBonus * scav + (has('scav') ? 0.35 : 0)) * (c.members.reduce((m, s) => m + tmul(s, 'loot') * skillMul(s, 'scav'), 0) / c.members.length);
+    for (const s of survivors) addXp(s, 'scav', 25);
     const roll = v => Math.round(v * mul * (0.7 + rng() * 0.6));
     const m = survivors.length ? roll(t.loot.m) : 0, f = survivors.length ? roll(t.loot.f) : 0, a = survivors.length ? roll(t.loot.a) : 0;
     G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
@@ -646,9 +727,10 @@ function treatSick(id) {
 // ---- economy ---------------------------------------------------------------
 function updateEconomy(dt) {
   const mouths = people();
-  const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0);
+  const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0) * ruleMul('upkeep');
   const base = 1 + 0.3 * (G.level - 1);
-  const ra = G.income.a + 0.04 * base, rm = G.income.m + 0.1 * base, rf = G.income.f + 0.08 * base - upkeep;
+  const im = ruleMul('income');
+  const ra = G.income.a * im + 0.04 * base, rm = G.income.m * im + 0.1 * base, rf = G.income.f * im + 0.08 * base - upkeep;
   G.net = { a: ra, m: rm, f: rf };
   const cap = storeCap();
   G.ammo = clamp(G.ammo + ra * dt, 0, cap);
@@ -660,19 +742,22 @@ function updateEconomy(dt) {
     G.repairT = 0.5;
     const builders = countRole('builder') + allPeople().reduce((m, s) => m + tsum(s, 'repair'), 0);
     let left = 6 + 4 * builders;
-    const gain = 25 * (1 + BUILDER.repairBonus * Math.min(builders, 2)), cost = builders ? 0.5 : 1;
+    const bl = allPeople().filter(s => s.role === 'builder'), blv = bl.reduce((m, s) => m + skillLv(s, 'build'), 0);
+    const gain = 25 * (1 + BUILDER.repairBonus * Math.min(builders, 2)) * (1 + 0.08 * Math.min(blv, 8)) * ruleMul('repair'), cost = builders ? 0.5 : 1;
+    let repaired = 0;
     for (let i = 0; i < W * H && left > 0 && G.mat >= 1; i++) {
       if (!wall[i]) continue;
       const m = maxHp(wall[i]);
-      if (wallHp[i] < m) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; }
+      if (wallHp[i] < m) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; repaired++; }
     }
+    if (repaired) for (const s of bl) addXp(s, 'build', repaired * 0.5);
     const L = LEVELS[G.level - 1];
     if (G.coreHp < L.coreHp) G.coreHp = Math.min(L.coreHp, G.coreHp + 6);
   }
 
   // a sealed, fed camp draws refugees
   if (G.sealed && G.territory >= 20 && G.food >= 20 && G.morale >= MORALE.noRefugeesBelow && roomForPerson()) {
-    G.refugeeT -= dt * (1 + G.territory / 150);
+    G.refugeeT -= dt * (1 + G.territory / 150) * ruleMul('refugee');
     if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; addRecruit(newSurvivor(), 'saw your walls and joined the camp'); moraleGain('refugee'); Snd.pickup(); }
   }
 }
@@ -703,8 +788,9 @@ function updateHordes(dt) {
   for (let i = hordes.length - 1; i >= 0; i--) {
     const h = hordes[i];
     if (h.alive === 0 && h.left === 0) {
-      hordes.splice(i, 1); G.hordesBeaten++; moraleGain('horde');
-      if (h.seen || h.heard) log('The horde has been destroyed');
+      hordes.splice(i, 1);
+      if (!h.minor) { G.hordesBeaten++; moraleGain('horde'); if (G.recentDeaths >= 2 && G.rescue === null) { G.nextHorde += Director.breather(); log('The storyteller lets you catch your breath after the losses.'); } }
+      if (h.seen || h.heard) log(h.minor ? 'The stragglers are dead' : 'The horde has been destroyed');
       continue;
     }
     if (h.alive) { h.cx /= h.alive; h.cy /= h.alive; }
@@ -734,11 +820,13 @@ function updateEvents(dt) {
   G.flash = Math.max(0, G.flash - dt * 2.5);
   if (G.trader) { G.trader.t -= dt; if (G.trader.t <= 0) { G.trader = null; log('The trader packed up and left'); } }
   G.eventT -= dt;
-  if (G.eventT <= 0) { G.eventT = EVENTS.gapMin + rng() * (EVENTS.gapMax - EVENTS.gapMin); fireEvent(); }
+  if (G.eventT <= 0) { G.eventT = (EVENTS.gapMin + rng() * (EVENTS.gapMax - EVENTS.gapMin)) * Director.eventGap(); fireEvent(); }
 }
 function fireEvent() {
-  const opts = ['drop', 'drop', 'trader', 'storm', 'sick'];
-  const kind = pick(opts);
+  const kind = Director.pickEvent();
+  if (!kind) return;
+  if (kind === 'stranger') { const s = newSurvivor(); addRecruit(s, 'wandered in and asked to stay'); moraleGain('refugee'); Snd.pickup(); return; }
+  if (kind === 'stragglers') { startHorde({ minor: true, mult: 0.3 }); return; }          // no warning: a few dozen drift in
   if (kind === 'drop') {
     for (let t = 0; t < 40; t++) {
       const x = 2 + (rng() * (W - 4) | 0), y = 2 + (rng() * (H - 4) | 0), i = y * W + x, d = Math.hypot(x - CORE.x, y - CORE.y);
@@ -790,7 +878,7 @@ function updateResearch(dt) {
 function updateRescue(dt) {
   if (G.rescue === null) return;
   G.rescue -= dt;
-  if (G.rescue <= 0 && !G.over) endGame(true, 'Rescued!');
+  if (G.rescue <= 0 && !G.over) endGame(true, G.rescueKind === 'convoy' ? 'The convoy arrived!' : 'Rescued!');
 }
 
 // ---- build actions ---------------------------------------------------------------
@@ -821,11 +909,18 @@ function tryBuild(tx, ty) {
     pay(cost);
     wall[i] = kind; wallHp[i] = maxHp(kind);
     G.fieldDirty = true; G.visT = 0; Snd.build();
+    if (G.nfT <= 0) { G.nfT = 0.4; investigate(tx + 0.5, ty + 0.5, NOISE.build, false); if (rings.length < 24) rings.push({ x: tx + 0.5, y: ty + 0.5, r: NOISE.build, t: 0, max: 0.6 }); }   // hammering is noisy
     if (tool === 'radio') {
-      G.rescue = RESCUE_TIME; G.nextHorde = Math.min(G.nextHorde, 10);
+      G.rescue = RESCUE_TIME; G.rescueKind = 'heli'; G.nextHorde = Math.min(G.nextHorde, 10);
       log('The radio is broadcasting! Hold out for ' + fmtTime(RESCUE_TIME) + ' until the helicopter arrives.');
       Snd.horn();
     }
+  } else if (tool === 'decoy') {
+    if (wall[i] || trapAt[i]) return;
+    const cost = effCost('decoy');
+    if (!canAfford(cost)) return warn('Needs ' + cost.m + ' materials and ' + cost.a + ' ammo');
+    pay(cost); decoys.push({ x: tx + 0.5, y: ty + 0.5, t: NOISE.decoyTime, e: 0 }); Snd.build();
+    log('Decoy set: it will draw the dead for ' + NOISE.decoyTime + 's');
   } else if (tool === 'spike' || tool === 'barrel') {
     if (wall[i] || trapAt[i] || ground[i] === undefined) return;
     const cost = effCost(tool);
@@ -897,6 +992,8 @@ function simulate(dt) {
   updateCrews(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
+  Director.tick(dt); Radio.update(dt); G.ruleCd = Math.max(0, G.ruleCd - dt); G.nfT -= dt;
+  updateRelationships(dt); updateDecoys(dt);
   updateMorale(dt);
   updateEvents(dt);
   updateResearch(dt);

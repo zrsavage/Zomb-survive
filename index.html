@@ -64,6 +64,7 @@
   .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,94vw);display:none;z-index:3;max-height:80vh;overflow:auto}
   .modal.show{display:block}
   .modal h3{margin:0 0 8px;font-size:16px}
+  #radio{border-color:var(--acc);z-index:5} #radio .txt{margin:6px 0 10px;color:#cfe0ee;font-style:italic} #radio button{width:100%;margin-top:5px}
   .tech{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
   .tech small{color:var(--dim);display:block}
   #trade{right:276px;top:8px;width:260px;display:none}
@@ -144,6 +145,7 @@
   <h4>Camp</h4>
   <button id="btnUp"><span><kbd>U</kbd>Upgrade camp</span><span class="cost" id="cUp"></span></button>
   <button id="btnRes"><span><kbd>R</kbd>Research</span><span class="cost" id="cRes"></span></button>
+  <button id="btnRules"><span><kbd>P</kbd>Camp rules</span><span class="cost" id="cRules"></span></button>
   <h4>Time</h4>
   <div id="speed">
     <button data-speed="0">II</button><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
@@ -158,6 +160,7 @@
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
   <div class="row"><span>People / Lookouts</span><span id="iPpl"></span></div>
+  <div class="row"><span>Storyteller</span><span id="iStory"></span></div>
   <div class="row"><span>Morale</span><span id="iMor"></span></div>
   <div class="bar"><i id="morBar" style="width:70%"></i></div>
   <button id="btnFallen" style="margin-top:4px;justify-content:center"><span><kbd>G</kbd>Memorial</span><span class="cost" id="cFallen"></span></button>
@@ -174,6 +177,8 @@
 <div id="trade" class="panel"></div>
 <div id="research" class="panel modal"></div>
 <div id="memorial" class="panel modal"></div>
+<div id="rules" class="panel modal"></div>
+<div id="radio" class="panel modal"></div>
 
 <canvas id="mini" width="64" height="44"></canvas>
 <div id="help" class="panel">WASD move (Shift sprint) · hold E scavenge · click/drag build · wheel zoom · right-drag look · R research · M mute · Space pause · Esc menu</div>
@@ -196,6 +201,7 @@
 <script src="js/art.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/story.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>
 <script src="js/ui.js"></script>

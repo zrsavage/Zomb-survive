@@ -69,6 +69,12 @@ function drawWorld(cam, cw, ch, z) {
   // crates (with a beacon so they can be found)
   for (const c of crates) {
     const px = c.x * T, py = c.y * T, pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    if (c.type === 'survivor') {
+      ctx.globalAlpha = 0.3 + pulse * 0.3; ctx.fillStyle = '#7fd0ff'; ctx.fillRect(px - 1, py - 70, 2, 66); ctx.globalAlpha = 1;
+      const set = Art.sprites.def_fighter; shadow(c.x, c.y + 0.3, 10); ctx.drawImage(set.idle[0], Math.round(px - set.ax), Math.round(py - set.ay));
+      ctx.fillStyle = '#7fd0ff'; ctx.fillRect(px - 2, py - 28 + Math.sin(t * 5) * 2, 4, 4);
+      continue;
+    }
     ctx.globalAlpha = 0.25 + pulse * 0.25; ctx.fillStyle = '#ffe27a'; ctx.fillRect(px - 1, py - 60, 2, 56); ctx.globalAlpha = 1;
     shadow(c.x, c.y + 0.3, 12);
     ctx.fillStyle = '#6a4a2a'; ctx.fillRect(px - 6, py - 7, 12, 9); ctx.fillStyle = '#8c6a3a'; ctx.fillRect(px - 6, py - 7, 12, 2);
@@ -94,6 +100,14 @@ function drawWorld(cam, cw, ch, z) {
     }
   }
 
+  // decoys
+  for (const d of decoys) {
+    const px = d.x * T, py = d.y * T;
+    shadow(d.x, d.y + 0.3, 9);
+    ctx.fillStyle = '#26282c'; ctx.fillRect(px - 5, py - 6, 10, 7); ctx.fillStyle = '#4a4e56'; ctx.fillRect(px - 5, py - 6, 10, 2);
+    ctx.fillStyle = '#c8402a'; ctx.fillRect(px - 3, py - 3, 2, 2); ctx.fillStyle = '#26282c'; ctx.fillRect(px + 3, py - 12, 1, 6);
+    if ((t * 4 | 0) % 2) { ctx.strokeStyle = 'rgba(255,226,122,0.8)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(px + 3, py - 12, 3, -2.4, -0.7); ctx.stroke(); ctx.beginPath(); ctx.arc(px + 3, py - 12, 5, -2.4, -0.7); ctx.stroke(); }
+  }
   // camp
   Art.drawCamp(ctx, t, G.level, Math.max(0, G.coreHp / LEVELS[G.level - 1].coreHp), G.memorial.length);
 
@@ -156,6 +170,12 @@ function drawWorld(cam, cw, ch, z) {
     ctx.strokeStyle = tr.slash ? '#ffffff' : '#ffe9a0'; ctx.lineWidth = tr.slash ? 1.4 : 0.9; ctx.globalAlpha = Math.min(1, tr.life * 12);
     ctx.beginPath(); ctx.moveTo(tr.x1 * T, tr.y1 * T); ctx.lineTo(tr.x2 * T, tr.y2 * T); ctx.stroke(); ctx.globalAlpha = 1;
   }
+  for (const r of rings) {                                           // expanding rings show how far a noise carries
+    const k = r.t / r.max;
+    ctx.globalAlpha = (1 - k) * 0.32; ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(r.x * T, r.y * T, r.r * T * (0.15 + 0.85 * k), 0, 6.3); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
   for (const p of parts) {
     ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1);
     ctx.fillStyle = p.color; ctx.fillRect(p.x * T, p.y * T, p.size, p.size);
@@ -305,6 +325,7 @@ function updateFx(dt) {
     if (p.life <= 0) parts.splice(i, 1);
   }
   for (let i = tracers.length - 1; i >= 0; i--) tracers[i].life -= dt;
+  for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += dt; if (rings[i].t > rings[i].max) rings.splice(i, 1); }
   for (let i = texts.length - 1; i >= 0; i--) { const t = texts[i]; t.life -= dt; t.y -= dt * 0.7; if (t.life <= 0) texts.splice(i, 1); }
   for (const d of defenders) if (d.stab > 0) d.stab -= dt;
   // camp fire smoke and embers
@@ -340,7 +361,7 @@ function renderMini() {
   mctx.fillStyle = '#e84a3a';
   for (const z of zombies) if (vis[(z.y | 0) * W + (z.x | 0)]) mctx.fillRect(z.x | 0, z.y | 0, 1, 1);
   for (const h of hordes) if (h.seen && h.alive) { mctx.strokeStyle = '#ff5a50'; mctx.strokeRect((h.cx | 0) - 3, (h.cy | 0) - 3, 7, 7); }
-  for (const c of crates) { mctx.fillStyle = (G.time * 3 | 0) % 2 ? '#ffe27a' : '#fff'; mctx.fillRect((c.x | 0) - 1, (c.y | 0) - 1, 3, 3); }
+  for (const c of crates) { mctx.fillStyle = c.type === 'survivor' ? ((G.time * 3 | 0) % 2 ? '#7fd0ff' : '#fff') : (G.time * 3 | 0) % 2 ? '#ffe27a' : '#fff'; mctx.fillRect((c.x | 0) - 1, (c.y | 0) - 1, 3, 3); }
   mctx.fillStyle = '#7dd0ff'; mctx.fillRect(CORE.x - 1, CORE.y - 1, 3, 3);
   mctx.fillStyle = '#ffd27a'; mctx.fillRect((P.px | 0) - 1, (P.py | 0) - 1, 3, 3);
 }

@@ -6,7 +6,8 @@ const Save = (() => {
   const unb64 = (str, Type) => { const s = atob(str), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Type(u.buffer); };
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue',
-    'sid', 'storm', 'eventT', 'trader', 'refugeeT', 'res', 'sel', 'diff', 'seed', 'morale', 'memorial', 'deaths'];
+    'sid', 'storm', 'eventT', 'trader', 'refugeeT', 'res', 'sel', 'diff', 'seed', 'morale', 'memorial', 'deaths',
+    'story', 'rules', 'ruleCd', 'flags', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths'];
 
   function snapshot() {
     const d = { v: 1, scalars: {} };
@@ -33,11 +34,11 @@ const Save = (() => {
     let d;
     try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return false; }
     if (!d || d.v !== 1) return false;
-    newGame(d.scalars.diff, d.scalars.seed);
+    newGame(d.scalars.diff, d.scalars.seed, d.scalars.story);
     Object.assign(G, d.scalars);
     if (typeof G.morale !== 'number') G.morale = MORALE.start;
     if (!G.memorial) G.memorial = [];
-    G.deaths = G.deaths || 0;
+    G.deaths = G.deaths || 0; G.rules = G.rules || {}; G.flags = G.flags || {}; G.story = G.story || 'cassandra';
     P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp;
     wall.set(unb64(d.wall, Uint8Array)); explored.set(unb64(d.explored, Uint8Array));
     const hp16 = unb64(d.wallHp, Uint16Array); for (let i = 0; i < W * H; i++) wallHp[i] = hp16[i] / 8;
