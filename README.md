@@ -46,6 +46,9 @@ Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the ho
 - **Roaming herds** wander the roads; lookouts show them on the minimap.
 - **Outposts**, **turrets** and **batteries** extend your reach and your grid.
 
+## Testing
+See `TESTING.md`. Press ` (backtick) in game or add `?debug` to the URL for the debug panel.
+
 ## Phone / tablet (desktop is still the primary target)
 - Touch controls appear automatically: virtual stick to move, **SCAV** (hold) to scavenge, **RUN** toggle, tap or drag to build, two fingers to pan/zoom. The tools live in a bottom bar; the people/log panel is a drawer (chess-piece button) and the pause menu is the hamburger button.
 - Phones default to **Low** quality (cheaper lighting, no ground fog, fewer particles, smaller zombie cap). Change it any time in the menu.
