@@ -20,6 +20,12 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// phones default to the cheaper quality tier; the choice is remembered
+(() => {
+  let q = null; try { q = localStorage.getItem('zomb-quality'); } catch (e) { /* ignore */ }
+  const small = matchMedia('(pointer: coarse)').matches || innerWidth < 900;
+  setQuality(QUALITY[q] ? q : small ? 'low' : 'high');
+})();
 buildSprites();
 resize();
 UI.init();
@@ -33,3 +39,6 @@ window.__game = {
   get G() { return G; }, get P() { return P; }, zombies: () => zombies, defenders: () => defenders, hordes: () => hordes,
   traps: () => traps, crates: () => crates, buildings: () => buildings, tryBuild, startHorde, simulate, keys, newGame, Save, UI, Snd, Art,
 };
+
+// offline / installable (needs http(s); ignored on file://)
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

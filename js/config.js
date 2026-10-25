@@ -27,7 +27,7 @@ const COST = {
 const RADIO_LEVEL = 4;           // camp level needed to build the radio tower
 const RESCUE_TIME = 240;         // seconds you must hold out after the radio goes up
 const BUILD_RANGE = 11;          // tiles from the survivor
-const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10 };
+const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1 };
 
 // Walls hold: zombies never break through, they pile up and climb over the heap.
 // Each zombie queued at a wall tile makes the pile higher, so the others climb faster.
@@ -127,3 +127,12 @@ const EVENTS = {
 const LIGHT = {
   ambient: [10, 16, 34], ambientAlpha: 0.52, stormAlpha: 0.72, dangerTint: [40, 8, 10],
 };
+
+// ---- quality / device ---------------------------------------------------------------
+// 'low' is the default on phones: cheaper lighting, no ground fog, fewer particles and a smaller zombie cap.
+const QUALITY = {
+  high: { name: 'high', dprMax: 2,   light: 3, fog: true,  shadows: true,  parts: 700, maxZ: 6000 },
+  low:  { name: 'low',  dprMax: 1.5, light: 5, fog: false, shadows: false, parts: 260, maxZ: 2200 },
+};
+const Q = Object.assign({}, QUALITY.high);
+function setQuality(name) { Object.assign(Q, QUALITY[name] || QUALITY.high); try { localStorage.setItem('zomb-quality', Q.name); } catch (e) { /* ignore */ } }

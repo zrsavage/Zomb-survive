@@ -8,13 +8,12 @@ const canvas = $('c'), ctx = canvas.getContext('2d');
 const mini = $('mini'), mctx = mini.getContext('2d');
 let dpr = 1;
 function resize() {
-  dpr = window.devicePixelRatio || 1;
+  dpr = Math.min(window.devicePixelRatio || 1, Q.dprMax);
   canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
 }
 addEventListener('resize', resize);
 
 const lightCv = document.createElement('canvas'), lg = lightCv.getContext('2d');
-const LS = 3;                                                     // light buffer downscale
 
 // ---- units ---------------------------------------------------------------
 function spriteFor(o) {
@@ -114,9 +113,9 @@ function drawWorld(cam, cw, ch, z) {
     items.push(zb);
   }
   for (const d of defenders) items.push(d);
-  items.push(P);
+  if (P.dead <= 0) items.push(P);
   items.sort((a, b) => (a.py !== undefined ? a.py : a.y) - (b.py !== undefined ? b.py : b.y));
-  const crowd = items.length > 1800;
+  const crowd = items.length > 1800 || !Q.shadows;
   for (const o of items) {
     if (o.py !== undefined) {
       shadow(o.px, o.py + 0.1, 10);
@@ -212,7 +211,7 @@ function collectLights(cam) {
   const L = [], t = G.time;
   const fl = 1 + Math.sin(t * 13) * 0.06 + Math.sin(t * 7.1) * 0.05;
   L.push({ x: CORE.x + 0.5, y: CORE.y + 1.6, r: (9 + G.level * 0.5) * fl, a: 0.95, c: [255, 160, 70], glow: 0.22 });
-  L.push({ x: P.px, y: P.py - 0.4, r: 5.6, a: 0.8, c: [255, 235, 190], glow: 0.05 });
+  if (P.dead <= 0) L.push({ x: P.px, y: P.py - 0.4, r: 5.6, a: 0.8, c: [255, 235, 190], glow: 0.05 });
   for (const l of lamps) {
     if (!l.on || !explored[(l.y | 0) * W + (l.x | 0)]) continue;
     const flick = Math.sin(t * 30 + l.ph) > 0.93 ? 0.3 : 1;
@@ -228,7 +227,7 @@ function collectLights(cam) {
   return L;
 }
 function drawLighting(cam, cw, ch, z) {
-  const lw = Math.ceil(cw / LS), lh = Math.ceil(ch / LS);
+  const LS = Q.light, lw = Math.ceil(cw / LS), lh = Math.ceil(ch / LS);
   if (lightCv.width !== lw || lightCv.height !== lh) { lightCv.width = lw; lightCv.height = lh; }
   const storm = G.storm > 0 ? 1 : 0, d = G.danger;
   const [ar, ag, ab] = LIGHT.ambient, [dr, dg, db] = LIGHT.dangerTint;
@@ -266,7 +265,7 @@ function drawAtmosphere(cw, ch) {
   // drifting ground fog
   const tex = Art.fogTex, ts = 512 * dpr;
   ctx.globalCompositeOperation = 'screen';
-  for (const [spd, a, off] of [[7, 0.05, 0], [-4, 0.04, 200]]) {
+  if (Q.fog) for (const [spd, a, off] of [[7, 0.05, 0], [-4, 0.04, 200]]) {
     ctx.globalAlpha = a * (G.storm > 0 ? 1.8 : 1);
     const ox = ((t * spd * dpr + off) % ts + ts) % ts - ts, oy = ((t * 2 * dpr + off) % ts + ts) % ts - ts;
     for (let x = ox; x < cw; x += ts) for (let y = oy; y < ch; y += ts) ctx.drawImage(tex, x, y, ts, ts);

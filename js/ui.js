@@ -80,8 +80,10 @@ const UI = (() => {
     $('iTime').textContent = fmtTime(G.elapsed) + ' / ' + G.hordesBeaten + ' hordes';
     $('iKills').textContent = G.kills + ' / ' + Math.round(e / (W * H) * 100) + '%';
 
+    $('respawn').style.display = P.dead > 0 ? 'block' : 'none';
+    if (P.dead > 0) $('respawn').textContent = 'Survivor down - a replacement arrives in ' + Math.ceil(P.dead) + 's';
     const b = nearBuilding(), pr = $('prompt');
-    if (b && !G.over) {
+    if (b && !G.over && P.dead <= 0) {
       pr.style.display = 'block';
       pr.textContent = b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
     } else pr.style.display = 'none';
@@ -114,7 +116,7 @@ const UI = (() => {
     $('crewsH').style.display = G.crews.length ? '' : 'none';
     $('crews').innerHTML = G.crews.map(c => {
       const b = buildings[c.bi];
-      return '<div>' + c.members.map(s => s.name.split(' ')[0]).join(', ') + ' → ' + BUILDING_TYPES[b.type].label + ' · risk ' + Math.round(c.risk * 100) + '%<div class="bar"><i style="width:' + (c.t / c.dur * 100) + '%"></i></div></div>';
+      return '<div>' + c.members.map(s => s.name).join(', ') + ' → ' + BUILDING_TYPES[b.type].label + ' · risk ' + Math.round(c.risk * 100) + '%<div class="bar"><i style="width:' + (c.t / c.dur * 100) + '%"></i></div></div>';
     }).join('');
   }
   function renderLog() {
@@ -168,11 +170,14 @@ const UI = (() => {
     const c = $('card'), ov = $('overlay');
     const diff = (localStorage.getItem('zomb-diff') || 'normal');
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
-    const vol = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>';
+    const vol = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
+      '<div style="margin-top:10px">Graphics quality <span style="color:var(--dim)">(Low is recommended on phones)</span></div><div class="seg" id="qualSeg">' +
+      Object.keys(QUALITY).map(k => '<button data-q="' + k + '" class="' + (k === Q.name ? 'on' : '') + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div>' +
+      '<div style="margin-top:10px"><button id="mFull" style="display:inline-flex">Toggle fullscreen (F)</button></div>';
     let h = '';
     if (mode === 'title') {
       h = '<h1>ZOMB SURVIVE</h1><div class="sub">Hold out. Build up. Get rescued.</div>' +
-        '<p>You are the last one left at a ruined camp. The town is full of the dead, and there is no night to warn you when a horde is coming.</p>' +
+        '<p>You are the last one left at a ruined camp. The town is full of the dead, and there is no night to warn you when a horde is coming. <b>Survivors are expendable: only the camp matters.</b> Lose it and the run is over.</p>' +
         '<ul><li><b>Scavenge</b> (hold E), <b>scout</b> the fog and <b>send crews</b> for supplies. Some buildings hide survivors.</li>' +
         '<li><b>Fortify</b> with walls, towers, gates and traps. Zombies never break walls: they pile up and climb, so kill them as they climb.</li>' +
         '<li><b>Build lookouts</b> to see hordes coming. Without them you only get a faint rumble.</li>' +
@@ -185,11 +190,14 @@ const UI = (() => {
         '<div id="menuBtns"><button id="mResume">Resume</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
     } else {
       h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'The helicopter lifts you out of the dead town.' : 'The dead take the town.') + '</div>' +
-        '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies and reached camp level <b>' + G.level + '</b>.</p>' +
+        '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
         '<div>Difficulty</div>' + diffBtns + '<div id="menuBtns"><button id="mNew">New game</button></div>';
     }
     c.innerHTML = h; ov.classList.remove('hidden');
     const on = (id, fn) => { const e = $(id); if (e) e.addEventListener('click', () => { Snd.resume(); Snd.click(); fn(); }); };
+    document.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => {
+      setQuality(b.dataset.q); resize(); document.querySelectorAll('[data-q]').forEach(x => x.classList.toggle('on', x === b));
+    }));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
       localStorage.setItem('zomb-diff', b.dataset.diff);
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
@@ -197,6 +205,7 @@ const UI = (() => {
     const v = $('volume'); if (v) v.addEventListener('input', () => { Snd.resume(); Snd.setVolume(v.value / 100); });
     on('mNew', () => { newGame(localStorage.getItem('zomb-diff') || 'normal'); hideMenu(); });
     on('mContinue', () => { if (Save.load()) hideMenu(); else toast('Could not load the save'); });
+    on('mFull', toggleFullscreen);
     on('mResume', hideMenu);
     on('mSave', () => { toast(Save.save() ? 'Game saved' : 'Could not save'); });
     on('mQuit', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } showMenu('title'); });
@@ -204,8 +213,9 @@ const UI = (() => {
   function hideMenu() { menuMode = null; $('overlay').classList.add('hidden'); }
   function showEnd() { showMenu('end'); }
 
-  // ---- input ---------------------------------------------------------------
-  let panning = false, painting = false, lastPaint = null, lastMouse = { x: 0, y: 0 };
+  // ---- input (pointer events: mouse, touch and pen share one path) -----------------------------------------------
+  const pointers = new Map();
+  let pinch = null, panning = false, painting = false, lastPaint = null, lastMouse = { x: 0, y: 0 };
   function screenToTile(sx, sy) {
     const z = G.cam.zoom;
     const wx = (sx - innerWidth / 2) / z / T + G.cam.x, wy = (sy - innerHeight / 2) / z / T + G.cam.y;
@@ -223,36 +233,81 @@ const UI = (() => {
       if (e2 <= dx) { err += dx; y0 += sy; }
     }
   }
+  const pair = () => { const [a, b] = [...pointers.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
+  function zoomAt(cx, cy, z1) {                    // zoom keeping the world point under (cx,cy) fixed (when the camera is free)
+    const z0 = G.cam.zoom;
+    const wx = (cx - innerWidth / 2) / z0 / T + G.cam.x, wy = (cy - innerHeight / 2) / z0 / T + G.cam.y;
+    G.cam.zoom = clamp(z1, 0.9, 6);
+    if (G.cam.free) { G.cam.x = wx - (cx - innerWidth / 2) / G.cam.zoom / T; G.cam.y = wy - (cy - innerHeight / 2) / G.cam.zoom / T; }
+  }
+  function setTouchMode(on) { document.body.classList.toggle('touch', on); applyLayout(); }
+  function applyLayout() { document.body.classList.toggle('compact', innerWidth < 900 || document.body.classList.contains('touch')); document.body.classList.toggle('portrait', innerHeight > innerWidth); }
+
   function bindInput() {
     canvas.addEventListener('contextmenu', e => e.preventDefault());
-    canvas.addEventListener('mousedown', e => {
+    canvas.addEventListener('pointerdown', e => {
       Snd.resume();
+      if (e.pointerType === 'touch' && !document.body.classList.contains('touch')) setTouchMode(true);
       if (!G || menuOpen()) return;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       lastMouse = { x: e.clientX, y: e.clientY };
-      if (e.button === 2 || e.button === 1) { panning = true; G.cam.free = true; return; }
-      if (e.button === 0) {
-        painting = G.tool !== 'crew' && G.tool !== 'radio'; lastPaint = screenToTile(e.clientX, e.clientY); tryBuild(lastPaint.tx, lastPaint.ty);
-      }
-    });
-    addEventListener('mouseup', () => { panning = false; painting = false; lastPaint = null; });
-    canvas.addEventListener('mousemove', e => {
-      if (!G) return;
       G.hover = screenToTile(e.clientX, e.clientY);
-      if (panning) {
+      if (e.pointerType === 'mouse') {
+        if (e.button === 2 || e.button === 1) { panning = true; G.cam.free = true; return; }
+        if (e.button !== 0) return;
+      } else if (pointers.size >= 2) {               // two fingers: pinch to zoom, drag to pan
+        painting = false; G.cam.free = true; const p = pair(); pinch = { d: p.d, cx: p.cx, cy: p.cy, zoom: G.cam.zoom }; return;
+      }
+      painting = G.tool !== 'crew' && G.tool !== 'radio'; lastPaint = G.hover; tryBuild(G.hover.tx, G.hover.ty);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!G) return;
+      const p = pointers.get(e.pointerId);
+      if (e.pointerType !== 'touch') G.hover = screenToTile(e.clientX, e.clientY);
+      if (p) { p.x = e.clientX; p.y = e.clientY; }
+      if (pinch && pointers.size >= 2) {
+        const q = pair();
+        G.cam.x -= (q.cx - pinch.cx) / G.cam.zoom / T; G.cam.y -= (q.cy - pinch.cy) / G.cam.zoom / T;
+        pinch.cx = q.cx; pinch.cy = q.cy;
+        zoomAt(q.cx, q.cy, pinch.zoom * q.d / pinch.d);
+      } else if (panning) {
         G.cam.x -= (e.clientX - lastMouse.x) / G.cam.zoom / T; G.cam.y -= (e.clientY - lastMouse.y) / G.cam.zoom / T;
-      } else if (painting) {
-        const cur = G.hover; if (lastPaint) paintLine(lastPaint, cur); lastPaint = cur;
+      } else if (painting && p) {
+        G.hover = screenToTile(e.clientX, e.clientY);
+        if (lastPaint) paintLine(lastPaint, G.hover); lastPaint = G.hover;
       }
       lastMouse = { x: e.clientX, y: e.clientY };
     });
+    const up = e => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (!pointers.size) { panning = false; painting = false; lastPaint = null; if (e.pointerType === 'touch' && G) G.hover = null; }
+    };
+    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
     canvas.addEventListener('mouseleave', () => { if (G) G.hover = null; });
-    canvas.addEventListener('wheel', e => {
-      e.preventDefault();
-      const z0 = G.cam.zoom;
-      const wx = (e.clientX - innerWidth / 2) / z0 / T + G.cam.x, wy = (e.clientY - innerHeight / 2) / z0 / T + G.cam.y;
-      const z1 = G.cam.zoom = clamp(z0 * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.9, 6);
-      if (G.cam.free) { G.cam.x = wx - (e.clientX - innerWidth / 2) / z1 / T; G.cam.y = wy - (e.clientY - innerHeight / 2) / z1 / T; }
-    }, { passive: false });
+    canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, G.cam.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }, { passive: false });
+    for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault());
+
+    // ---- touch controls: stick, scavenge, run, menu, people drawer ----
+    const stick = $('joy'), knob = $('joyKnob'); let joyId = null;
+    const joyAt = e => {
+      const r = stick.getBoundingClientRect(), R = r.width / 2;
+      let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R); const l = Math.hypot(dx, dy) || 1;
+      if (l > R) { dx = dx / l * R; dy = dy / l * R; }
+      joy.x = dx / R; joy.y = dy / R; knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    };
+    stick.addEventListener('pointerdown', e => { Snd.resume(); joyId = e.pointerId; stick.setPointerCapture(e.pointerId); joyAt(e); e.preventDefault(); });
+    stick.addEventListener('pointermove', e => { if (e.pointerId === joyId) joyAt(e); });
+    const joyEnd = e => { if (e.pointerId !== joyId) return; joyId = null; joy.x = joy.y = 0; knob.style.transform = ''; };
+    stick.addEventListener('pointerup', joyEnd); stick.addEventListener('pointercancel', joyEnd);
+    const hold = (id, fn) => { const b = $(id); b.addEventListener('pointerdown', e => { Snd.resume(); b.setPointerCapture(e.pointerId); b.classList.add('on'); fn(true); e.preventDefault(); }); const end = () => { b.classList.remove('on'); fn(false); }; b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end); };
+    hold('btnLoot', on => { keys.e = on; });
+    $('btnRun').addEventListener('click', () => { keys.shift = !keys.shift; $('btnRun').classList.toggle('on', !!keys.shift); });
+    $('btnMenu').addEventListener('click', () => { if (G && !menuMode) showMenu('pause'); });
+    $('btnPeople').addEventListener('click', () => { document.body.classList.toggle('drawer'); Snd.click(); });
+    $('rotate').addEventListener('click', () => { $('rotate').style.display = 'none'; });
+
     const toolKeys = {}; for (const t of TOOLS) toolKeys[t.key.toLowerCase()] = t.id;
     addEventListener('keydown', e => {
       Snd.resume();
@@ -265,12 +320,23 @@ const UI = (() => {
       else if (k === 'u') upgradeCore();
       else if (k === 'r') toggleResearch();
       else if (k === 'm') toast(Snd.toggleMute() ? 'Sound off' : 'Sound on');
+      else if (k === 'f') toggleFullscreen();
       else if (k === ' ') { G.paused = !G.paused; e.preventDefault(); }
       if (k.startsWith('arrow')) e.preventDefault();
     });
-    addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (!e.shiftKey) keys.shift = false; });
-    addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (G && !G.over && !menuMode) { Save.save(); } });
+    addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (!e.shiftKey && !$('btnRun').classList.contains('on')) keys.shift = false; });
+    addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (G && !G.over && !menuMode) Save.save(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.over) { Save.save(); if (!menuMode) showMenu('pause'); } });
     addEventListener('beforeunload', () => { if (G && !G.over) Save.save(); });
+    addEventListener('resize', applyLayout);
+    addEventListener('orientationchange', () => setTimeout(() => { resize(); applyLayout(); }, 200));
+    if (matchMedia('(pointer: coarse)').matches) setTouchMode(true);
+    applyLayout();
+  }
+  function toggleFullscreen() {
+    const d = document, el = d.documentElement;
+    if (!d.fullscreenElement && el.requestFullscreen) { el.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); }).catch(() => {}); }
+    else if (d.fullscreenElement) d.exitFullscreen();
   }
 
   return { init, update, bindInput, showMenu, hideMenu, showEnd, menuOpen };

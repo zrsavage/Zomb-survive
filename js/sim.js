@@ -23,16 +23,16 @@ function effCost(name) {
 const canAfford = c => (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a);
 function pay(c) { G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; }
 function log(msg) { G.log.unshift({ t: G.elapsed, msg }); if (G.log.length > 8) G.log.pop(); toast(msg); }
-function newSurvivor(role) { return { id: G.sid++, name: pick(NAMES) + ' ' + String.fromCharCode(65 + (rng() * 26 | 0)) + '.', role: role || weighted(ROLES, 'weight'), sick: 0, cure: 0 }; }
+function newSurvivor(role) { role = role || weighted(ROLES, 'weight'); const id = G.sid++; return { id, name: ROLES[role].label + ' #' + id, role, sick: 0, cure: 0 }; }
 function addRecruit(s, why) {
   G.idle.push(s);
-  log(s.name + ' (' + ROLES[s.role].label + ') ' + why);
+  log(s.name + ' ' + why);
 }
 const roomForPerson = () => people() < LEVELS[G.level - 1].defs;
 
 // ---- effects helpers ---------------------------------------------------------------
 function addBurst(x, y, color, n, o = {}) {
-  if (parts.length > 700) return;
+  if (parts.length > Q.parts) return;
   for (let i = 0; i < n; i++) parts.push({
     x, y, vx: (rng() - 0.5) * (o.spread || 3), vy: (rng() - 0.5) * (o.spread || 3) + (o.up || -0.5),
     life: 0.25 + rng() * 0.25, max: 0.5, color, size: o.size || 1.5, grav: o.grav || 0,
@@ -58,13 +58,13 @@ function newGame(diffKey, seed) {
     territory: 0, sealed: false, income: { m: 0, f: 0, a: 0 }, held: 0, lookouts: [],
     fieldDirty: true, fieldTimer: 0, pfTimer: 0, repairT: 0, hudT: 0, visT: 0, scanT: 0, refugeeT: REFUGEE_GAP,
     ambientT: 0, visibleZ: 0, saveT: 30,
-    cam: { x: CORE.x + 0.5, y: CORE.y + 3, zoom: 2.4, free: false },
+    cam: { x: CORE.x + 0.5, y: CORE.y + 3, zoom: document.body.classList.contains('compact') ? 1.7 : 2.4, free: false },
     net: { a: 0, m: 0, f: 0 }, hordeMsg: null,
     res: { done: {}, active: null }, storm: 0, thunderT: 8, flash: 0, trader: null,
     eventT: EVENTS.firstAt, log: [], shake: 0, rumble: 0, danger: 0, dangerT: 0,
-    time: 0, hover: null,
+    time: 0, hover: null, deaths: 0,
   };
-  P = { px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0 };
+  P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0 };
   Art.renderTerrain();
   computeBaseField(); computePlayerField(); computeTerritory();
   seedAmbient(D.ambient);
@@ -122,7 +122,7 @@ function startHorde() {
   G.nextHorde = gap;
 }
 function spawnHordeZombie(h) {
-  if (zombies.length >= MAX_ZOMBIES) return;
+  if (zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) return;
   for (let t = 0; t < 12; t++) {
     const along = (h.pos + (rng() - 0.5) * 0.18 + 1) % 1;
     const s = h.side;
@@ -160,9 +160,9 @@ function updateZombies(dt) {
 
     // bite the survivor
     const pdx = P.px - z.x, pdy = P.py - z.y;
-    if (pdx * pdx + pdy * pdy < 0.5) {
+    if (P.dead <= 0 && pdx * pdx + pdy * pdy < 0.5) {
       P.hp -= zt.dmg * dt; P.hurt = 1.5; z.face = pdx > 0 ? 1 : -1; z.st = 1; Snd.hurt();
-      if (P.hp <= 0 && !G.over) endGame(false, 'The survivor was overrun');
+      if (P.hp <= 0) killPlayer();
       continue;
     }
     // bite a defender (only once the zombie is up on the wall tile beside them)
@@ -290,13 +290,13 @@ function explode(x, y) {
   addBurst(x, y - 0.3, '#b8d060', 22, { spread: 6, grav: 6, size: 2 });
   const r2 = BLOAT.radius ** 2;
   for (const d of defenders.slice()) { const dx = d.px - x, dy = d.py - y; if (dx * dx + dy * dy < r2) { d.hp -= BLOAT.defDmg; d.hurt = 0.3; if (d.hp <= 0) killDefender(d); } }
-  { const dx = P.px - x, dy = P.py - y; if (dx * dx + dy * dy < r2) { P.hp -= BLOAT.playerDmg; P.hurt = 1.5; if (P.hp <= 0 && !G.over) endGame(false, 'The survivor was caught in a blast'); } }
+  { const dx = P.px - x, dy = P.py - y; if (P.dead <= 0 && dx * dx + dy * dy < r2) { P.hp -= BLOAT.playerDmg; P.hurt = 1.5; if (P.hp <= 0) killPlayer(); } }
   for (const z of zombies) { const dx = z.x - x, dy = z.y - y; if (dx * dx + dy * dy < r2) z.hp -= BLOAT.zombieDmg; }
 }
 function killDefender(d) {
   removeDefender(d);
   addBurst(d.px, d.py, '#e8524a', 8);
-  log(d.s.name + ' (' + ROLES[d.s.role].label + ') was killed on the wall');
+  log(d.s.name + ' was lost on the wall');
 }
 function alertNoise(x, y, r, mode) {           // gunfire draws idle zombies in
   const r2 = r * r;
@@ -343,7 +343,7 @@ function fight(e, dt, o) {
     e.face = best.x >= e.px ? 1 : -1;
     tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1 });
     if (flashes.length < 40) flashes.push({ x: e.px + e.face * 0.5, y: e.py - 0.5, life: 0.09 });
-    if (parts.length < 700) parts.push({ x: e.px, y: e.py - 0.4, vx: -e.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
+    if (parts.length < Q.parts) parts.push({ x: e.px, y: e.py - 0.4, vx: -e.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
     addBurst(best.x, best.y - 0.4, '#a02020', 2, { grav: 3 });
     Snd.shot(e.px, e.py, o.dmgMul > 1);
     if (e.noiseT <= 0) { e.noiseT = 0.6; alertNoise(e.px, e.py, AMBIENT.noise, o.noiseMode); }
@@ -427,18 +427,36 @@ function nearBuilding() {
   return best;
 }
 const lootTime = () => LOOT_TIME * (has('scav') ? 0.7 : 1);
+// Your survivor is expendable: only the camp falling ends the run.
+function killPlayer() {
+  if (P.dead > 0) return;
+  P.dead = PLAYER.respawn; P.hp = 0; P.loot = 0; P.moving = false; G.deaths++;
+  P.px = CORE.x + 0.5; P.py = CORE.y + 2.8;                 // chasers lose the trail and head for the walls
+  G.mat = Math.floor(G.mat * (1 - PLAYER.deathPenalty)); G.ammo = Math.floor(G.ammo * (1 - PLAYER.deathPenalty)); G.food = Math.floor(G.food * (1 - PLAYER.deathPenalty));
+  shake(4); Snd.error();
+  log('Your survivor fell. Another takes over in ' + PLAYER.respawn + 's (-' + Math.round(PLAYER.deathPenalty * 100) + '% supplies).');
+}
+const joy = { x: 0, y: 0 };                                  // virtual stick for touch controls
 function updatePlayer(dt) {
+  if (P.dead > 0) {
+    P.dead -= dt; P.moving = false; P.st = 'idle';
+    if (P.dead <= 0) { P.dead = 0; P.hp = PLAYER.hp * 0.6; P.hurt = 0; log('A new survivor takes the field.'); }
+    return;
+  }
   let mx = 0, my = 0;
   if (keys.w || keys.arrowup) my -= 1;
   if (keys.s || keys.arrowdown) my += 1;
   if (keys.a || keys.arrowleft) mx -= 1;
   if (keys.d || keys.arrowright) mx += 1;
+  let mag = 1;
+  const jl = Math.hypot(joy.x, joy.y);
+  if (jl > 0.18) { mx = joy.x; my = joy.y; mag = Math.min(1, jl); }
   const moving = !!(mx || my);
   P.moving = moving;
   if (moving) {
     G.cam.free = false;
     const k = wall[(P.py | 0) * W + (P.px | 0)];
-    const sp = PLAYER.speed * (keys.shift ? PLAYER.sprint : 1) * (k && k !== K.GATE ? PLAYER.wallSlow : 1) * dt / Math.hypot(mx, my);
+    const sp = PLAYER.speed * mag * (keys.shift ? PLAYER.sprint : 1) * (k && k !== K.GATE ? PLAYER.wallSlow : 1) * dt / Math.hypot(mx, my);
     if (playerFree(P.px + mx * sp, P.py)) P.px += mx * sp;
     if (playerFree(P.px, P.py + my * sp)) P.py += my * sp;
     if (mx) P.face = mx > 0 ? 1 : -1;
@@ -489,7 +507,7 @@ function scavenge(b) {
   Snd.loot();
   floatText(b.x + b.w / 2, b.y - 0.2, got.join(' '), '#ffe27a');
   let msg = t.label + ': ' + got.join(', ');
-  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + s.name + ' (' + ROLES[s.role].label + ') was hiding inside and follows you back!'; }
+  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + s.name + ' was hiding inside and follows you back!'; }
   log(msg);
 }
 
@@ -533,7 +551,7 @@ function updateCrews(dt) {
     for (const s of survivors) G.idle.push(s);
     let msg = 'Crew back from the ' + t.label + ': +' + m + 'm +' + f + 'f +' + a + 'a';
     if (lost) msg += ' - lost ' + c.members.filter(s => !survivors.includes(s)).map(s => s.name).join(', ');
-    if (survivors.length && rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + s.name + ' (' + ROLES[s.role].label + ')'; }
+    if (survivors.length && rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + s.name; }
     log(msg);
     if (lost) Snd.error(); else Snd.loot();
   }

@@ -15,6 +15,13 @@ You are the last survivor at a ruined camp. There is no day/night cycle: hordes 
 
 Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the horde), leaper (vaults walls), bloater (explodes). Hordes grow 1.4x each time and reach the thousands.
 
+## Phone / tablet (desktop is still the primary target)
+- Touch controls appear automatically: virtual stick to move, **SCAV** (hold) to scavenge, **RUN** toggle, tap or drag to build, two fingers to pan/zoom. The tools live in a bottom bar; the people/log panel is a drawer (chess-piece button) and the pause menu is the hamburger button.
+- Phones default to **Low** quality (cheaper lighting, no ground fog, fewer particles, smaller zombie cap). Change it any time in the menu.
+- Landscape is recommended. Serve over https to install it as a fullscreen app (manifest + service worker included, works offline).
+
+Your own survivor is expendable: dying costs 10% of supplies and an 8 second respawn. Only the camp falling ends the run.
+
 ## Controls
 WASD move (Shift sprint) - hold E scavenge - click/drag build (within range of you) - 1-9, B tools - U upgrade camp - R research - wheel zoom - right-drag look around - M mute - Space pause - Esc menu. The game autosaves; use Continue on the title screen.
 
