@@ -39,6 +39,13 @@
   #horde.alert{color:#fff;border-color:var(--bad);background:#3a1512ee}
   #horde.heard{color:#fff;border-color:var(--bad);background:#4a1812ee;animation:pulse .6s infinite alternate}
   @keyframes pulse{to{background:#7a2018ee}}
+  #townAlert{top:92px;left:50%;transform:translateX(-50%);display:none;background:#3a1512ee;border-color:var(--bad);color:#fff;max-width:min(680px,92vw);text-align:center;z-index:3}
+  .tcard{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;background:#18211c}
+  .tcard.here{border-color:var(--acc)} .tcard.lost{opacity:.5}
+  .tcard h4{margin:0 0 4px;color:var(--txt);font-size:13px;text-transform:none;letter-spacing:0}
+  .tcard .btns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.tcard .btns button{padding:3px 8px;font-size:12px}
+  .chip2{display:inline-block;padding:0 6px;border-radius:9px;font-size:11px;margin-left:6px;background:#2a3a30;color:var(--dim)}
+  .ok2{color:var(--good)}.no2{color:var(--bad)}
   #rescue{top:92px;left:50%;transform:translateX(-50%);display:none;background:#12301aee;border-color:var(--good);font-size:15px;white-space:nowrap}
 
   #tools{left:8px;top:8px;width:206px;display:flex;flex-direction:column;gap:5px;max-height:calc(100vh - 80px);overflow:auto}
@@ -64,10 +71,10 @@
   #prompt{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000b;border:1px solid var(--line);display:none}
   #help{left:8px;bottom:8px;color:var(--dim);max-width:520px;font-size:12px}
 
-  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,94vw);display:none;z-index:3;max-height:80vh;overflow:auto}
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,94vw);display:none;z-index:6;max-height:80vh;overflow:auto}
   .modal.show{display:block}
   .modal h3{margin:0 0 8px;font-size:16px}
-  #radio{border-color:var(--acc);z-index:5} #radio .txt{margin:6px 0 10px;color:#cfe0ee;font-style:italic} #radio button{width:100%;margin-top:5px}
+  #radio{border-color:var(--acc);z-index:7} #radio .txt{margin:6px 0 10px;color:#cfe0ee;font-style:italic} #radio button{width:100%;margin-top:5px}
   .tech{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
   .tech small{color:var(--dim);display:block}
   #trade{right:276px;top:8px;width:260px;display:none}
@@ -131,6 +138,7 @@
 <canvas id="c"></canvas>
 
 <div id="top" class="panel">
+  <div class="res" id="townWrap" title="The town you are in. Open the world map (Tab) to see the others."><b style="background:#8ab0d8"></b><span id="townName">Home Camp</span></div>
   <div class="res"><b style="background:var(--ammo)"></b><span id="rAmmo">0</span> <small id="dAmmo"></small></div>
   <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
   <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
@@ -142,6 +150,7 @@
   <div class="res">In sight <span id="zCount">0</span></div>
 </div>
 <div id="horde" class="panel">No horde sighted</div>
+<div id="townAlert" class="panel"></div>
 <div id="respawn" class="panel"></div>
 <div id="rescue" class="panel"></div>
 
@@ -152,6 +161,7 @@
   <button id="btnUp"><span><kbd>U</kbd>Upgrade camp</span><span class="cost" id="cUp"></span></button>
   <button id="btnRes"><span><kbd>R</kbd>Research</span><span class="cost" id="cRes"></span></button>
   <button id="btnRules"><span><kbd>P</kbd>Camp rules</span><span class="cost" id="cRules"></span></button>
+  <button id="btnMap"><span><kbd>Tab</kbd>World map</span><span class="cost" id="cMap"></span></button>
   <h4>Time</h4>
   <div id="speed">
     <button data-speed="0">II</button><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
@@ -192,6 +202,7 @@
 <div id="trade" class="panel"></div>
 <div id="research" class="panel modal"></div>
 <div id="memorial" class="panel modal"></div>
+<div id="map" class="panel modal" style="width:min(720px,96vw)"></div>
 <div id="rules" class="panel modal"></div>
 <div id="radio" class="panel modal"></div>
 

@@ -30,6 +30,22 @@ Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the ho
 - **New zombies:** *spitters* spray acid at wall defenders from range, *riot zombies* shrug off bullets (not blades), *infected dogs* are fast but cannot climb: they only come through gaps, so a fully sealed camp stops them. Later hordes are tougher. Fallen defenders may **turn** and have to be put down.
 - **Base facilities** (inside territory): Garden (food), Workshop (materials to ammo), Generator, Floodlight, Clinic (medicine, cures sickness), Depot (+300 storage). The **power grid** burns fuel and generators are loud: they draw the dead. **Electrify** walls to zap climbers (needs power). **Reinforce** walls from Timber to Reinforced to Concrete (research).
 
+## A finite town, and a second one
+- **Finite supplies:** every building holds a limited stock. Scavenging and passive income (buildings in your territory, garrisoned outposts) both draw it down, and the side panel shows how much of the town is left. When it runs dry you have to move on. Gardens, wells and rain collectors are renewable; ammo, materials, fuel and medicine are not.
+- **Truck:** build a Garage bay, then a Truck (Tab / side panel). Crews are faster with it, and it is needed to travel between towns.
+- **Second town:** research *Expedition Planning*, then found a town from the **World map (Tab)** with a founding party and supplies. It starts as a ruined camp in a richer, more infested town. You can hold up to three.
+- **Two towns at once:** you only play (and see) one town at a time; the others keep running in the background. Their economy, morale, nests and hordes are simulated in an abstract way: a horde that reaches a town you are not in is resolved by comparing your defence there (posted survivors, turrets, walls, traps, ammo) with the horde. Lookouts there warn you ("horde in ~40s") so you can travel back and defend it yourself, which brings the horde into the live game. A lost town is gone; the game ends when your last camp falls.
+- **Convoys:** send supplies or survivors between towns (50s on the road, with a risk of ambush, lower with a truck).
+
+## More survival systems
+- **Water and hygiene** (wells, rain collectors, latrines), **four seasons** (winter stops gardens and raises food and fuel needs; summer is thirstier) and **fog** weather.
+- **Tyrant bosses** walk with every fifth horde and drop loot, a keycard and a free blueprint.
+- **Crafting** at the Workshop: ammo, AP rounds (against armour), incendiary rounds (into crowds) and combat blades.
+- **Locked buildings** (Police Station, Bunker) need a keycard, or fuel to cut through.
+- **Sewers:** unsealed manholes let part of a horde come up near your camp; seal them with a grate.
+- **Roaming herds** wander the roads; lookouts show them on the minimap.
+- **Outposts**, **turrets** and **batteries** extend your reach and your grid.
+
 ## Phone / tablet (desktop is still the primary target)
 - Touch controls appear automatically: virtual stick to move, **SCAV** (hold) to scavenge, **RUN** toggle, tap or drag to build, two fingers to pan/zoom. The tools live in a bottom bar; the people/log panel is a drawer (chess-piece button) and the pause menu is the hamburger button.
 - Phones default to **Low** quality (cheaper lighting, no ground fog, fewer particles, smaller zombie cap). Change it any time in the menu.

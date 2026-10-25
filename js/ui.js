@@ -31,7 +31,7 @@ const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a', c.me
 const fmtRate = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '/s';
 
 const UI = (() => {
-  let lastRules = '', lastRadio = '';
+  let lastRules = '', lastRadio = '', lastMap = '';
   let menuMode = null, lastPeople = '', lastRes = '', lastCrews = null, lastLog = '';
 
   // ---- build the static parts -------------------------------------------------------------
@@ -53,6 +53,7 @@ const UI = (() => {
     $('btnRes').addEventListener('click', toggleResearch);
     $('btnFallen').addEventListener('click', toggleMemorial);
     $('btnRules').addEventListener('click', toggleRules);
+    $('btnMap').addEventListener('click', toggleMap);
     $('btnTruck').addEventListener('click', () => Base.buildTruck());
     const cs = $('craftSeg');
     for (const k in RECIPES) {
@@ -75,6 +76,11 @@ const UI = (() => {
     $('morWrap').title = 'Camp morale ' + (G.morale | 0) + ' (heading to ' + (G.moraleTarget | 0) + '). High: defenders shoot faster. Low: slower, no refugees; in despair people desert. Deaths hurt, wins heal.';
     $('iMor').textContent = ml + ' ' + (G.morale | 0) + ' → ' + (G.moraleTarget | 0); $('morBar').style.width = G.morale + '%'; $('morBar').style.background = mc || 'var(--acc)';
     $('cFallen').textContent = G.memorial.length;
+    $('townName').textContent = G.townName || 'Camp';
+    const bgAlert = Campaign.towns.some(t => t !== Campaign.active && t.pending);
+    $('cMap').textContent = Campaign.towns.length > 1 ? (bgAlert ? '! alert' : Campaign.towns.length + ' towns') : (Campaign.truck ? 'truck ready' : '');
+    const ta = $('townAlert'); ta.style.display = Campaign.alert ? 'block' : 'none'; if (Campaign.alert) ta.textContent = Campaign.alert.text;
+    if ($('map').classList.contains('show')) renderMap();
     $('rWater').textContent = G.water | 0; $('rWater').style.color = G.water <= 0 ? 'var(--bad)' : '';
     const S = season(), left = SEASON_LEN - (gameTime() % SEASON_LEN);
     $('iSeason').textContent = S.name + ' (' + Math.ceil(left / 60) + 'm left)';
@@ -124,8 +130,9 @@ const UI = (() => {
     $('iTime').textContent = fmtTime(G.elapsed) + ' / ' + G.hordesBeaten + ' hordes';
     $('iKills').textContent = G.kills + ' / ' + Math.round(e / (W * H) * 100) + '%';
 
-    $('respawn').style.display = P.dead > 0 ? 'block' : 'none';
-    if (P.dead > 0) $('respawn').textContent = 'Survivor down - a replacement arrives in ' + Math.ceil(P.dead) + 's';
+    $('respawn').style.display = P.dead > 0 || P.travel > 0 ? 'block' : 'none';
+    if (P.travel > 0) $('respawn').textContent = 'Arriving in ' + G.townName + '...';
+    else if (P.dead > 0) $('respawn').textContent = 'Survivor down - a replacement arrives in ' + Math.ceil(P.dead) + 's';
     const b = nearBuilding(), pr = $('prompt');
     if (b && !G.over && P.dead <= 0) {
       pr.style.display = 'block';
@@ -207,6 +214,55 @@ const UI = (() => {
       $('mClose').addEventListener('click', toggleMemorial);
     }
     Snd.click();
+  }
+
+  // ---- world map: the towns, travel, convoys, founding ---------------------------------------------------------------
+  function townStats(t) {
+    const live = t === Campaign.active, g = t.G, B = live ? buildings : t.lists.buildings, D = live ? defenders : t.lists.defenders;
+    let rem = 0, tot = 0; for (const b of B) { tot += b.s0 || 0; for (const k of STOCK_KEYS) rem += (b.stock && b.stock[k]) || 0; }
+    return { g, people: g.idle.length + D.length + g.crews.reduce((n, c) => n + c.members.length, 0), def: D.length, supply: tot ? rem / tot : 0, nests: g.nests.length,
+      lookouts: live ? G.lookouts.length : (g.lookouts ? g.lookouts.length : 0) };
+  }
+  function toggleMap() {
+    const el = $('map'); el.classList.toggle('show'); lastMap = '';
+    if (el.classList.contains('show')) renderMap();
+    Snd.click();
+  }
+  function renderMap() {
+    const key = Campaign.towns.map(t => t.id + t.status + (t.pending ? 'p' : '') + (t.G.morale | 0) + (t.G.food | 0) + (t.G.mat | 0) + t.G.idle.length).join() + Campaign.convoys.length + (G.sel.length) + !!Campaign.truck + (G.truckT | 0) + G.fuel + G.level + G.idle.length + (Campaign.res.done.expedition ? 1 : 0);
+    if (key === lastMap) return; lastMap = key;
+    const el = $('map');
+    let h = '<div class="row"><h3>World map</h3><button id="mpClose" style="padding:2px 8px">Close (Tab)</button></div>';
+    h += '<div style="color:var(--dim)">Truck: <b class="' + (Campaign.truck ? 'ok2' : 'no2') + '">' + (Campaign.truck ? 'ready' : G.truckT > 0 ? 'under construction' : 'none') + '</b> &middot; Fuel here: ' + (G.fuel | 0) +
+      ' &middot; Convoys on the road: ' + Campaign.convoys.length + '</div>';
+    for (const t of Campaign.towns) {
+      const st = townStats(t), g = st.g, here = t === Campaign.active;
+      const res = ['mat', 'food', 'ammo', 'water', 'fuel', 'med'].map(k => Math.floor(g[k]) + ' ' + { mat: 'mat', food: 'food', ammo: 'ammo', water: 'water', fuel: 'fuel', med: 'med' }[k]).join(' &middot; ');
+      h += '<div class="tcard ' + (here ? 'here' : '') + (t.status === 'lost' ? ' lost' : '') + '"><h4>' + t.name + '<span class="chip2">' + (t.status === 'lost' ? 'FALLEN' : here ? 'you are here' : 'running in the background') + '</span>' +
+        (t.pending ? '<span class="chip2 no2">horde incoming</span>' : '') + '</h4>';
+      h += '<div>Camp level ' + g.level + ' &middot; ' + st.people + ' people (' + st.def + ' posted) &middot; morale ' + moraleLabel(g.morale) + ' ' + (g.morale | 0) + ' &middot; supplies left ' + Math.round(st.supply * 100) + '%' + (st.nests ? ' &middot; ' + st.nests + ' nests' : '') + '</div>';
+      h += '<div style="color:var(--dim)">' + res + '</div>';
+      if (!here && t.status === 'alive') {
+        h += '<div class="btns"><button data-travel="' + t.id + '"' + (Campaign.truck ? '' : ' disabled') + '>Travel there (' + TRAVEL.fuel + ' fuel)</button>';
+        const P = [['100 materials', { m: 100 }], ['50 food', { f: 50 }], ['50 ammo', { a: 50 }], ['20 fuel', { fuel: 20 }], ['30 water', { water: 30 }], ['10 medicine', { med: 10 }]];
+        P.forEach(([lab, res], i) => { h += '<button data-send="' + t.id + ':' + i + '"' + (canAfford(res) ? '' : ' disabled') + '>Send ' + lab + '</button>'; });
+        h += '<button data-sendppl="' + t.id + '">Send selected survivors (' + G.idle.filter(s => G.sel.includes(s.id)).length + ')</button></div>';
+      }
+      h += '</div>';
+    }
+    if (Campaign.towns.length < MAX_TOWNS) {
+      const reqs = Campaign.foundReqs();
+      h += '<div class="tcard"><h4>Found a new town</h4><div style="color:var(--dim)">Take a founding party to another town: its supplies are finite, and so are the ones you have here.</div>' +
+        reqs.map(r => '<div class="' + (r.ok ? 'ok2' : 'no2') + '">' + (r.ok ? '&#10003; ' : '&#10007; ') + r.text + '</div>').join('') +
+        '<div class="btns"><button id="mpFound"' + (reqs.every(r => r.ok) ? '' : ' disabled') + '>Found a town and travel there</button></div></div>';
+    }
+    el.innerHTML = h;
+    $('mpClose').addEventListener('click', toggleMap);
+    el.querySelectorAll('[data-travel]').forEach(b => b.addEventListener('click', () => { Campaign.travel(+b.dataset.travel); lastMap = ''; toggleMap(); }));
+    const PRESETS = [{ m: 100 }, { f: 50 }, { a: 50 }, { fuel: 20 }, { water: 30 }, { med: 10 }];
+    el.querySelectorAll('[data-send]').forEach(b => b.addEventListener('click', () => { const [id, i] = b.dataset.send.split(':'); Campaign.sendSupplies(+id, PRESETS[+i]); lastMap = ''; renderMap(); }));
+    el.querySelectorAll('[data-sendppl]').forEach(b => b.addEventListener('click', () => { Campaign.sendSurvivors(+b.dataset.sendppl); lastMap = ''; renderMap(); }));
+    const f = $('mpFound'); if (f) f.addEventListener('click', () => { Campaign.found(); lastMap = ''; toggleMap(); });
   }
 
   // ---- camp rules ---------------------------------------------------------------
@@ -440,6 +496,7 @@ const UI = (() => {
       else if (k === 'r') toggleResearch();
       else if (k === 'g') toggleMemorial();
       else if (k === 'p') toggleRules();
+      else if (k === 'tab') { toggleMap(); e.preventDefault(); }
       else if (k === 'm') toast(Snd.toggleMute() ? 'Sound off' : 'Sound on');
       else if (k === 'f') toggleFullscreen();
       else if (k === ' ') { G.paused = !G.paused; e.preventDefault(); }

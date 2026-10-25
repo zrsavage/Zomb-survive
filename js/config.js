@@ -275,3 +275,11 @@ const HERD = { gapMin: 110, gapMax: 190, min: 20, max: 50, cap: 2, attackR: 14 }
 const OUTPOST = { range: 7.5, yield: 0.7, buildRange: 7 };
 const TRUCK = { cost: { m: 150, fuel: 20 }, time: 60, crewTime: 0.65, crewLoot: 1.25 };
 const BOSS_EVERY = 5;
+
+// ---- campaign: several towns at once ---------------------------------------------------------------
+const MAX_TOWNS = 3;
+const TOWN_NAMES = ['Riverside', 'Hollow Creek', 'Fort Dunmore', 'Ashford', 'Marlowe'];
+const FOUND = { cost: { m: 120, f: 50, a: 40, fuel: 25, water: 30 }, tripFuel: 15, minPeople: 3, grace: 70 };
+const TRAVEL = { fuel: 8, arrive: 6 };
+const CONVOY = { time: 50, risk: 0.12, riskTruck: 0.05, perSurvivorLoss: 0.3 };
+const BG = { engage: 45, eta: 40, wallWear: 0.2 };
