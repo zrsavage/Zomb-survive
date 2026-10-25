@@ -44,6 +44,8 @@
   #speed{display:flex;gap:4px}
   #speed button{flex:1;justify-content:center;padding:4px 0}
   .tool .nm{display:flex;gap:2px}
+  .cat{font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin:4px 0 -1px}
+  body.compact .cat{display:none}
 
   #side{right:8px;top:8px;width:250px;display:flex;flex-direction:column;gap:5px;max-height:calc(100vh - 200px);overflow:auto}
   #people .chip{display:flex;gap:6px;align-items:center;padding:3px 5px;border:1px solid transparent;border-radius:4px;cursor:pointer}
@@ -131,6 +133,8 @@
   <div class="res"><b style="background:var(--ammo)"></b><span id="rAmmo">0</span> <small id="dAmmo"></small></div>
   <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
   <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
+  <div class="res" title="Fuel (generators, Molotovs)"><b style="background:#e8884a"></b><span id="rFuel">0</span></div>
+  <div class="res" title="Medicine (treating the sick, medics)"><b style="background:#e86a9a"></b><span id="rMed">0</span></div>
   <div class="res" id="morWrap" title="Camp morale">Morale <span id="mor">70</span></div>
   <div class="res">Health <span id="pHp">100</span></div>
   <div class="res">In sight <span id="zCount">0</span></div>
@@ -160,6 +164,8 @@
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
   <div class="row"><span>People / Lookouts</span><span id="iPpl"></span></div>
+  <div class="row"><span>Power</span><span id="iPower"></span></div>
+  <div class="row"><span>Nests</span><span id="iNests"></span></div>
   <div class="row"><span>Storyteller</span><span id="iStory"></span></div>
   <div class="row"><span>Morale</span><span id="iMor"></span></div>
   <div class="bar"><i id="morBar" style="width:70%"></i></div>
@@ -202,6 +208,8 @@
 <script src="js/audio.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/story.js"></script>
+<script src="js/outside.js"></script>
+<script src="js/base.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>
 <script src="js/ui.js"></script>

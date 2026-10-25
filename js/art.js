@@ -110,6 +110,22 @@ function makeSet(dim, pal, o, moves) {
   return set;
 }
 
+function makeDogSet() {                              // quadruped, drawn by hand (the figure() body is humanoid)
+  const frame = (leg, lunge, sit) => {
+    const k = cell(22, 17), g = k.g, R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+    const by = sit ? 6 : 5;
+    R('#3a3228', 1, by - 2 + (leg % 2), 4, 2); R('#3a3228', 0, by - 3, 2, 2);                                    // tail
+    R('#5a4a3a', 4, by, 11, 5); R('#6e5a46', 4, by, 11, 1); R('#4a3c2e', 4, by + 4, 11, 1);                        // body
+    R('#4a3c2e', 5 + leg, by + 5, 2, 5 - (leg > 0 ? 1 : 0)); R('#4a3c2e', 12 - leg, by + 5, 2, 5 - (leg < 0 ? 1 : 0));   // legs
+    R('#3a3025', 7 - leg, by + 5, 2, 5); R('#3a3025', 10 + leg, by + 5, 2, 5);
+    R('#6e5a46', 14 + lunge, by - 2, 5, 5); R('#5a4a3a', 18 + lunge, by, 3, 3); R('#1c1814', 20 + lunge, by, 1, 1); // head + snout
+    R('#3a3025', 14 + lunge, by - 3, 2, 2); R('#e84a3a', 17 + lunge, by - 1, 1, 1);                                // ear + eye
+    if (lunge) R('#e8e0d0', 19 + lunge, by + 3, 1, 1);                                                             // teeth
+    return outlined(k.c);
+  };
+  const walk = [frame(2, 0), frame(0, 0), frame(-2, 0), frame(0, 0)];
+  return { walk, attack: [frame(0, 2), frame(0, 0)], climb: walk, idle: [frame(0, 0, true)], ax: 12, ay: 17 };
+}
 function buildSprites() {
   const S = Art.sprites;
   const zWalk = { walkArm: 'fwd', swing: 1, attack: [{ arm: 'up', bob: 0 }, { arm: 'fwd', bob: 1, lean: 1 }], climb: [{ arm: 'up', bob: -2, swing: 1 }, { arm: 'up', bob: -3, swing: -1 }] };
@@ -140,6 +156,11 @@ function buildSprites() {
   S.def_builder = hum('#c88a2a', 'hard', '#f0c030', {});
   S.def_scavenger = hum('#8a5a3a', 'cap', '#5a4a3a', { pack: '#3a3a44' });
   S.trader = hum('#6a3a7a', 'cap', '#d0b060', { pack: '#7a5a3a' });
+  S.z_spitter = makeSet(DIMS.human, { skin: '#a8c860', shirt: '#587a2a', pants: '#34402a', eye: '#e8ff50' }, { mouth: 2, bigEye: true, eye2: true },
+    { walkArm: 'fwd', swing: 1, attack: [{ arm: 'fwd' }, { arm: 'up' }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
+  S.z_armored = makeSet(DIMS.human, { skin: '#8a9a7a', shirt: '#26324a', pants: '#1c2230', eye: '#ff4a3a', hat: '#2a3a5a' }, { hat: 'helmet', straps: true, bigEye: true },
+    { walkArm: 'fwd', swing: 1, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
+  S.z_dog = makeDogSet();
   // pre-mirrored copies so facing left costs nothing at draw time
   for (const k in S) {
     const set = S[k]; set.fl = {};
@@ -236,7 +257,7 @@ function drawBuilding(g, b) {
   const rh = h - FH, roof = b.roof;
   g.globalAlpha = 0.38; R('#000', x + 3, y + 3, w, h); g.globalAlpha = 1;
   // facade
-  const fc = { house: '#cdbfa0', store: '#d6d2c4', garage: '#9a9ea6', warehouse: '#8d8678' }[b.type];
+  const fc = { house: '#cdbfa0', store: '#d6d2c4', garage: '#9a9ea6', warehouse: '#8d8678', pharmacy: '#dfe8e4', gas: '#c8b8a0', police: '#aab0c0', junkyard: '#8a7a60', farmstead: '#c8b890' }[b.type];
   R(fc, x, y + rh, w, FH);
   R(shade(fc, 0.62), x, y + rh, w, 2);
   R(shade(fc, 0.7), x, y + h - 1, w, 1);
@@ -253,6 +274,20 @@ function drawBuilding(g, b) {
   } else if (b.type === 'garage') {
     R('#6a6e76', x + 5, fy - 2, w - 10, 7);
     for (let i = 0; i < 7; i += 2) R('#555960', x + 5, fy - 2 + i, w - 10, 1);
+  } else if (b.type === 'pharmacy') {
+    R('#2a3a4a', x + 3, fy - 1, w - 16, 5); R('#8cc4d8', x + 4, fy - 1, w - 18, 2); R('#3a2a22', x + w - 11, fy - 1, 7, 6); R('#8cc4d8', x + w - 10, fy, 5, 3);
+    R('#2fae5a', x + w / 2 - 2, y + rh + 2, 5, 1); R('#2fae5a', x + w / 2, y + rh + 1, 1, 5);
+  } else if (b.type === 'gas') {
+    R('#2a3a4a', x + 3, fy - 1, w / 2, 5); R('#8cc4d8', x + 4, fy - 1, w / 2 - 2, 2);
+    for (let i = 0; i < 2; i++) { R('#c8302a', x + w / 2 + 8 + i * 9, fy - 1, 4, 7); R('#e8e8e0', x + w / 2 + 8 + i * 9, fy, 4, 2); }
+  } else if (b.type === 'police') {
+    R('#1c2a4a', x + w / 2 - 5, fy - 2, 10, 8); R('#e8d070', x + w / 2 - 1, fy, 3, 3); R('#3a6ae8', x + 4, y + rh + 2, 8, 2); R('#e83a3a', x + w - 12, y + rh + 2, 8, 2);
+  } else if (b.type === 'junkyard') {
+    for (let i = 0; i < w; i += 5) R(i % 10 ? '#7a6a52' : '#8a8a8a', x + i, fy - 3, 4, 8);
+    R('#3a2a1a', x, y + h - 2, w, 1);
+  } else if (b.type === 'farmstead') {
+    R('#a83a2a', x + w / 2 - 7, fy - 2, 14, 8); R('#e8e0d0', x + w / 2 - 7, fy - 2, 14, 1); R('#e8e0d0', x + w / 2 - 1, fy - 2, 2, 8);
+    for (let i = 0; i < 14; i += 3) { R('#e8e0d0', x + w / 2 - 7 + i, fy - 2 + (i % 6 ? 1 : 3), 1, 1); }
   } else {
     R('#2a2d30', x + 5, fy - 1, 10, 6); R('#2a2d30', x + w - 15, fy - 1, 10, 6);
     R('#d8b020', x, y + h - 2, w, 1);
@@ -270,6 +305,20 @@ function drawBuilding(g, b) {
     R('#e8d070', x + w - 22, y + rh - 8, 16, 5); R('#b09040', x + w - 21, y + rh - 7, 14, 1);
   } else if (b.type === 'garage') {
     for (let i = 0; i < w; i += 3) R(i % 6 ? shade(roof, 0.88) : shade(roof, 1.1), x + i, y, 1, rh);
+  } else if (b.type === 'pharmacy') {
+    R(shade(roof, 0.92), x, y, w, 2); R('#2fae5a', x + w / 2 - 3, y + rh / 2 - 7, 6, 14); R('#2fae5a', x + w / 2 - 7, y + rh / 2 - 3, 14, 6);
+    R('#8a8e94', x + 5, y + 4, 10, 7); R('#6a6e74', x + 7, y + 6, 6, 3);
+  } else if (b.type === 'gas') {
+    for (let i = 0; i < w; i += 6) R((i / 6 | 0) % 2 ? '#e8e8e0' : '#c8302a', x + i, y + rh - 7, 6, 7);
+    R('#7a2a22', x, y, w, rh - 7); R('#c8ccd2', x + 6, y + 5, 12, 6); R('#6a6e74', x + 8, y + 7, 8, 2);
+  } else if (b.type === 'police') {
+    R(shade(roof, 0.8), x + 2, y + 2, w - 4, rh - 4); R('#e8d070', x + w / 2 - 1, y + 4, 3, 10); R('#e8d070', x + w / 2 - 4, y + 7, 9, 3);
+    R('#555a62', x + w - 10, y + 3, 1, 8); R('#e83a3a', x + w - 11, y + 2, 3, 2);
+  } else if (b.type === 'junkyard') {
+    for (let i = 0; i < 14; i++) R(['#8a4a2a', '#6a6a6a', '#9a8a4a', '#4a5a6a', '#7a3a2a'][i % 5], x + 3 + (r() * (w - 12) | 0), y + 3 + (r() * (rh - 9) | 0), 4 + (r() * 6 | 0), 3 + (r() * 4 | 0));
+  } else if (b.type === 'farmstead') {
+    for (let i = 0; i < w; i += 8) { R('#9ac860', x + i, y, 7, rh); R('#e8f0d0', x + i + 7, y, 1, rh); }
+    for (let j = 4; j < rh; j += 5) R('#5a8a30', x, y + j, w, 1);
   } else {
     R(shade(roof, 1.1), x + 2, y + 2, w - 4, 1);
     const n = 2 + (r() * 2 | 0);
@@ -303,7 +352,7 @@ Art.renderClaim = function () {
 
 // ---- structures (drawn every frame so they can react: damage, pressure, gate open) ----------------------------
 const wallAt = (x, y) => inb(x, y) ? wall[y * W + x] : 0;
-Art.drawWall = function (g, x, y, k, f, press, t, gateOpen) {
+Art.drawWall = function (g, x, y, k, f, press, t, gateOpen, tier, el, pw) {
   const px = x * T, py = y * T, i = y * W + x;
   const below = wallAt(x, y + 1) && wallAt(x, y + 1) !== K.LOOKOUT && k !== K.LOOKOUT;
   const topH = below ? T : 10;
@@ -341,6 +390,9 @@ Art.drawWall = function (g, x, y, k, f, press, t, gateOpen) {
     R('#c8ccd4', px + 2, py - 24, 12, 4); R('#e8ecf0', px + 3, py - 24, 10, 1);
     const on = Math.sin(t * 5) > 0; R(on ? '#ff3030' : '#601818', px + 7, py - 28, 3, 3);
   }
+  if (tier === 1) { R('#9aa2aa', px, py + 2, T, 2); R('#6a7078', px, py + 4, T, 1); R('#c8ccd2', px + 2, py + 2, 1, 1); R('#c8ccd2', px + 13, py + 2, 1, 1); }
+  else if (tier === 2) { g.globalAlpha = 0.6; R('#c4c4b8', px, py, T, topH); g.globalAlpha = 1; R('#8a8a80', px, py + (topH >> 1), T, 1); R('#8a8a80', px + 5, py, 1, topH >> 1); R('#8a8a80', px + 11, py + (topH >> 1), 1, topH >> 1); }
+  if (el) { R(pw ? '#7fd0ff' : '#5a6a78', px + 1, py + 1, T - 2, 1); R(pw ? '#4fa3e8' : '#445', px, py + topH - 2, T, 1); if (pw && Math.sin(t * 30 + x * 3 + y) > 0.55) R('#e8f8ff', px + 3 + ((t * 40 | 0) % 10), py - 1, 2, 2); }
   if (press > 0 && k !== K.RADIO) { g.globalAlpha = Math.min(0.5, press * 0.03); R('#ff4030', px, py, T, topH); g.globalAlpha = 1; }
   if (f < 0.97) {
     g.globalAlpha = (1 - f) * 0.55; R('#000', px, py, T, topH); g.globalAlpha = 1;
@@ -389,4 +441,30 @@ Art.drawCamp = function (g, t, level, hpFrac, fallen) {
   for (let i = 0; i < 9; i++) R(i % 2 ? '#c8342a' : '#e84a3a', cx + 48 + i, cy - 13 + Math.sin(t * 4 + i * 0.6) * 1, 1, 7);
   void wv;
   if (hpFrac < 0.999) { R('#000a', cx, cy - 18, T * 3, 3); R(hpFrac > 0.4 ? '#5ec26a' : '#e8524a', cx, cy - 18, T * 3 * hpFrac, 3); }
+};
+
+// ---- facilities ---------------------------------------------------------------
+Art.drawFacility = function (g, f, t) {
+  const px = f.x * T, py = f.y * T, R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  g.globalAlpha = 0.3; R('#000', px + 3, py + 12, 11, 4); g.globalAlpha = 1;
+  if (f.type === 'garden') {
+    R('#4a3622', px + 1, py + 3, 14, 12); R('#5a4228', px + 1, py + 3, 14, 1);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const sw = Math.sin(t * 2 + r + c) > 0.5 ? 1 : 0; R('#3f8a30', px + 2 + c * 3.5 + sw, py + 5 + r * 3.5, 2, 3); R('#7acb50', px + 2 + c * 3.5 + sw, py + 5 + r * 3.5, 2, 1); }
+  } else if (f.type === 'workshop') {
+    R('#7a5a34', px + 1, py + 6, 14, 6); R('#9a7444', px + 1, py + 6, 14, 1); R('#4a3a24', px + 2, py + 12, 2, 3); R('#4a3a24', px + 12, py + 12, 2, 3);
+    R('#3a3e44', px + 9, py + 3, 5, 4); R('#6a6e76', px + 9, py + 3, 5, 1); R('#c8402a', px + 2, py + 3, 4, 3);
+    if (f.on && Math.sin(t * 25) > 0.3) { R('#ffe27a', px + 9 + (t * 17 | 0) % 4, py + 1, 1, 1); R('#ffa22a', px + 11, py + 2, 1, 1); }
+  } else if (f.type === 'generator') {
+    const v = f.on ? Math.sin(t * 40) * 0.6 : 0;
+    R('#3a4a2a', px + 2 + v, py + 5, 12, 9); R('#5a6a3a', px + 2 + v, py + 5, 12, 2); R('#e8c020', px + 3 + v, py + 10, 10, 1);
+    R('#2a2a2e', px + 4, py + 2, 2, 4); R(f.on ? '#7dff8c' : '#6a3a3a', px + 11 + v, py + 7, 2, 2);
+  } else if (f.type === 'floodlight') {
+    R('#2a2c30', px + 7, py + 3, 2, 12); R('#3a3c42', px + 4, py + 1, 8, 4); R(f.on ? '#fff8d0' : '#6a6a64', px + 5, py + 2, 6, 2);
+  } else if (f.type === 'clinic') {
+    R('#d8dce0', px + 1, py + 4, 14, 11); R('#eef0f2', px + 1, py + 4, 14, 3); R('#9aa0a8', px + 1, py + 14, 14, 1);
+    R('#d33', px + 7, py + 7, 2, 6); R('#d33', px + 5, py + 9, 6, 2);
+  } else {
+    R('#6a4a2a', px + 1, py + 8, 7, 7); R('#8a6a3a', px + 1, py + 8, 7, 2); R('#7a5a34', px + 8, py + 5, 7, 10); R('#9a7444', px + 8, py + 5, 7, 2);
+    R('#4a5a7a', px + 4, py + 3, 6, 5); R('#6a7a9a', px + 4, py + 3, 6, 1);
+  }
 };

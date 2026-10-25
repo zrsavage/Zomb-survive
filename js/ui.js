@@ -7,20 +7,25 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 4600);
 }
 
+const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) });
 const TOOLS = [
-  { id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
-  { id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
-  { id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
-  { id: 'lookout', key: '4', label: 'Lookout',       cost: () => effCost('lookout'), tip: 'Spots hordes early and reveals the map. Place anywhere.' },
-  { id: 'spike',   key: '5', label: 'Spike trap',    cost: () => effCost('spike'),   tip: 'Cuts down zombies that walk over it. Wears out.' },
-  { id: 'barrel',  key: '6', label: 'Fire barrel',   cost: () => effCost('barrel'),  tip: 'Ignites when a crowd gathers. One use.' },
-  { id: 'decoy',   key: 'V', label: 'Decoy',         cost: () => effCost('decoy'),   tip: 'Noise-maker: for 15s it draws idle zombies, and part of a horde, toward it.' },
-  { id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
-  { id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building. Risky but pays more.' },
-  { id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
-  { id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for rescue. Camp level ' + RADIO_LEVEL + '. Then hold out!', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
+  { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
+  { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
+  { cat: 'Defense', id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
+  { cat: 'Defense', id: 'lookout', key: '4', label: 'Lookout',       cost: () => effCost('lookout'), tip: 'Spots hordes early and reveals the map. Place anywhere.' },
+  { cat: 'Defense', id: 'reinforce', key: 'Q', label: 'Reinforce',   cost: () => ({ m: Math.ceil(TIER.cost[1] * buildMul()) }), tip: 'Upgrade a wall: Timber > Reinforced > Concrete (needs research). Tougher, shrugs off pile pressure.' },
+  { cat: 'Defense', id: 'electrify', key: 'Z', label: 'Electrify',   cost: () => effCost('electrify'), tip: 'Zaps zombies climbing this wall. Needs a fuelled generator.' },
+  { cat: 'Traps & fire', id: 'spike',   key: '5', label: 'Spike trap',  cost: () => effCost('spike'),   tip: 'Cuts down zombies that walk over it. Wears out.' },
+  { cat: 'Traps & fire', id: 'barrel',  key: '6', label: 'Fire barrel', cost: () => effCost('barrel'),  tip: 'Ignites when a crowd gathers and sets them alight. One use.' },
+  { cat: 'Traps & fire', id: 'decoy',   key: 'V', label: 'Decoy',       cost: () => effCost('decoy'),   tip: 'Noise-maker: for 15s it draws idle zombies, and part of a horde, toward it.' },
+  { cat: 'Traps & fire', id: 'molotov', key: 'T', label: 'Molotov',     cost: () => effCost('molotov'), tip: 'Throw (range ' + FIRE.range + '). Burns crowds, sets them alight and destroys nests.' },
+  ...Object.keys(FACILITIES).map((id, n) => ({ cat: 'Facilities', id, key: '', label: FACILITIES[id].label, cost: facCost(id), lvl: FACILITIES[id].level, tip: FACILITIES[id].desc + ' (camp level ' + FACILITIES[id].level + ', inside territory)' })),
+  { cat: 'People', id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
+  { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
+  { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
+  { cat: 'Camp', id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for rescue. Camp level ' + RADIO_LEVEL + '. Then hold out!', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
-const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a'].filter(Boolean).join(' ');
+const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a', c.med && c.med + 'med', c.fuel && c.fuel + 'fuel'].filter(Boolean).join(' ');
 const fmtRate = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '/s';
 
 const UI = (() => {
@@ -30,10 +35,12 @@ const UI = (() => {
   // ---- build the static parts -------------------------------------------------------------
   function init() {
     const list = $('toolList');
+    let lastCat = '';
     for (const t of TOOLS) {
+      if (t.cat !== lastCat) { lastCat = t.cat; const h = document.createElement('div'); h.className = 'cat'; h.textContent = t.cat; list.appendChild(h); }
       const b = document.createElement('button');
       b.className = 'tool'; b.dataset.tool = t.id; b.title = t.tip;
-      b.innerHTML = '<span class="nm"><kbd>' + t.key + '</kbd>' + t.label + '</span><span class="cost"></span>';
+      b.innerHTML = '<span class="nm">' + (t.key ? '<kbd>' + t.key + '</kbd>' : '') + t.label + '</span><span class="cost"></span>';
       b.addEventListener('click', () => { G.tool = t.id; Snd.click(); });
       list.appendChild(b);
     }
@@ -59,6 +66,10 @@ const UI = (() => {
     $('morWrap').title = 'Camp morale ' + (G.morale | 0) + ' (heading to ' + (G.moraleTarget | 0) + '). High: defenders shoot faster. Low: slower, no refugees; in despair people desert. Deaths hurt, wins heal.';
     $('iMor').textContent = ml + ' ' + (G.morale | 0) + ' → ' + (G.moraleTarget | 0); $('morBar').style.width = G.morale + '%'; $('morBar').style.background = mc || 'var(--acc)';
     $('cFallen').textContent = G.memorial.length;
+    $('rFuel').textContent = G.fuel | 0; $('rFuel').style.color = G.power.demand > 0 && G.fuel < 5 ? 'var(--bad)' : '';
+    $('rMed').textContent = G.med | 0; $('rMed').style.color = G.med < 1 ? 'var(--dim)' : '';
+    $('iPower').textContent = G.power.supply + '/' + G.power.demand.toFixed(1) + (G.power.burn > 0 ? ' · -' + G.power.burn.toFixed(2) + ' fuel/s' : '') + (G.power.demand > G.power.supply ? ' (brownout)' : '');
+    $('iNests').textContent = G.nests.length + (G.nests.length ? ' (hordes +' + Math.round(NEST.hordeBonus * 100 * G.nests.length) + '%)' : '');
     $('pHp').textContent = Math.max(0, P.hp | 0); $('pHp').style.color = P.hp < 35 ? 'var(--bad)' : '';
     $('zCount').textContent = G.visibleZ;
     const hd = $('horde');
@@ -71,8 +82,9 @@ const UI = (() => {
       const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost();
       b.classList.toggle('on', G.tool === t.id);
       b.style.display = t.hidden && t.hidden() ? 'none' : '';
-      b.querySelector('.cost').textContent = t.id === 'def' ? G.idle.length + ' idle' : costStr(c);
-      b.disabled = !!(c.m || c.f || c.a) && !canAfford(c);
+      const locked = t.lvl && G.level < t.lvl;
+      b.querySelector('.cost').textContent = t.id === 'def' ? G.idle.length + ' idle' : costStr(c) + (locked ? ' L' + t.lvl : '');
+      b.disabled = locked || (!!(c.m || c.f || c.a || c.med || c.fuel) && !canAfford(c));
     });
     document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === 0 ? G.paused : !G.paused && +b.dataset.speed === G.speed));
     $('cUp').textContent = L.up ? costStr(L.up) : 'MAX';
@@ -94,7 +106,7 @@ const UI = (() => {
     const b = nearBuilding(), pr = $('prompt');
     if (b && !G.over && P.dead <= 0) {
       pr.style.display = 'block';
-      pr.textContent = b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
+      pr.textContent = b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
     } else pr.style.display = 'none';
 
     const st = STORYTELLERS[G.story] || STORYTELLERS.cassandra;
@@ -392,7 +404,7 @@ const UI = (() => {
     $('btnPeople').addEventListener('click', () => { document.body.classList.toggle('drawer'); Snd.click(); });
     $('rotate').addEventListener('click', () => { $('rotate').style.display = 'none'; });
 
-    const toolKeys = {}; for (const t of TOOLS) toolKeys[t.key.toLowerCase()] = t.id;
+    const toolKeys = {}; for (const t of TOOLS) if (t.key) toolKeys[t.key.toLowerCase()] = t.id;
     addEventListener('keydown', e => {
       Snd.resume();
       const k = e.key.toLowerCase();

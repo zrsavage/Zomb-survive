@@ -6,6 +6,9 @@ const ground = new Uint8Array(W * H);          // 0 grass, 1 road, 2 park, 3 sid
 const bld = new Int16Array(W * H);             // building index or -1
 const wall = new Uint8Array(W * H);            // 0 none, else K.* kind
 const wallHp = new Float32Array(W * H);
+const wallTier = new Uint8Array(W * H);         // 0 timber, 1 reinforced, 2 concrete
+const elec = new Uint8Array(W * H);             // 1 = electrified wall
+const ddist = new Float32Array(W * H), dnext = new Int32Array(W * H);       // flow field for things that cannot climb
 const claimed = new Uint8Array(W * H);
 const explored = new Uint8Array(W * H);
 const vis = new Uint8Array(W * H);             // currently in sight
@@ -16,6 +19,7 @@ let buildings = [], lamps = [];
 let defAt = new Array(W * H).fill(null);
 let trapAt = new Array(W * H).fill(null);
 let zombies = [], defenders = [], hordes = [], traps = [], crates = [], decoys = [], rings = [];
+let facilities = [], fires = [], turning = [], facAt = new Array(W * H).fill(null);
 let tracers = [], parts = [], texts = [], flashes = [];
 let P = null;                                  // the survivor
 let G = null;                                  // game state
@@ -57,6 +61,18 @@ function genTown(seed) {
       for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) bld[y * W + x] = id;
     }
   }
+  // points of interest: convert some big, distant buildings
+  {
+    const cand = buildings.map((b, i) => ({ b, i, d: Math.hypot(b.x + b.w / 2 - CORE.x, b.y + b.h / 2 - CORE.y) }))
+      .filter(c => c.d >= 13 && c.b.w * c.b.h >= 14).sort(() => wr() - 0.5);
+    const used = [];
+    for (const type of POI_ORDER) {
+      const c = cand.find(c => !used.includes(c.i) && used.every(u => Math.hypot(buildings[u].x - c.b.x, buildings[u].y - c.b.y) > 12));
+      if (!c) continue;
+      used.push(c.i); c.b.type = type; c.b.poi = true;
+      c.b.roof = BUILDING_TYPES[type].roof[wr() * BUILDING_TYPES[type].roof.length | 0];
+    }
+  }
   // sidewalks: block tiles touching a road
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
@@ -85,7 +101,7 @@ function diagOpen(x, y, dx, dy) {
   const a = y * W + (x + dx), b = (y + dy) * W + x;
   return bld[a] < 0 && bld[b] < 0 && !wall[a] && !wall[b];
 }
-function computeField(sources, D, N) {
+function computeField(sources, D, N, solid) {
   D.fill(Infinity); N.fill(-1);
   const heap = [];
   const push = (d, i) => {
@@ -116,7 +132,7 @@ function computeField(sources, D, N) {
       if (!inb(nx, ny)) continue;
       if (dx && dy && !diagOpen(x, y, dx, dy)) continue;
       const ni = ny * W + nx;
-      if (bld[ni] >= 0) continue;
+      if (bld[ni] >= 0 || (solid && wall[ni])) continue;
       const nd = d + (dx && dy ? 1.414 : 1) * stepCost(i);   // a zombie on ni pays to enter tile i
       if (nd < D[ni]) { D[ni] = nd; push(nd, ni); }
     }
@@ -139,6 +155,7 @@ function computeBaseField() {
   const src = [];
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) src.push((CORE.y + dy) * W + CORE.x + dx);
   computeField(src, dist, nextTile);
+  computeField(src, ddist, dnext, true);                           // dogs cannot climb: walls are solid for them
 }
 function computePlayerField() {
   const tx = clamp(P.px | 0, 0, W - 1), ty = clamp(P.py | 0, 0, H - 1);
@@ -169,7 +186,7 @@ function computeTerritory() {
       claimed[ni] = 1; q.push(ni); count++;
     }
   }
-  const inc = { m: 0, f: 0, a: 0 };
+  const inc = { m: 0, f: 0, a: 0, med: 0, fuel: 0 };
   let held = 0;
   const mult = 1 + 0.15 * (G.level - 1);
   for (const i of q) {
@@ -182,7 +199,7 @@ function computeTerritory() {
   for (const b of buildings) if (b.claimed) {
     held++;
     const r = BUILDING_TYPES[b.type].rate;
-    inc.m += (r.m || 0) * mult; inc.f += (r.f || 0) * mult; inc.a += (r.a || 0) * mult;
+    inc.m += (r.m || 0) * mult; inc.f += (r.f || 0) * mult; inc.a += (r.a || 0) * mult; inc.med += (r.med || 0) * mult; inc.fuel += (r.fuel || 0) * mult;
   }
   G.territory = count; G.sealed = sealed; G.income = inc; G.held = held;
   Art.renderClaim();

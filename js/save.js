@@ -7,7 +7,7 @@ const Save = (() => {
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue',
     'sid', 'storm', 'eventT', 'trader', 'refugeeT', 'res', 'sel', 'diff', 'seed', 'morale', 'memorial', 'deaths',
-    'story', 'rules', 'ruleCd', 'flags', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths'];
+    'story', 'rules', 'ruleCd', 'flags', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'nests', 'nestT'];
 
   function snapshot() {
     const d = { v: 1, scalars: {} };
@@ -15,7 +15,8 @@ const Save = (() => {
     d.P = { px: r2(P.px), py: r2(P.py), hp: r2(P.hp) };
     d.wall = b64(wall); d.explored = b64(explored);
     const hp16 = new Uint16Array(W * H); for (let i = 0; i < W * H; i++) hp16[i] = Math.min(65535, Math.round(wallHp[i] * 8));
-    d.wallHp = b64(hp16);
+    d.wallHp = b64(hp16); d.tier = b64(wallTier); d.elec = b64(elec);
+    d.facilities = facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
     d.buildings = buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0));
     d.idle = G.idle; d.crews = G.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk }));
     d.defenders = defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s }));
@@ -42,6 +43,11 @@ const Save = (() => {
     P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp;
     wall.set(unb64(d.wall, Uint8Array)); explored.set(unb64(d.explored, Uint8Array));
     const hp16 = unb64(d.wallHp, Uint16Array); for (let i = 0; i < W * H; i++) wallHp[i] = hp16[i] / 8;
+    if (d.tier) wallTier.set(unb64(d.tier, Uint8Array)); if (d.elec) elec.set(unb64(d.elec, Uint8Array));
+    facilities = []; facAt = new Array(W * H).fill(null);
+    for (const f of (d.facilities || [])) { const o = { type: f.type, x: f.x, y: f.y, t: 0, on: false }; facilities.push(o); facAt[f.y * W + f.x] = o; }
+    G.nests = G.nests || []; for (const n of G.nests) if (buildings[n.bi]) buildings[n.bi].nest = true;
+    G.med = G.med === undefined ? 4 : G.med; G.fuel = G.fuel || 0;
     d.buildings.forEach((f, i) => { if (buildings[i]) { buildings[i].looted = !!(f & 1); buildings[i].crew = !!(f & 2); } });
     G.idle = d.idle; G.crews = d.crews;
     defenders = []; defAt = new Array(W * H).fill(null);

@@ -11,8 +11,8 @@ const Director = {
   strength() { return defenders.length * 2 + wall.reduce((n, k) => n + (k === K.TOWER ? 1 : 0), 0) + G.level * 3; },
   hordeSize() {                                   // hordes scale with how strong you are, within the teller's limits
     const d = this.def();
-    if (G.story === 'randy') return this.rnd(0.6, 1.7);
-    return d.size * clamp(0.9 + this.strength() / 90, 0.9, d.adapt);
+    if (G.story === 'randy') return this.rnd(0.6, 1.7) * (1 + NEST.hordeBonus * G.nests.length);
+    return d.size * clamp(0.9 + this.strength() / 90, 0.9, d.adapt) * (1 + NEST.hordeBonus * G.nests.length);
   },
   hordeGap() { return G.story === 'randy' ? this.rnd(0.4, 2.2) : this.def().gap; },
   eventGap() { return G.story === 'randy' ? this.rnd(0.3, 2) : this.def().evGap; },

@@ -23,6 +23,13 @@ Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the ho
 - **Radio**: research *Ham Radio* for branching transmissions (convoy, pleas for help, raiders, supply tips, lost survivors, a deserter asking to return, a numbers station). Some chains unlock a second ending: a **convoy** to the safe zone. While the helicopter is coming, the pilot radios too.
 - **Relationships**: survivors become friends, lovers or rivals over time. Lovers fight harder side by side and lift morale; rivals bicker; losing a lover hurts badly.
 
+## Resources, the world outside, zombies and base building
+- **Resources:** besides materials, food and ammo there are now **fuel** (generators, Molotovs) and **medicine** (treating the sick, medics heal at full speed). Houses, stores and garages give a little; **points of interest** give a lot and are guarded: Pharmacy (medicine), Gas Station (fuel), Police Station (ammo), Junkyard (materials), Farmstead (food). They show on the minimap once scouted, and produce passive income once inside your territory.
+- **Nests:** every few minutes the dead start nesting in a building outside your walls. A nest keeps spawning zombies and makes the next horde bigger. Destroy it with a **Molotov** (`T`) or send a crew that includes a fighter. A nest inside your own territory spawns zombies inside the walls.
+- **Fire:** Molotovs and fire barrels set zombies alight; burning zombies take damage, panic and spread the fire through a crowd.
+- **New zombies:** *spitters* spray acid at wall defenders from range, *riot zombies* shrug off bullets (not blades), *infected dogs* are fast but cannot climb: they only come through gaps, so a fully sealed camp stops them. Later hordes are tougher. Fallen defenders may **turn** and have to be put down.
+- **Base facilities** (inside territory): Garden (food), Workshop (materials to ammo), Generator, Floodlight, Clinic (medicine, cures sickness), Depot (+300 storage). The **power grid** burns fuel and generators are loud: they draw the dead. **Electrify** walls to zap climbers (needs power). **Reinforce** walls from Timber to Reinforced to Concrete (research).
+
 ## Phone / tablet (desktop is still the primary target)
 - Touch controls appear automatically: virtual stick to move, **SCAV** (hold) to scavenge, **RUN** toggle, tap or drag to build, two fingers to pan/zoom. The tools live in a bottom bar; the people/log panel is a drawer (chess-piece button) and the pause menu is the hamburger button.
 - Phones default to **Low** quality (cheaper lighting, no ground fog, fewer particles, smaller zombie cap). Change it any time in the menu.

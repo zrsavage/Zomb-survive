@@ -9,19 +9,24 @@ const keys = {};
 
 // ---- small queries ---------------------------------------------------------------
 const has = id => !!(G && G.res && G.res.done[id]);
-const storeCap = () => LEVELS[G.level - 1].store;
+const storeCap = () => LEVELS[G.level - 1].store + Base.depotBonus();
 const crewMembers = () => G.crews.reduce((n, c) => n + c.members.length, 0);
 const people = () => G.idle.length + defenders.length + crewMembers();
 const countRole = role => G.idle.filter(s => s.role === role && !s.sick).length + defenders.filter(d => d.s.role === role).length;
-const maxHp = k => WALL_HP[k] * (1 + 0.25 * (G.level - 1)) * (has('walls') ? 1.35 : 1);
+const maxHp = (k, i) => WALL_HP[k] * (1 + 0.25 * (G.level - 1)) * (has('walls') ? 1.35 : 1) * (i === undefined ? 1 : TIER.hp[wallTier[i]]);
 const buildMul = () => 1 - Math.min(BUILDER.maxDiscount, BUILDER.discount * countRole('builder'));
 function effCost(name) {
   const c = COST[name], o = {};
   for (const k in c) o[k] = k === 'm' && name !== 'radio' ? Math.ceil(c[k] * buildMul()) : c[k];
   return o;
 }
-const canAfford = c => (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a);
-function pay(c) { G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; }
+const canAfford = c => (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a) && (!c.med || G.med >= c.med) && (!c.fuel || G.fuel >= c.fuel);
+function pay(c) { G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; G.med -= c.med || 0; G.fuel -= c.fuel || 0; }
+const LOOT_KEYS = [['m', 'materials', 'mat'], ['f', 'food', 'food'], ['a', 'ammo', 'ammo'], ['med', 'medicine', 'med'], ['fuel', 'fuel', 'fuel']];
+function rollLoot(loot, mul) { const o = {}; for (const [k] of LOOT_KEYS) o[k] = loot[k] ? Math.round(loot[k] * mul * (0.7 + rng() * 0.6)) : 0; return o; }
+function addRes(o) { const cap = storeCap(); for (const [k, , f] of LOOT_KEYS) if (o[k]) G[f] = Math.min(cap, G[f] + o[k]); }
+const lootText = (o, short) => LOOT_KEYS.filter(([k]) => o[k]).map(([k, n]) => '+' + o[k] + (short ? k : ' ' + n)).join(short ? ' ' : ', ');
+const armorF = z => 1 - (ZTYPES[z.type].armor || 0) * (has('ap') ? 0.5 : 1);
 function log(msg) { G.log.unshift({ t: G.elapsed, msg }); if (G.log.length > 8) G.log.pop(); toast(msg); }
 // Survivors are named people with a class. They are expendable, but you feel it when they go.
 const who = s => s.name + ' (' + ROLES[s.role].label + ')';
@@ -151,16 +156,18 @@ function newGame(diffKey, seed, storyKey) {
   seed = seed || ((Math.random() * 2 ** 31) | 0);
   rng = mulberry32(seed ^ 0x9e3779b9);
   genTown(seed);
-  wall.fill(0); wallHp.fill(0); explored.fill(0); vis.fill(0);
+  wall.fill(0); wallHp.fill(0); wallTier.fill(0); elec.fill(0); explored.fill(0); vis.fill(0);
+  facilities = []; fires = []; turning = []; facAt = new Array(W * H).fill(null);
   defAt = new Array(W * H).fill(null); trapAt = new Array(W * H).fill(null);
   zombies = []; defenders = []; hordes = []; traps = []; crates = []; decoys = []; rings = []; tracers = []; parts = []; texts = []; flashes = [];
   const D = DIFFICULTY[diffKey] || DIFFICULTY.normal;
   G = {
-    seed, diff: diffKey || 'normal', level: 1, ammo: 40, mat: 45, food: 30, idle: [], crews: [], sel: [], sid: 1,
+    seed, diff: diffKey || 'normal', level: 1, ammo: 40, mat: 45, food: 30, med: 4, fuel: 0, idle: [], crews: [], sel: [], sid: 1,
+    nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
     coreHp: LEVELS[0].coreHp, kills: 0, elapsed: 0,
     hordeN: 0, hordesBeaten: 0, nextHorde: D.first, hordeId: 0, rescue: null,
     over: false, won: false, paused: false, speed: 1, tool: 'wall',
-    territory: 0, sealed: false, income: { m: 0, f: 0, a: 0 }, held: 0, lookouts: [],
+    territory: 0, sealed: false, income: { m: 0, f: 0, a: 0, med: 0, fuel: 0 }, held: 0, lookouts: [],
     fieldDirty: true, fieldTimer: 0, pfTimer: 0, repairT: 0, hudT: 0, visT: 0, scanT: 0, refugeeT: REFUGEE_GAP,
     ambientT: 0, visibleZ: 0, saveT: 30,
     cam: { x: CORE.x + 0.5, y: CORE.y + 3, zoom: document.body.classList.contains('compact') ? 1.7 : 2.4, free: false },
@@ -188,11 +195,12 @@ function pickType(n) {
   }
   return 'walker';
 }
-function makeZombie(x, y, mode, h) {
-  const type = mode === 2 ? pickType(G.hordeN) : (rng() < 0.05 ? 'runner' : 'walker');
+function makeZombie(x, y, mode, h, forceType) {
+  const type = forceType || (mode === 2 ? pickType(G.hordeN) : (rng() < 0.05 ? 'runner' : 'walker'));
   const zt = ZTYPES[type];
+  const tough = mode === 2 ? 1 + HP_SCALE.per * Math.max(0, G.hordeN - HP_SCALE.from + 1) : 1;      // later hordes are tougher
   return {
-    x, y, type, hp: zt.hp, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
+    burn: 0, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
     speed: zt.speed * (0.85 + rng() * 0.3), climb: 0, lift: 0, anim: rng() * 6, face: 1, st: 0, v: rng() * 6 | 0,
   };
 }
@@ -209,6 +217,17 @@ function seedAmbient(mult) {
       const i = (y | 0) * W + (x | 0);
       if (bld[i] >= 0 || dist[i] === Infinity) continue;
       zombies.push(makeZombie(x, y, 0)); made++;
+    }
+  }
+  for (const b of buildings) if (b.poi) {                       // points of interest are guarded
+    const n = 10 + (rng() * 6 | 0);
+    for (let k = 0, tries = 0; k < n && tries < 80; tries++) {
+      const x = b.x + b.w / 2 + (rng() - 0.5) * (b.w + 5), y = b.y + b.h / 2 + (rng() - 0.5) * (b.h + 5);
+      if (!inb(x | 0, y | 0)) continue;
+      const i = (y | 0) * W + (x | 0);
+      if (bld[i] >= 0 || dist[i] === Infinity) continue;
+      const r = rng();
+      zombies.push(makeZombie(x, y, 0, 0, r < 0.2 ? 'armored' : r < 0.3 ? 'spitter' : r < 0.36 ? 'brute' : null)); k++;
     }
   }
 }
@@ -265,6 +284,12 @@ function updateZombies(dt) {
     z.anim += dt * z.speed * 4;
     z.lift = 0; z.st = 0;
     if (z.rage > 0) z.rage -= dt;
+    if (z.burn > 0) {                                           // burning zombies panic, take damage and set their neighbours alight
+      z.burn -= dt; z.hp -= FIRE.burnDps * dt;
+      if (rng() < dt * 10) parts.push({ x: z.x + (rng() - 0.5) * 0.3, y: z.y - 0.5, vx: 0, vy: -1.4, life: 0.4, max: 0.4, color: rng() < 0.5 ? '#ff8a22' : '#ffd23a', size: 1.5, grav: 0 });
+      stepMove(z, (rng() - 0.5) * 2.2 * dt, (rng() - 0.5) * 2.2 * dt, false);
+      for (let j = cellHead[ti]; j >= 0; j = cellNext[j]) { const o = zombies[j]; if (o && o !== z && !(o.burn > 0) && rng() < FIRE.spread * dt) o.burn = FIRE.burn; }
+    }
     if (vis[ti]) { seen++; if (rng() < 0.0012) Snd.groan(z.x, z.y); }
 
     // bite the survivor
@@ -296,6 +321,20 @@ function updateZombies(dt) {
       continue;
     }
 
+    // spitters stop to spray acid at anyone on the wall within range
+    if (z.type === 'spitter' && z.mode !== 0 && defenders.length) {
+      let tgt = null, bd = SPIT.range * SPIT.range;
+      for (const d of defenders) { const dx = d.px - z.x, dy = d.py - z.y, q = dx * dx + dy * dy; if (q < bd) { bd = q; tgt = d; } }
+      if (tgt) {
+        z.st = 1; z.face = tgt.px > z.x ? 1 : -1; z.spT -= dt;
+        if (z.spT <= 0) {
+          z.spT = SPIT.cd; tgt.hp -= SPIT.dmg; tgt.hurt = 0.3; wallHp[tgt.y * W + tgt.x] = Math.max(1, wallHp[tgt.y * W + tgt.x] - SPIT.wallDmg);
+          tracers.push({ x1: z.x, y1: z.y - 0.5, x2: tgt.px, y2: tgt.py - 0.4, life: 0.18, acid: true }); addBurst(tgt.px, tgt.py - 0.3, '#9ad04a', 4, { grav: 3 }); Snd.hit(z.x, z.y);
+          if (tgt.hp <= 0) killDefender(tgt);
+        }
+        continue;
+      }
+    }
     // screamers rouse the dead and enrage the horde
     if (z.type === 'screamer' && z.mode !== 0) {
       z.scr -= dt;
@@ -321,6 +360,7 @@ function updateZombies(dt) {
       continue;
     }
     let D = dist, N = nextTile;
+    if (zt.noClimb) { if (z.mode === 1) z.mode = 2; if (z.mode === 2) { D = ddist; N = dnext; } }      // dogs cannot climb: they need a gap
     if (z.mode === 1) {
       D = pdist; N = pnext;
       if (pdx * pdx + pdy * pdy > AMBIENT.forget * AMBIENT.forget) { z.lose += dt; if (z.lose > 5) { z.mode = 0; continue; } } else z.lose = 0;
@@ -329,7 +369,7 @@ function updateZombies(dt) {
       if (D[ti] === Infinity) { z.mode = z.prev === 2 ? 2 : 0; continue; }
       if (D[ti] < 1.6 || N[ti] < 0) { z.st = 3; z.look += dt; if (z.look > NOISE.look) { z.mode = z.prev === 2 ? 2 : 0; z.look = 0; } continue; }
     }
-    if (D[ti] === Infinity) { if (z.mode === 1 || z.mode === 3) z.mode = 0; else { zombies[k] = zombies[zombies.length - 1]; zombies.pop(); } continue; }
+    if (D[ti] === Infinity) { if (zt.noClimb) { z.mode = 0; z.h = 0; } else if (z.mode === 1 || z.mode === 3) z.mode = 0; else { zombies[k] = zombies[zombies.length - 1]; zombies.pop(); } continue; }
 
     let tcx, tcy, ni = -1;
     if (N[ti] < 0) { tcx = P.px; tcy = P.py; }                // standing on the target tile
@@ -341,8 +381,9 @@ function updateZombies(dt) {
       // queue at the wall and climb over the pile
       const p = pile[ni];
       pileNow[ni]++;
+      if (elec[ni] && G.power.ratio > 0) { z.hp -= POWER.zap * G.power.ratio * dt; if (rng() < dt * 8) addBurst(tcx, tcy - 0.5, '#7fd0ff', 1); }
       z.st = 2; z.lift = Math.min(10, p * 0.25);
-      wallHp[ni] -= PILE_PRESSURE * p * dt;
+      wallHp[ni] -= PILE_PRESSURE * p * dt * TIER.press[wallTier[ni]];
       if (wallHp[ni] <= 1) wallHp[ni] = 1;                    // walls hold
       z.face = dx > 0 ? 1 : -1;
       z.climb += dt * Math.min(PILE_MAX_SPEEDUP, 1 + p * PILE_SPEEDUP);
@@ -388,6 +429,7 @@ function killZombie(k) {
   const z = zombies[k];
   G.kills++;
   if (z.by) z.by.kills++;
+  if (z.rev) log(z.rev.name + ' has been put to rest');
   if (rng() < 0.1) G.mat = Math.min(storeCap(), G.mat + 1);
   if (rng() < 0.03) G.food = Math.min(storeCap(), G.food + 1);
   const g = Art.decals.getContext('2d');
@@ -412,6 +454,8 @@ function killDefender(d) {
   addBurst(d.px, d.py, '#e8524a', 8);
   memorialize(d.s, 'killed on the wall'); moraleHit('defender', d.s);
   log(who(d.s) + ' was killed on the wall');
+  const medic = allPeople().some(s => s.role === 'medic');
+  if (rng() < TURN.chance * (medic ? TURN.medicMul : 1)) { turning.push({ x: d.px, y: d.py, t: TURN.delay, s: d.s }); log('The body is already stirring...'); }
 }
 const gunRadius = sn => (sn ? NOISE.sniper : NOISE.gun) * (has('silencers') ? NOISE.silencer : 1);
 function investigate(x, y, r, horde) {            // draw idle zombies (and, for decoys, part of a horde) toward a point
@@ -471,7 +515,7 @@ function fight(e, dt, o) {
     if (q < bd) { bd = q; best = z; }
   }
   if (best) {
-    G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1)); best.hp -= GUN.dmg * (o.dmgMul || 1) * (has('ap') ? 1.3 : 1); best.by = e.s || null; e.shot = 0.09; e.st = 'shoot';
+    G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1)); best.hp -= GUN.dmg * (o.dmgMul || 1) * (has('ap') ? 1.3 : 1) * armorF(best); best.by = e.s || null; e.shot = 0.09; e.st = 'shoot';
     e.cd = o.cd * (o.cdMul || 1) * (has('rapid') ? 0.8 : 1) * (o.starving ? 1.8 : 1) * (0.9 + rng() * 0.2);
     e.face = best.x >= e.px ? 1 : -1;
     tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1 });
@@ -495,14 +539,14 @@ function updateDefenders(dt) {
     fight(d, dt, {
       starving, noiseMode: 2, range: tower ? GUN.towerRange : GUN.range, cd: tower ? GUN.towerCd : GUN.cd,
       rangeMul: (sn ? SNIPER.range : 1) * tmul(d.s, 'range'), dmgMul: (sn ? SNIPER.dmg : 1) * tmul(d.s, 'dmg') * skillMul(d.s, 'shoot') * rel.dmg,
-      cdMul: (sn ? SNIPER.cd : 1) * tmul(d.s, 'cd') * moraleCd() * (d.s.grief > 0 ? 1.25 : 1) * (1 - 0.03 * skillLv(d.s, 'shoot')) * ruleMul('fire') * rel.cd,
+      cdMul: (sn ? SNIPER.cd : 1) * tmul(d.s, 'cd') * moraleCd() * (d.s.grief > 0 ? 1.25 : 1) * (1 - 0.03 * skillLv(d.s, 'shoot')) * ruleMul('fire') * rel.cd * Base.floodMul(d),
       meleeMul: tmul(d.s, 'melee') * skillMul(d.s, 'melee'), ammoCost: tmul(d.s, 'ammo'), sniper: sn,
     });
     if (d.s.role === 'medic') {                // medics patch up the people around them
-      const r2 = MEDIC.radius ** 2, heal = MEDIC.heal * (has('medicine') ? 2 : 1) * (1 + 0.15 * skillLv(d.s, 'med')) * dt;
+      const r2 = MEDIC.radius ** 2, heal = MEDIC.heal * (has('medicine') ? 2 : 1) * (1 + 0.15 * skillLv(d.s, 'med')) * (G.med > 0 ? 1 : 0.5) * dt;
       let healed = false;
       for (const o of defenders) if (o !== d && o.hp < o.maxHp && (o.px - d.px) ** 2 + (o.py - d.py) ** 2 < r2) { o.hp = Math.min(o.maxHp, o.hp + heal); healed = true; }
-      if (healed) addXp(d.s, 'med', 2 * dt);
+      if (healed) { addXp(d.s, 'med', 2 * dt); G.med = Math.max(0, G.med - 0.015 * dt); }
     }
   }
 }
@@ -543,7 +587,7 @@ function updateTraps(dt) {
           const nx = t.x + dx, ny = t.y + dy; if (!inb(nx, ny)) continue;
           for (let j = cellHead[ny * W + nx]; j >= 0; j = cellNext[j]) {
             const z = zombies[j]; if (!z) continue;
-            if ((z.x - cx) ** 2 + (z.y - cy) ** 2 < r2) z.hp -= TRAP.barrelDps * dt;
+            if ((z.x - cx) ** 2 + (z.y - cy) ** 2 < r2) { z.hp -= TRAP.barrelDps * dt; z.burn = FIRE.burn; }
           }
         }
         if (rng() < 0.8) parts.push({ x: cx + (rng() - 0.5) * 3, y: cy + (rng() - 0.5) * 2, vx: 0, vy: -2 - rng() * 2, life: 0.5, max: 0.5, color: rng() < 0.5 ? '#ff8a22' : '#ffd23a', size: 2, grav: 0 });
@@ -615,7 +659,7 @@ function updatePlayer(dt) {
 
   // scavenging: hold E beside a building
   const b = nearBuilding();
-  if (keys.e && b && !b.looted && !b.crew && !moving) {
+  if (keys.e && b && !b.looted && !b.crew && !b.nest && !moving) {
     const bi = buildings.indexOf(b);
     if (P.lootB !== bi) { P.lootB = bi; P.loot = 0; }
     P.loot += dt;
@@ -648,15 +692,12 @@ function updatePlayer(dt) {
 }
 function scavenge(b) {
   b.looted = true;
-  const t = BUILDING_TYPES[b.type], got = [];
-  const bonus = has('scav') ? 1.35 : 1;
-  const roll = v => Math.round(v * bonus * (0.7 + rng() * 0.6));
-  const m = roll(t.loot.m), f = roll(t.loot.f), a = roll(t.loot.a);
-  G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
-  if (m) got.push('+' + m + ' materials'); if (f) got.push('+' + f + ' food'); if (a) got.push('+' + a + ' ammo');
+  const t = BUILDING_TYPES[b.type];
+  const got = rollLoot(t.loot, has('scav') ? 1.35 : 1);
+  addRes(got);
   Snd.loot();
-  floatText(b.x + b.w / 2, b.y - 0.2, got.join(' '), '#ffe27a');
-  let msg = t.label + ': ' + got.join(', ');
+  floatText(b.x + b.w / 2, b.y - 0.2, lootText(got, true), '#ffe27a');
+  let msg = t.label + ': ' + lootText(got);
   if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + intro(s) + ' was hiding inside and follows you back!'; }
   log(msg);
 }
@@ -669,6 +710,7 @@ function selectedIdle() {
 }
 function sendCrew(b) {
   if (!b || b.looted || b.crew) return warn('That building is not available');
+  if (b.nest && !selectedIdle().some(s => s.role === 'fighter' || s.role === 'sniper')) return warn('Clearing a nest needs a Fighter or Sniper in the crew');
   if (!explored[(b.y + (b.h >> 1)) * W + b.x + (b.w >> 1)]) return warn('Scout that building first');
   const members = selectedIdle().slice(0, 3);
   if (!members.length) return warn('No healthy idle survivors to send');
@@ -678,7 +720,7 @@ function sendCrew(b) {
   const dur = (CREW.baseTime + d * CREW.perTile) * (has('scav') ? 0.8 : 1) * ruleMul('crewTime') * (members.reduce((m, s) => m + tmul(s, 'crewTime'), 0) / members.length);
   let near = 0; for (const z of zombies) if (z.mode === 0 && Math.hypot(z.x - (b.x + b.w / 2), z.y - (b.y + b.h / 2)) < 9) near++;
   const fighters = members.filter(s => s.role === 'fighter' || s.role === 'sniper').length;
-  const risk = clamp(CREW.baseRisk + d * CREW.perTileRisk + Math.min(0.18, near * 0.012) - 0.04 * fighters, 0.04, 0.65);
+  const risk = clamp(CREW.baseRisk + d * CREW.perTileRisk + Math.min(0.18, near * 0.012) - 0.04 * fighters + (b.nest ? NEST.crewRisk : 0) + (b.poi ? 0.08 : 0), 0.04, 0.7);
   for (const s of members) { G.idle.splice(G.idle.indexOf(s), 1); G.sel = G.sel.filter(id => id !== s.id); }
   b.crew = true;
   G.crews.push({ bi: buildings.indexOf(b), members, t: 0, dur, risk });
@@ -697,11 +739,11 @@ function updateCrews(dt) {
     const scav = c.members.filter(s => s.role === 'scavenger').length;
     const mul = (CREW.lootMul + CREW.perMember * (c.members.length - 1) + CREW.scavBonus * scav + (has('scav') ? 0.35 : 0)) * (c.members.reduce((m, s) => m + tmul(s, 'loot') * skillMul(s, 'scav'), 0) / c.members.length);
     for (const s of survivors) addXp(s, 'scav', 25);
-    const roll = v => Math.round(v * mul * (0.7 + rng() * 0.6));
-    const m = survivors.length ? roll(t.loot.m) : 0, f = survivors.length ? roll(t.loot.f) : 0, a = survivors.length ? roll(t.loot.a) : 0;
-    G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
+    const got = survivors.length ? rollLoot(t.loot, mul) : {};
+    addRes(got);
     for (const s of survivors) G.idle.push(s);
-    let msg = 'Crew back from the ' + t.label + ': +' + m + 'm +' + f + 'f +' + a + 'a';
+    let msg = 'Crew back from the ' + t.label + ': ' + (lootText(got) || 'nothing');
+    if (b.nest && survivors.length) { Outside.clearNest(b); msg += ' - the nest is destroyed'; }
     if (lost) msg += ' - lost ' + c.members.filter(s => !survivors.includes(s)).map(who).join(', ');
     if (survivors.length && rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + intro(s); }
     log(msg);
@@ -709,19 +751,19 @@ function updateCrews(dt) {
   }
 }
 function updateSurvivors(dt) {
-  const medic = G.idle.some(s => s.role === 'medic' && !s.sick) || defenders.some(d => d.s.role === 'medic');
+  const medic = G.idle.some(s => s.role === 'medic' && !s.sick) || defenders.some(d => d.s.role === 'medic') || Base.hasClinic();
   for (let i = G.idle.length - 1; i >= 0; i--) {
     const s = G.idle[i];
     if (s.sick <= 0) continue;
-    if (medic) { s.cure += dt * (has('medicine') ? 2 : 1); if (s.cure >= MEDIC.cure) { s.sick = 0; s.cure = 0; log(who(s) + ' recovered thanks to the medic'); } }
+    if (medic) { s.cure += dt * (has('medicine') ? 2 : 1) * (Base.hasClinic() ? 2 : 1); if (s.cure >= MEDIC.cure) { s.sick = 0; s.cure = 0; log(who(s) + ' recovered thanks to the medic'); } }
     else { s.sick -= dt; if (s.sick <= 0) { G.idle.splice(i, 1); memorialize(s, 'died of sickness'); moraleHit('sick', s); log(who(s) + ' died of sickness. A medic or ' + SICK.treatCost + ' food could have saved them'); } }
   }
 }
 function treatSick(id) {
   const s = G.idle.find(x => x.id === id);
   if (!s || s.sick <= 0) return;
-  if (G.food < SICK.treatCost) return warn('Need ' + SICK.treatCost + ' food');
-  G.food -= SICK.treatCost; s.sick = 0; s.cure = 0; log(who(s) + ' was treated'); Snd.pickup();
+  if (G.med >= 3) G.med -= 3; else if (G.food >= SICK.treatCost) G.food -= SICK.treatCost; else return warn('Need 3 medicine or ' + SICK.treatCost + ' food');
+  s.sick = 0; s.cure = 0; log(who(s) + ' was treated'); Snd.pickup();
 }
 
 // ---- economy ---------------------------------------------------------------
@@ -731,8 +773,9 @@ function updateEconomy(dt) {
   const base = 1 + 0.3 * (G.level - 1);
   const im = ruleMul('income');
   const ra = G.income.a * im + 0.04 * base, rm = G.income.m * im + 0.1 * base, rf = G.income.f * im + 0.08 * base - upkeep;
-  G.net = { a: ra, m: rm, f: rf };
+  G.net = { a: ra, m: rm, f: rf, med: G.income.med, fuel: G.income.fuel - G.power.burn };
   const cap = storeCap();
+  G.med = clamp(G.med + G.income.med * dt, 0, cap); G.fuel = clamp(G.fuel + G.income.fuel * dt, 0, cap);
   G.ammo = clamp(G.ammo + ra * dt, 0, cap);
   G.mat = clamp(G.mat + rm * dt, 0, cap);
   G.food = clamp(G.food + rf * dt, 0, cap);
@@ -747,7 +790,7 @@ function updateEconomy(dt) {
     let repaired = 0;
     for (let i = 0; i < W * H && left > 0 && G.mat >= 1; i++) {
       if (!wall[i]) continue;
-      const m = maxHp(wall[i]);
+      const m = maxHp(wall[i], i);
       if (wallHp[i] < m) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; repaired++; }
     }
     if (repaired) for (const s of bl) addXp(s, 'build', repaired * 0.5);
@@ -871,7 +914,7 @@ function updateResearch(dt) {
     G.res.done[a.id] = true; G.res.active = null; moraleGain('research');
     const r = RESEARCH.find(x => x.id === a.id);
     log('Research complete: ' + r.name);
-    if (a.id === 'walls') for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = Math.min(maxHp(wall[i]), wallHp[i] * 1.35);
+    if (a.id === 'walls') for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = Math.min(maxHp(wall[i], i), wallHp[i] * 1.35);
     Snd.upgrade();
   }
 }
@@ -890,6 +933,7 @@ function refund(name) { return Math.floor(((COST[name].m || 0) * 0.5)); }
 function tryBuild(tx, ty) {
   if (G.over || !inb(tx, ty)) return;
   const i = ty * W + tx, tool = G.tool;
+  if (tool === 'molotov') return Outside.throwMolotov(tx, ty);              // can be thrown at buildings (nests)
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
   if (!inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
@@ -907,7 +951,8 @@ function tryBuild(tx, ty) {
     const base = effCost(tool), cost = wall[i] === K.WALL && kind === K.TOWER ? { m: Math.max(0, base.m - effCost('wall').m) } : base;
     if (!canAfford(cost)) return warn(cost.f || cost.a ? 'Not enough supplies' : 'Not enough materials');
     pay(cost);
-    wall[i] = kind; wallHp[i] = maxHp(kind);
+    if (!wall[i]) { wallTier[i] = 0; elec[i] = 0; }
+    wall[i] = kind; wallHp[i] = maxHp(kind, i);
     G.fieldDirty = true; G.visT = 0; Snd.build();
     if (G.nfT <= 0) { G.nfT = 0.4; investigate(tx + 0.5, ty + 0.5, NOISE.build, false); if (rings.length < 24) rings.push({ x: tx + 0.5, y: ty + 0.5, r: NOISE.build, t: 0, max: 0.6 }); }   // hammering is noisy
     if (tool === 'radio') {
@@ -915,6 +960,20 @@ function tryBuild(tx, ty) {
       log('The radio is broadcasting! Hold out for ' + fmtTime(RESCUE_TIME) + ' until the helicopter arrives.');
       Snd.horn();
     }
+  } else if (FACILITIES[tool]) {
+    Base.place(tool, tx, ty);
+  } else if (tool === 'electrify') {
+    if (!wall[i] || wall[i] === K.RADIO || wall[i] === K.LOOKOUT || elec[i]) return;
+    const cost = effCost('electrify'); if (!canAfford(cost)) return warn('Not enough materials');
+    pay(cost); elec[i] = 1; Snd.build();
+    if (!facilities.some(f => f.type === 'generator')) toast('Electrified. It needs a powered generator to work.');
+  } else if (tool === 'reinforce') {
+    if (!wall[i] || wall[i] === K.RADIO) return;
+    const t = wallTier[i]; if (t >= 2) return warn('Already concrete');
+    if (t === 1 && !has('concrete')) return warn('Research Concrete Mixing first');
+    const cost = { m: Math.ceil(TIER.cost[t + 1] * buildMul()) }; if (!canAfford(cost)) return warn('Not enough materials');
+    pay(cost); wallTier[i] = t + 1; wallHp[i] = maxHp(wall[i], i); Snd.build();
+  } else if (false) {
   } else if (tool === 'decoy') {
     if (wall[i] || trapAt[i]) return;
     const cost = effCost('decoy');
@@ -937,10 +996,11 @@ function tryBuild(tx, ty) {
   } else if (tool === 'erase') {
     if (defAt[i]) { const d = defAt[i]; removeDefender(d); G.idle.push(d.s); return; }
     if (trapAt[i]) { const t = trapAt[i]; traps.splice(traps.indexOf(t), 1); trapAt[i] = null; G.mat += refund(t.type); Snd.demolish(); return; }
+    if (facAt[i]) { Base.remove(facAt[i]); Snd.demolish(); return; }
     if (wall[i] && wall[i] !== K.RADIO) {
       const nm = { 1: 'wall', 2: 'tower', 3: 'lookout', 4: 'gate' }[wall[i]];
       G.mat += refund(nm);
-      wall[i] = 0; wallHp[i] = 0; G.fieldDirty = true; G.visT = 0; Snd.demolish();
+      wall[i] = 0; wallHp[i] = 0; wallTier[i] = 0; elec[i] = 0; G.fieldDirty = true; G.visT = 0; Snd.demolish();
     }
   }
 }
@@ -950,7 +1010,7 @@ function upgradeCore() {
   if (!canAfford(L.up)) return warn('Need ' + L.up.m + ' materials and ' + L.up.f + ' food');
   pay(L.up); G.level++; moraleGain('upgrade');
   G.coreHp = LEVELS[G.level - 1].coreHp;
-  for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = Math.max(wallHp[i], maxHp(wall[i]) * 0.8);
+  for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = Math.max(wallHp[i], maxHp(wall[i], i) * 0.8);
   G.fieldDirty = true;
   log('Camp upgraded to level ' + G.level + ' - territory limit ' + LEVELS[G.level - 1].cap);
   Snd.upgrade();
@@ -988,6 +1048,7 @@ function simulate(dt) {
   updateHordes(dt);
   updateZombies(dt);
   updateTraps(dt);
+  Outside.update(dt); Base.update(dt);
   updateDefenders(dt);
   updateCrews(dt);
   updateSurvivors(dt);
