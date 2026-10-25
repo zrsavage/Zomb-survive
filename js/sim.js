@@ -23,10 +23,17 @@ function effCost(name) {
 const canAfford = c => (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a);
 function pay(c) { G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; }
 function log(msg) { G.log.unshift({ t: G.elapsed, msg }); if (G.log.length > 8) G.log.pop(); toast(msg); }
-function newSurvivor(role) { role = role || weighted(ROLES, 'weight'); const id = G.sid++; return { id, name: ROLES[role].label + ' #' + id, role, sick: 0, cure: 0 }; }
+// Survivors are named people with a class. They are expendable, but you feel it when they go.
+const who = s => s.name + ' (' + ROLES[s.role].label + ')';
+function newSurvivor(role) {
+  role = role || weighted(ROLES, 'weight');
+  const taken = new Set([...G.idle, ...defenders.map(d => d.s), ...G.crews.flatMap(c => c.members)].map(s => s.name));
+  let name; for (let t = 0; t < 12; t++) { name = pick(NAMES) + ' ' + pick(SURNAMES); if (!taken.has(name)) break; }
+  return { id: G.sid++, name, role, sick: 0, cure: 0 };
+}
 function addRecruit(s, why) {
   G.idle.push(s);
-  log(s.name + ' ' + why);
+  log(who(s) + ' ' + why);
 }
 const roomForPerson = () => people() < LEVELS[G.level - 1].defs;
 
@@ -296,7 +303,7 @@ function explode(x, y) {
 function killDefender(d) {
   removeDefender(d);
   addBurst(d.px, d.py, '#e8524a', 8);
-  log(d.s.name + ' was lost on the wall');
+  log(who(d.s) + ' was killed on the wall');
 }
 function alertNoise(x, y, r, mode) {           // gunfire draws idle zombies in
   const r2 = r * r;
@@ -507,7 +514,7 @@ function scavenge(b) {
   Snd.loot();
   floatText(b.x + b.w / 2, b.y - 0.2, got.join(' '), '#ffe27a');
   let msg = t.label + ': ' + got.join(', ');
-  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + s.name + ' was hiding inside and follows you back!'; }
+  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + who(s) + ' was hiding inside and follows you back!'; }
   log(msg);
 }
 
@@ -532,7 +539,7 @@ function sendCrew(b) {
   for (const s of members) { G.idle.splice(G.idle.indexOf(s), 1); G.sel = G.sel.filter(id => id !== s.id); }
   b.crew = true;
   G.crews.push({ bi: buildings.indexOf(b), members, t: 0, dur, risk });
-  log('Sent ' + members.map(s => s.name).join(', ') + ' to the ' + BUILDING_TYPES[b.type].label + ' (' + Math.round(risk * 100) + '% risk each)');
+  log('Sent ' + members.map(who).join(', ') + ' to the ' + BUILDING_TYPES[b.type].label + ' (' + Math.round(risk * 100) + '% risk each)');
   Snd.click();
 }
 function updateCrews(dt) {
@@ -550,8 +557,8 @@ function updateCrews(dt) {
     G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
     for (const s of survivors) G.idle.push(s);
     let msg = 'Crew back from the ' + t.label + ': +' + m + 'm +' + f + 'f +' + a + 'a';
-    if (lost) msg += ' - lost ' + c.members.filter(s => !survivors.includes(s)).map(s => s.name).join(', ');
-    if (survivors.length && rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + s.name; }
+    if (lost) msg += ' - lost ' + c.members.filter(s => !survivors.includes(s)).map(who).join(', ');
+    if (survivors.length && rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + who(s); }
     log(msg);
     if (lost) Snd.error(); else Snd.loot();
   }
@@ -561,15 +568,15 @@ function updateSurvivors(dt) {
   for (let i = G.idle.length - 1; i >= 0; i--) {
     const s = G.idle[i];
     if (s.sick <= 0) continue;
-    if (medic) { s.cure += dt * (has('medicine') ? 2 : 1); if (s.cure >= MEDIC.cure) { s.sick = 0; s.cure = 0; log(s.name + ' recovered thanks to the medic'); } }
-    else { s.sick -= dt; if (s.sick <= 0) { G.idle.splice(i, 1); log(s.name + ' died of sickness. A medic or ' + SICK.treatCost + ' food could have saved them'); } }
+    if (medic) { s.cure += dt * (has('medicine') ? 2 : 1); if (s.cure >= MEDIC.cure) { s.sick = 0; s.cure = 0; log(who(s) + ' recovered thanks to the medic'); } }
+    else { s.sick -= dt; if (s.sick <= 0) { G.idle.splice(i, 1); log(who(s) + ' died of sickness. A medic or ' + SICK.treatCost + ' food could have saved them'); } }
   }
 }
 function treatSick(id) {
   const s = G.idle.find(x => x.id === id);
   if (!s || s.sick <= 0) return;
   if (G.food < SICK.treatCost) return warn('Need ' + SICK.treatCost + ' food');
-  G.food -= SICK.treatCost; s.sick = 0; s.cure = 0; log(s.name + ' was treated'); Snd.pickup();
+  G.food -= SICK.treatCost; s.sick = 0; s.cure = 0; log(who(s) + ' was treated'); Snd.pickup();
 }
 
 // ---- economy ---------------------------------------------------------------
@@ -688,7 +695,7 @@ function fireEvent() {
     const s = G.idle.filter(x => !x.sick)[rng() * G.idle.length | 0];
     if (!s) return;
     s.sick = SICK.time; s.cure = 0;
-    log(s.name + ' fell ill. Treat them for ' + SICK.treatCost + ' food, or a medic will cure them.');
+    log(who(s) + ' fell ill. Treat them for ' + SICK.treatCost + ' food, or a medic will cure them.');
   }
 }
 function doTrade(i) {

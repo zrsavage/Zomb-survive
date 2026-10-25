@@ -97,7 +97,10 @@ const BUILDER = { repairBonus: 1.5, discount: 0.1, maxDiscount: 0.3 };
 const SICK = { time: 60, treatCost: 15 };
 const REFUGEE_GAP = 70;          // seconds between refugees at a sealed, fed camp
 const CREW = { baseTime: 18, perTile: 1.6, lootMul: 1.4, perMember: 0.1, scavBonus: 0.35, baseRisk: 0.06, perTileRisk: 1 / 70, ammoCost: 5 };
-const NAMES = ['Ash', 'Bea', 'Cal', 'Dee', 'Eli', 'Fay', 'Gus', 'Hal', 'Ivy', 'Jo', 'Kit', 'Lou', 'Mae', 'Ned', 'Oz', 'Pia', 'Quin', 'Rex', 'Sol', 'Tess', 'Uma', 'Vic', 'Wes', 'Yara', 'Zed'];
+const NAMES = ['Ash', 'Bea', 'Cal', 'Dee', 'Eli', 'Fay', 'Gus', 'Hal', 'Ivy', 'Jo', 'Kit', 'Lou', 'Mae', 'Ned', 'Oz', 'Pia', 'Quin', 'Rex', 'Sol', 'Tess',
+  'Uma', 'Vic', 'Wes', 'Yara', 'Zed', 'Abe', 'Bram', 'Cleo', 'Dax', 'Edie', 'Finn', 'Gwen', 'Hugo', 'Iris', 'Jax', 'Kai', 'Lena', 'Milo', 'Nora', 'Otis',
+  'Pru', 'Reva', 'Sam', 'Tomas', 'Una', 'Vera', 'Walt', 'Xan', 'Yuri', 'Zora'];
+const SURNAMES = ['Reyes', 'Okafor', 'Lindqvist', 'Tanaka', 'Moreau', 'Kowalski', 'Haddad', 'Brennan', 'Silva', 'Novak', 'Adeyemi', 'Frost', 'Castillo', 'Ito', 'Marsh', 'Volkov', 'Quinn', 'Duarte', 'Hale', 'Park'];
 
 // ---- research ---------------------------------------------------------------
 const RESEARCH = [

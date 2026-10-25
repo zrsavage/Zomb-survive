@@ -101,7 +101,7 @@ const UI = (() => {
     for (const s of G.idle) {
       const r = ROLES[s.role], c = document.createElement('div');
       c.className = 'chip' + (G.sel.includes(s.id) ? ' sel' : ''); c.title = r.label + ': ' + r.desc;
-      c.innerHTML = '<span class="badge" style="background:' + r.color + '">' + r.letter + '</span><span style="flex:1">' + s.name + '</span>';
+      c.innerHTML = '<span class="badge" style="background:' + r.color + '">' + r.letter + '</span><span style="flex:1">' + s.name + '<small style="color:var(--dim);display:block">' + r.label + '</small></span>';
       if (s.sick > 0) {
         const b = document.createElement('button'); b.className = 'mini-btn'; b.textContent = 'Sick ' + (s.sick | 0) + 's · treat ' + SICK.treatCost + 'f';
         b.addEventListener('click', ev => { ev.stopPropagation(); treatSick(s.id); }); c.appendChild(b);
@@ -116,7 +116,7 @@ const UI = (() => {
     $('crewsH').style.display = G.crews.length ? '' : 'none';
     $('crews').innerHTML = G.crews.map(c => {
       const b = buildings[c.bi];
-      return '<div>' + c.members.map(s => s.name).join(', ') + ' → ' + BUILDING_TYPES[b.type].label + ' · risk ' + Math.round(c.risk * 100) + '%<div class="bar"><i style="width:' + (c.t / c.dur * 100) + '%"></i></div></div>';
+      return '<div>' + c.members.map(who).join(', ') + ' → ' + BUILDING_TYPES[b.type].label + ' · risk ' + Math.round(c.risk * 100) + '%<div class="bar"><i style="width:' + (c.t / c.dur * 100) + '%"></i></div></div>';
     }).join('');
   }
   function renderLog() {
@@ -177,7 +177,7 @@ const UI = (() => {
     let h = '';
     if (mode === 'title') {
       h = '<h1>ZOMB SURVIVE</h1><div class="sub">Hold out. Build up. Get rescued.</div>' +
-        '<p>You are the last one left at a ruined camp. The town is full of the dead, and there is no night to warn you when a horde is coming. <b>Survivors are expendable: only the camp matters.</b> Lose it and the run is over.</p>' +
+        '<p>You are the last one left at a ruined camp. The town is full of the dead, and there is no night to warn you when a horde is coming. Every survivor is a named specialist, but people can be replaced: the camp is what matters. Lose it and the run is over.</p>' +
         '<ul><li><b>Scavenge</b> (hold E), <b>scout</b> the fog and <b>send crews</b> for supplies. Some buildings hide survivors.</li>' +
         '<li><b>Fortify</b> with walls, towers, gates and traps. Zombies never break walls: they pile up and climb, so kill them as they climb.</li>' +
         '<li><b>Build lookouts</b> to see hordes coming. Without them you only get a faint rumble.</li>' +

@@ -179,6 +179,14 @@ function drawWorld(cam, cw, ch, z) {
 function drawCursor() {
   if (G.hover && !G.over) {
     const { tx, ty } = G.hover, i = ty * W + tx, tool = G.tool;
+    const who = inb(tx, ty) && defAt[i];                           // nameplate for a posted survivor
+    if (who) {
+      const label = who.s.name + ' - ' + ROLES[who.s.role].label, x = who.px * T, y = who.py * T - 36;
+      ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center';
+      const w = ctx.measureText(label).width + 6;
+      ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - w / 2, y - 7, w, 10);
+      ctx.fillStyle = ROLES[who.s.role].color; ctx.fillText(label, x, y);
+    }
     let ok = inb(tx, ty) && bld[i] < 0 && !isCoreTile(tx, ty) && inBuildRange(tx, ty) && explored[i];
     if (tool === 'crew') ok = inb(tx, ty) && bld[i] >= 0 && !buildings[bld[i]].looted && !buildings[bld[i]].crew;
     else if (ok && tool === 'def') ok = wall[i] > 0 && !defAt[i] && wall[i] !== K.GATE && wall[i] !== K.RADIO && selectedIdle().length > 0;

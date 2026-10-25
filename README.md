@@ -20,6 +20,8 @@ Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the ho
 - Phones default to **Low** quality (cheaper lighting, no ground fog, fewer particles, smaller zombie cap). Change it any time in the menu.
 - Landscape is recommended. Serve over https to install it as a fullscreen app (manifest + service worker included, works offline).
 
+Survivors are named people with a class (Fighter, Sniper, Medic, Builder, Scavenger). Hover a posted survivor to see their name and class. They can be lost, but only the camp falling ends the run.
+
 Your own survivor is expendable: dying costs 10% of supplies and an 8 second respawn. Only the camp falling ends the run.
 
 ## Controls
