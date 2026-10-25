@@ -12,16 +12,16 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
     font:13px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden;user-select:none}
-  canvas{display:block;position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair}
+  canvas#c{display:block;position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair}
   .panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
   #top{top:8px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;white-space:nowrap;max-width:calc(100vw - 16px);overflow:hidden}
   .res b{display:inline-block;width:10px;height:10px;margin-right:5px;border-radius:2px;vertical-align:-1px}
   .res small{color:var(--dim)}
-  #clock{min-width:150px}
-  #clock .bar{height:4px;background:#2a332d;border-radius:2px;margin-top:3px;overflow:hidden}
-  #clock .bar i{display:block;height:100%;background:var(--acc);width:0}
-  #clock.night .bar i{background:var(--bad)}
-  #tools{left:8px;top:8px;width:196px;display:flex;flex-direction:column;gap:6px}
+  #horde{top:56px;left:50%;transform:translateX(-50%);white-space:nowrap;color:var(--dim);transition:border-color .3s}
+  #horde.alert{color:#fff;border-color:var(--bad);background:#3a1512ee}
+  #horde.heard{color:#fff;border-color:var(--bad);background:#4a1812ee;animation:pulse .6s infinite alternate}
+  @keyframes pulse{to{background:#7a2018ee}}
+  #tools{left:8px;top:8px;width:200px;display:flex;flex-direction:column;gap:6px}
   #tools h4,#side h4{margin:2px 0 0;font-size:11px;color:var(--dim);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
   button{font:inherit;color:var(--txt);background:#212b25;border:1px solid var(--line);border-radius:5px;padding:6px 8px;
     text-align:left;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
@@ -35,40 +35,44 @@
   .warn{color:var(--bad)} .ok{color:var(--good)}
   #speed{display:flex;gap:4px}
   #speed button{flex:1;justify-content:center;padding:5px 0}
-  #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;
-    background:#000a;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:15px;white-space:nowrap}
+  #mini{position:fixed;right:8px;bottom:8px;width:256px;height:176px;image-rendering:pixelated;border:1px solid var(--line);border-radius:6px;background:#05080a}
+  #toast{position:fixed;top:100px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;
+    background:#000b;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:15px;max-width:90vw;text-align:center}
   #toast.show{opacity:1}
-  #help{left:8px;bottom:8px;color:var(--dim);max-width:420px}
+  #prompt{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000b;border:1px solid var(--line);display:none}
+  #help{left:8px;bottom:8px;color:var(--dim);max-width:460px}
   #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000b;z-index:5}
   #overlay.hidden{display:none}
-  #card{max-width:520px;padding:22px 26px;background:#141a16;border:1px solid var(--line);border-radius:10px}
+  #card{max-width:560px;padding:22px 26px;background:#141a16;border:1px solid var(--line);border-radius:10px}
   #card h1{margin:0 0 6px;font-size:26px;letter-spacing:.04em}
   #card p{margin:8px 0;color:#bccdb8}
   #card ul{margin:8px 0 14px;padding-left:18px;color:#bccdb8}
+  #card li{margin:3px 0}
   #card button{display:inline-block;background:#2f6a3a;border-color:#4a9a58;font-size:15px;padding:9px 18px}
-  @media (max-width:900px){#side{display:none}#help{display:none}}
+  @media (max-width:900px){#side{display:none}#help{display:none}#mini{width:160px;height:110px}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
 <div id="top" class="panel">
-  <div id="clock"><span id="clockTxt">Day 1</span><div class="bar"><i id="clockBar"></i></div></div>
   <div class="res"><b style="background:var(--ammo)"></b><span id="rAmmo">0</span> <small id="dAmmo"></small></div>
   <div class="res"><b style="background:var(--mat)"></b><span id="rMat">0</span> <small id="dMat"></small></div>
   <div class="res"><b style="background:var(--food)"></b><span id="rFood">0</span> <small id="dFood"></small></div>
-  <div class="res">Zombies <span id="zCount">0</span></div>
+  <div class="res">Health <span id="pHp">100</span></div>
+  <div class="res">Zombies in sight <span id="zCount">0</span></div>
 </div>
+<div id="horde" class="panel">No horde sighted</div>
 
 <div id="tools" class="panel">
   <h4>Build</h4>
   <button data-tool="wall"><span><kbd>1</kbd> Wall</span><span class="cost" id="cWall"></span></button>
   <button data-tool="tower"><span><kbd>2</kbd> Tower</span><span class="cost" id="cTower"></span></button>
-  <button data-tool="def"><span><kbd>3</kbd> Defender</span><span class="cost" id="cDef"></span></button>
-  <button data-tool="erase"><span><kbd>4</kbd> Demolish</span><span class="cost">50%</span></button>
-  <h4>Base</h4>
-  <button id="btnUp"><span><kbd>U</kbd> Upgrade core</span><span class="cost" id="cUp"></span></button>
-  <button id="btnNight"><span><kbd>N</kbd> Call the night</span></button>
+  <button data-tool="lookout"><span><kbd>3</kbd> Lookout</span><span class="cost" id="cLook"></span></button>
+  <button data-tool="def"><span><kbd>4</kbd> Post survivor</span><span class="cost" id="cDef"></span></button>
+  <button data-tool="erase"><span><kbd>5</kbd> Demolish</span><span class="cost">50%</span></button>
+  <h4>Camp</h4>
+  <button id="btnUp"><span><kbd>U</kbd> Upgrade camp</span><span class="cost" id="cUp"></span></button>
   <h4>Time</h4>
   <div id="speed">
     <button data-speed="0">II</button><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
@@ -76,31 +80,39 @@
 </div>
 
 <div id="side" class="panel">
-  <h4>Base</h4>
-  <div class="row"><span>Core level</span><span id="iLvl"></span></div>
-  <div class="row"><span>Core health</span><span id="iCore"></span></div>
+  <h4>Camp</h4>
+  <div class="row"><span>Camp level</span><span id="iLvl"></span></div>
+  <div class="row"><span>Camp health</span><span id="iCore"></span></div>
   <div class="row"><span>Territory</span><span id="iTerr"></span></div>
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
-  <div class="row"><span>Defenders</span><span id="iDef"></span></div>
+  <h4>People</h4>
+  <div class="row"><span>Survivors idle</span><span id="iIdle"></span></div>
+  <div class="row"><span>Posted on walls</span><span id="iDef"></span></div>
+  <div class="row"><span>Lookouts</span><span id="iLook"></span></div>
   <h4>Record</h4>
-  <div class="row"><span>Nights survived</span><span id="iNights"></span></div>
+  <div class="row"><span>Time survived</span><span id="iTime"></span></div>
+  <div class="row"><span>Hordes beaten</span><span id="iHordes"></span></div>
   <div class="row"><span>Zombies killed</span><span id="iKills"></span></div>
+  <div class="row"><span>Explored</span><span id="iExp"></span></div>
 </div>
 
-<div id="help" class="panel">WASD / arrows or right-drag: pan &nbsp; Wheel: zoom &nbsp; Left-click / drag: build &nbsp; Space: pause</div>
+<canvas id="mini" width="64" height="44"></canvas>
+<div id="help" class="panel">WASD: move (Shift sprint) &nbsp; E (hold): scavenge &nbsp; Click/drag: build &nbsp; Wheel: zoom &nbsp; Right-drag: look around &nbsp; Space: pause</div>
+<div id="prompt"></div>
 <div id="toast"></div>
 
 <div id="overlay">
   <div id="card">
     <h1 id="ovTitle">ZOMB SURVIVE</h1>
     <div id="ovBody">
-      <p>The town is overrun. Your core is the last safe spot. Wall in the streets, claim the buildings inside your perimeter and use what they produce to grow.</p>
+      <p>You are the only one left at this camp. The town is full of the dead, and there is no day or night to tell you when the next horde is coming.</p>
       <ul>
-        <li><b>Walls</b> are free-form. Zombies path around them through any gap, so you can funnel them. Buildings also act as walls.</li>
-        <li><b>Defenders</b> stand on walls and towers. They shoot at range (uses ammo), then stab zombies climbing over (free).</li>
-        <li><b>Territory</b> is everything sealed in with your core, up to a limit. Upgrade the core to hold more of the town.</li>
-        <li>Night brings the hordes. They are weak, but there are a lot of them.</li>
+        <li><b>Scavenge</b> buildings (hold <b>E</b>) for materials, food and ammo. Some hide survivors.</li>
+        <li><b>Scout</b> the fog. You only see what you or your lookouts can see, and noise (gunfire) draws zombies in.</li>
+        <li><b>Fortify</b> the camp with walls and towers. Zombies never break walls. They pile up and climb over, so kill them as they climb.</li>
+        <li><b>Build lookouts</b> to spot hordes before they arrive. Without them you get almost no warning.</li>
+        <li>A sealed camp attracts refugees. Post survivors on the walls: they shoot, then stab.</li>
       </ul>
     </div>
     <button id="btnStart">Start</button>
