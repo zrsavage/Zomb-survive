@@ -77,6 +77,7 @@ const DIMS = {
   lean:  { cw: 20, ch: 27, sw: 7,  tw: 4,  th: 9,  hw: 5, hh: 5, legW: 2, legH: 11, armW: 2, armLen: 9 },
   crouch:{ cw: 20, ch: 23, sw: 7,  tw: 4,  th: 7,  hw: 5, hh: 5, legW: 2, legH: 8,  armW: 2, armLen: 10 },
   brute: { cw: 36, ch: 40, sw: 22, tw: 9,  th: 16, hw: 9, hh: 7, legW: 4, legH: 12, armW: 5, armLen: 12 },
+  mob:   { cw: 16, ch: 22, sw: 7,  tw: 4,  th: 7,  hw: 4, hh: 4, legW: 2, legH: 8,  armW: 2, armLen: 7 },
   bloat: { cw: 28, ch: 29, sw: 8,  tw: 5,  th: 12, hw: 5, hh: 5, legW: 2, legH: 9,  armW: 2, armLen: 7 },
 };
 
@@ -226,6 +227,8 @@ function buildSprites() {
   for (let i = 0; i < 6; i++) {
     S['z_walker' + i] = makeSet(DIMS.human, { skin: skins[i], shirt: shirts[i], pants: pants[i], eye: '#e84a3a', hair: i % 2 ? '#2a2018' : null }, { blood: i, eye2: true, slouch: 1, droop: true, torn: i % 2 === 0, sockets: true, sparse: i % 2 === 0, jaw: i % 3 === 0 }, zWalk);
   }
+  // in a crowd every ordinary walker is drawn as the same smaller grey-green silhouette, so a horde reads as one tide and the special zombies stand out
+  S.z_mob = makeSet(DIMS.mob, { skin: '#6f8a5e', shirt: '#4a4e58', pants: '#2c3038', eye: '#e84a3a' }, { slouch: 1, droop: true, torn: true, sockets: true }, zWalk);
   S.z_runner = makeSet(DIMS.lean, { skin: '#b8a65c', shirt: '#a8483c', pants: '#34343a', eye: '#ff3b2a' }, { blood: 2, eye2: true, slouch: 2, droop: true, torn: true, sockets: true, sparse: true },
     { walkArm: 'fwd', swing: 3, lean: 2, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
   S.z_brute = makeSet(DIMS.brute, { skin: '#5f7f4e', shirt: '#3a3f4a', pants: '#2a2d34', eye: '#ffcc22' }, { straps: true, blood: 1, bigEye: true, muscle: true, sunk: 2, slouch: 1, droop: true, sockets: true, jaw: true },
@@ -500,6 +503,14 @@ Art.drawWall = function (g, x, y, k, f, press, t, gateOpen, tier, el, pw) {
   if (tier === 1) { R('#9aa2aa', px, py + 2, T, 2); R('#6a7078', px, py + 4, T, 1); R('#c8ccd2', px + 2, py + 2, 1, 1); R('#c8ccd2', px + 13, py + 2, 1, 1); }
   else if (tier === 2) { g.globalAlpha = 0.6; R('#c4c4b8', px, py, T, topH); g.globalAlpha = 1; R('#8a8a80', px, py + (topH >> 1), T, 1); R('#8a8a80', px + 5, py, 1, topH >> 1); R('#8a8a80', px + 11, py + (topH >> 1), 1, topH >> 1); }
   if (el) { R(pw ? '#7fd0ff' : '#5a6a78', px + 1, py + 1, T - 2, 1); R(pw ? '#4fa3e8' : '#445', px, py + topH - 2, T, 1); if (pw && Math.sin(t * 30 + x * 3 + y) > 0.55) R('#e8f8ff', px + 3 + ((t * 40 | 0) % 10), py - 1, 2, 2); }
+  if (press >= 2 && k !== K.RADIO) {                                        // the dead stack up against the wall
+    const n = Math.min(14, press | 0), rr = mulberry32(i * 31 + 7);
+    for (let q = 0; q < n; q++) {
+      const bx = px + 1 + (rr() * 12 | 0), by = py + topH - 2 - Math.min(10, q * 0.9) + ((rr() * 3) | 0);
+      R(['#6f8a5e', '#7a9468', '#4a4e58', '#5a4a52', '#8a6a52'][q % 5], bx, by, 3, 2); R('#3a1a1a', bx + 1, by + 1, 1, 1);
+      if (q % 3 === 0) R('#6f8a5e', bx - 1, by - 2, 1, 2);                      // an arm reaching up
+    }
+  }
   if (press > 0 && k !== K.RADIO) { g.globalAlpha = Math.min(0.5, press * 0.03); R('#ff4030', px, py, T, topH); g.globalAlpha = 1; }
   if (f < 0.97) {
     g.globalAlpha = (1 - f) * 0.55; R('#000', px, py, T, topH); g.globalAlpha = 1;

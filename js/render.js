@@ -16,6 +16,7 @@ addEventListener('resize', resize);
 const lightCv = document.createElement('canvas'), lg = lightCv.getContext('2d');
 
 // ---- units ---------------------------------------------------------------
+let mobMode = false;
 function spriteFor(o) {
   if (o === P) {
     const set = Art.sprites.player;
@@ -28,7 +29,7 @@ function spriteFor(o) {
     if (o.st === 'stab') return [set, 'attack', (G.time * 12 + o.anim | 0) % 2];
     return [set, 'idle', 0];
   }
-  const set = Art.sprites[o.type === 'walker' ? 'z_walker' + o.v : 'z_' + o.type];
+  const set = Art.sprites[o.type === 'walker' ? (mobMode ? 'z_mob' : 'z_walker' + o.v) : 'z_' + o.type];
   if (o.st === 1) return [set, 'attack', (o.anim * 0.8 | 0) % 2];
   if (o.st === 2) return [set, 'climb', (o.anim * 0.7 | 0) % 2];
   if (o.st === 3) return [set, 'idle', 0];
@@ -156,9 +157,15 @@ function drawWorld(cam, cw, ch, z) {
   if (P.dead <= 0) items.push(P);
   items.sort((a, b) => (a.py !== undefined ? a.py : a.y) - (b.py !== undefined ? b.py : b.y));
   const crowd = items.length > 1800 || !Q.shadows;
+  mobMode = items.length - defenders.length > 60;                       // a real crowd on screen: uniform silhouettes
   for (const o of items) {
     if (o.py !== undefined) {
       shadow(o.px, o.py + 0.1, 10);
+      if (o.act > 0) {                                                  // who just shot (gold) or stabbed (white)
+        ctx.strokeStyle = o.actK === 'stab' ? '#ffffff' : '#ffd27a'; ctx.globalAlpha = Math.min(1, o.act * 5);
+        ctx.beginPath(); ctx.ellipse(o.px * T, o.py * T, 7 + (0.25 - o.act) * 18, 3 + (0.25 - o.act) * 7, 0, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1;
+      }
+      if (o.tired) { ctx.fillStyle = '#e8c547'; const zx = o.px * T + 5, zy = o.py * T - 27 - ((G.time * 6 | 0) % 2); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 2, zy + 1, 1, 1); ctx.fillRect(zx + 1, zy + 2, 1, 1); ctx.fillRect(zx, zy + 3, 3, 1); }
       drawUnit(o, o.px, o.py + 0.1, o.face, o.stab > 0 && o !== P ? -1 : 0);
       const mhp = o === P ? PLAYER.hp : (o.maxHp || 60);
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
@@ -175,6 +182,20 @@ function drawWorld(cam, cw, ch, z) {
       if (o.rev) { ctx.fillStyle = '#ff3030'; ctx.fillRect(o.x * T - 1, o.y * T - 30, 2, 5); ctx.fillRect(o.x * T - 1, o.y * T - 23, 2, 2); }
       if (o.rage > 0) { ctx.fillStyle = 'rgba(255,60,40,0.7)'; ctx.fillRect(o.x * T - 1, o.y * T - 24, 2, 2); }
     }
+  }
+  // reach of the hovered or selected defender: gun range (gold) and spear reach (white)
+  {
+    const reachOf = d => {
+      const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
+      const gun = (tower ? GUN.towerRange : GUN.range) * (sn ? SNIPER.range : 1) * tmul(d.s, 'range');
+      ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,210,122,0.55)'; ctx.beginPath(); ctx.arc(d.px * T, d.py * T, gun * T, 0, 6.283); ctx.stroke();
+      if (has('spears') || d.s.role === 'fighter') { ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(d.px * T, d.py * T, SPEAR.reach * T, 0, 6.283); ctx.stroke(); }
+      ctx.setLineDash([]);
+    };
+    const hv = G.hover && inb(G.hover.tx, G.hover.ty) ? defAt[G.hover.ty * W + G.hover.tx] : null;
+    if (hv) reachOf(hv);
+    for (const d of defenders) if (G.sel.includes(d.s.id) && d !== hv) reachOf(d);
   }
   // idle survivors milling around the camp
   const shown = G.idle.slice(0, 8);

@@ -413,7 +413,7 @@ function updateZombies(dt) {
       const p = pile[ni];
       pileNow[ni]++;
       if (elec[ni] && G.power.ratio > 0) { z.hp -= POWER.zap * G.power.ratio * dt; if (rng() < dt * 8) addBurst(tcx, tcy - 0.5, '#7fd0ff', 1); }
-      z.st = 2; z.lift = Math.min(10, p * 0.25);
+      z.st = 2; z.lift = Math.min(15, 1 + p * 0.55 + (z.v & 3));
       wallHp[ni] -= PILE_PRESSURE * p * dt * TIER.press[wallTier[ni]];
       if (wallHp[ni] <= 1) wallHp[ni] = 1;                    // walls hold
       z.face = dx > 0 ? 1 : -1;
@@ -565,7 +565,7 @@ function fight(e, dt, o) {
         addBurst(t.x, t.y - 0.3, '#9ad06a', 2);
         if (t.mode === 0) { t.mode = o.noiseMode === 3 ? 2 : o.noiseMode; t.lose = 0; }
       }
-      e.stab = 0.18;
+      e.stab = 0.18; e.act = 0.25; e.actK = 'stab';
       if (spear) tracers.push({ x1: e.px, y1: e.py - 0.4, x2: near.x, y2: near.y - 0.4, life: 0.1, spear: true });
       else tracers.push({ x1: near.x - 0.25, y1: near.y - 0.5, x2: near.x + 0.25, y2: near.y - 0.1, life: 0.12, slash: true });
       Snd.stab(near.x, near.y);
@@ -593,7 +593,7 @@ function fight(e, dt, o) {
     if (kind === 'ap') { G.ap -= 1; af = 1; dm *= 1.15; }
     else if (kind === 'inc') { G.inc -= 1; dm *= 0.7; for (const z of zombies) if ((z.x - best.x) ** 2 + (z.y - best.y) ** 2 < 1.6) z.burn = FIRE.burn; }
     else G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1));
-    best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot';
+    best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot'; e.act = 0.22; e.actK = 'shoot';
     e.cd = o.cd * (o.cdMul || 1) * (has('rapid') ? 0.8 : 1) * (o.starving ? 1.8 : 1) * (0.9 + rng() * 0.2);
     e.face = best.x >= e.px ? 1 : -1;
     tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1, ap: kind === 'ap', inc: kind === 'inc' });
@@ -610,6 +610,7 @@ function updateDefenders(dt) {
   for (let k = defenders.length - 1; k >= 0; k--) {
     const d = defenders[k];
     if (d.hurt) d.hurt -= dt;
+    if (d.act > 0) d.act -= dt;
     const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
     if (!d.blade && G.blades > 0) { G.blades--; d.blade = { dur: BLADE.dur }; }
     const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
