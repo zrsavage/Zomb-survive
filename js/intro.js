@@ -30,6 +30,16 @@ const Intro = (() => {
     { id: 'pack',   title: 'Know what you have', text: 'Press <kbd>I</kbd>. Your pack and the camp stockpile are listed with what each resource is for. Wood &amp; scrap builds, food and water keep people alive, ammo is everything.',
       done: () => I.packSeen },
   ];
+  const SHORT = {
+    move: 'Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>. <kbd>Shift</kbd> runs (louder).',
+    cache: 'Walk up to the glowing cache and press <kbd>E</kbd>.',
+    fire: 'Stand at the fire and hold <kbd>E</kbd>.',
+    fight: 'Aim with the mouse, hold <b>left-click</b> to fire. <kbd>R</kbd> reload, <kbd>right-click</kbd> or <kbd>F</kbd> swing. Put down 3.',
+    search: 'At a door of the marked house press <kbd>E</kbd>, then <kbd>E</kbd> on the cabinets.',
+    wall: '<kbd>B</kbd> opens the build menu. Pick Wall, then drag a line outside camp.',
+    build: 'Stand by the fire to load supplies, carry them to the plan, then hold still beside it.',
+    pack: 'Press <kbd>I</kbd> to see your pack and stockpile.',
+  };
   const wallCount = () => { let n = 0; for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) { const x = CORE.x + dx, y = CORE.y + dy; if (inb(x, y) && wall[y * W + x] === K.WALL) n++; } return n; };
   function pickHouse() {
     let best = null, bd = 1e9;                                               // near camp, and away from the dead
@@ -92,7 +102,7 @@ const Intro = (() => {
     const pr = s.prog ? Math.round(s.prog() * 100) : -1, key = g.step + ':' + pr;
     if (key === shown) return; shown = key;
     p.classList.add('show');
-    p.innerHTML = '<div class="oh"><span>FIRST HOURS ' + (g.step + 1) + '/' + STEPS.length + '</span><a href="#" id="obSkip">skip tutorial</a></div><b>' + s.title + '</b><div class="ot">' + s.text + '</div>' +
+    p.innerHTML = '<div class="oh"><span>' + (g.step + 1) + '/' + STEPS.length + '</span><a href="#" id="obSkip">skip</a></div><b>' + s.title + '</b><div class="ot">' + (SHORT[s.id] || s.text) + '</div>' +
       (pr >= 0 ? '<div class="obar"><i style="width:' + pr + '%"></i></div>' : '');
     document.getElementById('obSkip').onclick = e => { e.preventDefault(); end(true); };
   }
