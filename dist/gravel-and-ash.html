@@ -83,6 +83,43 @@
   #pack .bar{height:5px;background:#0008;border-radius:3px;overflow:hidden;margin-top:2px}#pack .bar i{display:block;height:100%}
   .res img{width:14px;height:14px;image-rendering:pixelated;vertical-align:-3px;margin-right:4px}
   #packChip{cursor:pointer}
+  /* ---- two states: the fight, and the build menu. Everything else stays out of the way until asked for. ---- */
+  #tools{display:none;left:50%;top:auto;bottom:78px;transform:translateX(-50%);width:min(520px,94vw);flex-direction:row;flex-wrap:wrap;gap:5px;max-height:60vh;z-index:5}
+  body.more-open #tools{display:flex}
+  #tools h4{width:100%;margin:2px 0 0}#tools>button{flex:1 1 46%}#tools #speed{width:100%}
+  #side{display:none}
+  body.mode-build #side,body.side-open #side{display:flex}
+  #help{display:none}
+  body.mode-play .res.bo{display:none}
+  #dock{left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:4px;z-index:4;padding:5px 6px}
+  #dock button{flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 9px;min-width:62px;font-size:11px;text-align:center}
+  #dock button img{width:24px;height:24px;image-rendering:pixelated}
+  #dock button.on{border-color:var(--amber);background:#3a3220;color:#ffe9b0}
+  #dock button kbd{margin:0;font-size:10px}
+  #dock .sep{width:1px;background:var(--line);margin:2px 3px}
+  #cbt{left:50%;bottom:84px;transform:translateX(-50%);display:flex;gap:14px;align-items:center;padding:6px 12px;white-space:nowrap;z-index:3}
+  body.mode-build #cbt{display:none}
+  #cbt .bars{display:flex;flex-direction:column;gap:3px;width:130px}
+  #cbt .bar2{height:7px;background:#0009;border-radius:3px;overflow:hidden}#cbt .bar2 i{display:block;height:100%}
+  #cbt .gun b{font-size:17px;letter-spacing:.03em}#cbt .gun small{color:var(--dim);display:block}
+  #lowChip{left:50%;top:58px;transform:translateX(-50%);display:none;color:#ffb0a0;border-color:#8a3a2a;font-size:12px;white-space:nowrap}
+  body.mode-play #lowChip.show{display:block}
+  #modeBanner{left:50%;top:8px;transform:translateX(-50%);display:none;z-index:4;border-color:#8a6a2a;color:#ffe9b0;white-space:nowrap}
+  body.mode-build #modeBanner{display:block}body.mode-build #top{top:44px}body.mode-build #horde{top:92px}
+  #bmenu{left:50%;bottom:78px;transform:translateX(-50%);width:min(1000px,96vw);display:none;z-index:4}
+  body.mode-build #bmenu{display:block}
+  #bmenu .tabs{display:flex;gap:4px;margin-bottom:6px;align-items:center}
+  #bmenu .tabs button{padding:3px 12px}#bmenu .tabs button.on{border-color:var(--amber);color:#ffe9b0;background:#3a3220}
+  #bmenu .tabs .grow{flex:1}
+  #bmenu .cards{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px}
+  .bcard{flex:0 0 auto;width:92px;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:6px 4px;text-align:center;font-size:11px;line-height:1.15}
+  .bcard img{width:40px;height:40px;image-rendering:pixelated}
+  .bcard.on{border-color:var(--amber);background:#3a3220}.bcard.dim{opacity:.5}
+  .bcard .cc{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;color:var(--dim);font-size:10px}.bcard .cc img{width:11px;height:11px;vertical-align:-2px;margin-right:1px}
+  .bcard kbd{font-size:10px;margin:0}
+  #bmenu .btip{color:var(--dim);font-size:12px;min-height:16px;margin-top:2px}
+  #cmdbar{bottom:148px !important}body.mode-build #cmdbar{display:none !important}
+
   #hint{display:none;left:50%;bottom:64px;transform:translateX(-50%);width:min(460px,92vw);z-index:5;border-color:#6a5a2a}#hint.show{display:block}
   #hint .hh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.14em;margin-bottom:2px}#hint .hh a{color:var(--dim);letter-spacing:0}
   #hint b{font-size:14px}#hint .ht{margin-top:3px;line-height:1.45;font-size:13px}
@@ -188,8 +225,7 @@
 <div id="rescue" class="panel"></div>
 
 <div id="tools" class="panel">
-  <h4>Build</h4>
-  <div id="toolList" style="display:flex;flex-direction:column;gap:4px"></div>
+  <div id="toolList" style="display:none"></div>
   <h4>Camp</h4>
   <button id="btnUp"><span><kbd>U</kbd>Upgrade camp</span><span class="cost" id="cUp"></span></button>
   <button id="btnRes"><span><kbd>R</kbd>Research</span><span class="cost" id="cRes"></span></button>
@@ -249,7 +285,11 @@
 <div id="radio" class="panel modal"></div>
 
 <canvas id="mini" width="528" height="396"></canvas>
-<div id="help" class="panel"><kbd>E</kbd> interact &nbsp;<kbd>I</kbd> pack &nbsp;<kbd>J</kbd> build queue &nbsp;<kbd>K</kbd> crew &nbsp;<kbd>Esc</kbd> menu</div>
+<div id="modeBanner" class="panel"></div>
+<div id="lowChip" class="panel"></div>
+<div id="cbt" class="panel"></div>
+<div id="bmenu" class="panel"></div>
+<div id="dock" class="panel"></div>
 <div id="cmdbar" class="panel"></div>
 <div id="selbox"></div>
 <div id="work" class="panel modal"></div>
@@ -416,8 +456,8 @@ const RESEARCH = [
   { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
-  { id: 'homemade', name: 'Homemade Carbine', desc: 'Bolt, pipe and scrap wood: a crude single-shot-at-a-time carbine for you. Longer reach and harder hitting than the pistol, but slow, rough and only 8 to a load. Switch guns with B.', cost: { m: 140, a: 40 }, time: 60 },
-  { id: 'homemade2', name: 'Homemade Auto',  desc: 'A hand-built full-auto, all pipe and rubber bands: sprays about 6 rounds a second from 16, and it will never be as good as a real one. Switch guns with B.', cost: { m: 260, a: 80 }, time: 90 },
+  { id: 'homemade', name: 'Homemade Carbine', desc: 'Bolt, pipe and scrap wood: a crude single-shot-at-a-time carbine for you. Longer reach and harder hitting than the pistol, but slow, rough and only 8 to a load. Switch guns with Q.', cost: { m: 140, a: 40 }, time: 60 },
+  { id: 'homemade2', name: 'Homemade Auto',  desc: 'A hand-built full-auto, all pipe and rubber bands: sprays about 6 rounds a second from 16, and it will never be as good as a real one. Switch guns with Q.', cost: { m: 260, a: 80 }, time: 90 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 
@@ -1984,6 +2024,7 @@ function buildTown(seed, name, opts) {
     time: 0, hover: null, deaths: 0, morale: MORALE.start, moraleTarget: MORALE.start, desertT: MORALE.desertGap, memorial: Campaign.memorial,
     story: storyKey || 'cassandra', rules: {}, ruleCd: 0, flags: Campaign.flags, radioT: 200, radioMsg: null, rescueKind: 'heli', stress: 0, stressT: 1, recentDeaths: 0, relT: REL.checkGap, noticeR: AMBIENT.notice, nfT: 0,
   };
+  Interior.cur = null;
   P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0, mag: 12, reloadT: 0, bloom: 0, sta: 100, tired: false, emptyT: 0, mcd: 0 };
   Art.renderTerrain();
   computeBaseField(); computePlayerField(); computeTerritory(); Survival.refreshIncome();
@@ -2548,6 +2589,7 @@ const lootTime = () => LOOT_TIME * (has('scav') ? 0.7 : 1);
 // Your survivor is expendable: only the camp falling ends the run.
 function killPlayer() {
   if (P.dead > 0) return;
+  if (P.inside) Interior.forceOut();
   P.dead = PLAYER.respawn; P.hp = 0; P.loot = 0; P.moving = false; G.deaths++;
   for (const z of zombies) if (z.mode === 1 || z.mode === 3) { z.mode = 0; z.lose = 0; }     // the pack that killed you loses the trail
   P.px = CORE.x + 0.5; P.py = CORE.y + 2.8;                 // chasers lose the trail and head for the walls
@@ -2564,6 +2606,7 @@ function updatePlayer(dt) {
     if (P.dead <= 0) { P.dead = 0; P.hp = PLAYER.hp * 0.6; P.hurt = 0; P.safe = 4; log('A new survivor takes the field.'); }
     return;
   }
+  if (P.inside) { Interior.update(dt); return; }                       // you are indoors: that has its own rules
   let mx = 0, my = 0;
   if (keys.w || keys.arrowup) my -= 1;
   if (keys.s || keys.arrowdown) my += 1;
@@ -2593,9 +2636,30 @@ function updatePlayer(dt) {
     P.hp = Math.min(PLAYER.hp, P.hp + ((safe ? 2.5 : 0.3) + medic) * (has('medicine') ? 2 : 1) * dt);
   }
 
-  // scavenging: hold E beside a building
+  // buildings: go in through a door (E). The bot still searches from the street.
   const b = nearBuilding();
-  if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving && !Loot.near && !Loot.isOpen()) {
+  const ePress = keys.e && !P.ePrev; P.ePrev = !!keys.e;
+  P.doorAt = null;
+  if (!AI.on) {
+    if (b && !b.razed && !b.crew && !b.nest && !Loot.near && !Loot.isOpen()) {
+      const di = Interior.doorNear(b, P.px, P.py);
+      if (di !== null && !b.looted) {
+        P.doorAt = { b, di };
+        if (b.locked) {                                                    // locked: a keycard or a cutting torch, held while it works
+          const bi = buildings.indexOf(b);
+          const need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
+          if ((keys.e || P.autoE) && !moving) {
+            if (!need) { warn('Locked. You need a keycard or ' + KEYS.breachFuel + ' fuel to cut through.'); P.loot = 0; P.lootB = -1; }
+            else {
+              if (P.lootB !== bi) { P.lootB = bi; P.loot = 0; }
+              P.loot += dt; P.lootNeed = need.t; Snd.tick();
+              if (P.loot >= need.t) { if (need.key) G.keys--; if (need.fuel) { G.fuel -= need.fuel; addHeat(HEAT.breach); } if (b.type === 'bunker') addHeat(HEAT.vault); b.locked = false; P.loot = 0; P.lootB = -1; Interior.enter(b, di); }
+            }
+          } else { P.loot = 0; P.lootB = -1; }
+        } else if (ePress || P.autoE) { P.loot = 0; P.lootB = -1; P.autoE = false; Interior.enter(b, di); }
+      } else { P.loot = 0; P.lootB = -1; }
+    } else { P.loot = 0; P.lootB = -1; }
+  } else if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving && !Loot.near && !Loot.isOpen()) {
     const bi = buildings.indexOf(b);
     let need = { t: lootTime() };                                         // locked buildings need a keycard or a cutting torch (fuel)
     if (b.locked) need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
@@ -2917,7 +2981,7 @@ function tryBuild(tx, ty) {
   if (tool === 'crew') return;
   if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
   if (!G.completing && !explored[i]) return warn('Unexplored ground: walk closer, or build a lookout to see that far');
-  if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. Right-click-erase it to cancel.');
+  if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. The Erase tool cancels a plan.');
   if (TOOL_KIND[tool]) {
     const kind = TOOL_KIND[tool];
     if (tool === 'radio' && wall[i] === K.RADIO) return startBroadcast(true);                // click the tower again to call again
@@ -3647,7 +3711,7 @@ const Campaign = {
     Towns.snapshot(this.active);
     Towns.load(t); this.active = t;
     G.tool = keep.tool; G.speed = keep.speed; G.paused = keep.paused; G.cam = { x: CORE.x + 0.5, y: CORE.y + 3, zoom: keep.zoom, free: false };
-    P.px = CORE.x + 0.5; P.py = CORE.y + 2.8; P.dead = 0; P.hp = Math.max(P.hp, 40); P.travel = TRAVEL.arrive; P.loot = 0; P.moving = false;
+    P.inside = false; Interior.cur = null; P.px = CORE.x + 0.5; P.py = CORE.y + 2.8; P.dead = 0; P.hp = Math.max(P.hp, 40); P.travel = TRAVEL.arrive; P.loot = 0; P.moving = false;
     computePlayerField(); updateVision();
     if (t.pending) {                                    // a horde that was on its way in the background arrives for real
       const pd = t.pending; t.pending = null;
@@ -3703,7 +3767,7 @@ const Campaign = {
     const seed = (Math.random() * 2 ** 31) | 0, profile = { wealth: 1.2 + rng() * 0.3, ambient: 1.1 };
     buildTown(seed, name, { wealth: profile.wealth, ambient: profile.ambient, safe: 19, grace: FOUND.grace, res: { mat: FOUND.cost.m, food: FOUND.cost.f, ammo: FOUND.cost.a, fuel: FOUND.cost.fuel - FOUND.tripFuel, water: FOUND.cost.water, med: 2 } });
     G.idle.push(...founders);
-    G.tool = keep.tool; G.speed = keep.speed; G.cam.zoom = keep.zoom; P.travel = TRAVEL.arrive;
+    G.tool = keep.tool; G.speed = keep.speed; G.cam.zoom = keep.zoom; P.travel = TRAVEL.arrive; P.inside = false; Interior.cur = null;
     const t = Towns.register(name, seed, profile); this.active = t;
     log('You founded ' + name + ' with ' + founders.length + ' survivors. It is a ruined camp: fortify it, and keep an eye on ' + this.towns[0].name + ' while you are away.');
     Snd.upgrade();
@@ -4678,6 +4742,7 @@ const Units = (() => {
     const c = G.crews.find(c => c.members.includes(s)); if (c) return { out: 'walking out', work: 'scavenging', back: 'coming home' }[c.phase || 'out'];
     const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : u.order.train ? 'heading to train' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
     if (u.working) return 'building';
+    if (u.hauling) return u.carry && u.carry.plan && u.carry.plan.length ? 'carrying supplies' : 'fetching supplies';
     if (u.tr) return { melee: 'training melee', shoot: 'training shooting', cap: 'needs a training yard', max: 'a master', noammo: 'training paused: low ammo' }[u.tr];
     return 'idle';
   }
@@ -4717,12 +4782,20 @@ const Combat = (() => {
   };
   const MEL = { reach: 1.95, arc: 0.75, cd: 0.42, sta: 9, shove: 0.45 };
 
+  // where the fight is happening: the street, or the inside of a building
+  const OUT = {
+    pos: () => ({ x: P.px, y: P.py }), zs: () => zombies,
+    blocked: (x, y) => !inb(x | 0, y | 0) || bld[(y | 0) * W + (x | 0)] >= 0 || isCoreTile(x | 0, y | 0),
+    noise: (r, sniper) => { alertNoise(P.px, P.py, r, 3); if (rings.length < 24) rings.push({ x: P.px, y: P.py, r, t: 0, max: NOISE.ring }); },
+  };
+  const WLD = () => (P.inside && Interior.active()) ? Interior.world : OUT;
   const manual = () => !AI.on && G.tool === 'combat' && !UI.menuOpen();
   C.manual = manual;
   function aim() {                                                  // the mouse, in tiles
+    const pp = WLD().pos();
     const z = G.cam.zoom;
     C.aimX = (C.mouse.x - innerWidth / 2) / z / T + G.cam.x; C.aimY = (C.mouse.y - innerHeight / 2) / z / T + G.cam.y;
-    const dx = C.aimX - P.px, dy = C.aimY - P.py, d = Math.hypot(dx, dy) || 1;
+    const dx = C.aimX - pp.x, dy = C.aimY - pp.y, d = Math.hypot(dx, dy) || 1;
     return { dx: dx / d, dy: dy / d, d };
   }
   const radiusOf = z => z.type === 'brute' || z.type === 'tyrant' ? 0.72 : z.type === 'bloater' ? 0.62 : 0.4;
@@ -4735,18 +4808,19 @@ const Combat = (() => {
   function finishReload() { const take = Math.min(WP().mag - P.mag, Math.floor(G.ammo)); G.ammo -= take; P.mag += take; }
 
   function shoot(a) {
+    const pp = WLD().pos(), zs = WLD().zs(), wd = WLD();
     const w = WP();
-    if (P.mag < 1) { if (G.ammo >= 1) startReload(); else if (P.emptyT <= 0) { P.emptyT = 0.5; floatText(P.px, P.py - 1.2, 'NO AMMO', '#e8524a'); Snd.error && Snd.error(); } return; }
+    if (P.mag < 1) { if (G.ammo >= 1) startReload(); else if (P.emptyT <= 0) { P.emptyT = 0.5; floatText(pp.x, pp.y - 1.2, 'NO AMMO', '#e8524a'); Snd.error && Snd.error(); } return; }
     P.cd = w.cd * (has('rapid') ? 0.85 : 1); P.mag--;
     const sp = w.spread + (P.moving ? w.move : 0) + P.bloom;
     P.bloom = Math.min(w.bloomMax, P.bloom + w.bloom);
     const ang = Math.atan2(a.dy, a.dx) + (rng() + rng() - 1) * sp, dx = Math.cos(ang), dy = Math.sin(ang);
-    const ox = P.px + dx * 0.35, oy = P.py + dy * 0.35;
+    const ox = pp.x + dx * 0.35, oy = pp.y + dy * 0.35;
     // how far the round flies: stops at buildings
     let reach = w.range;
-    for (let s = 0.4; s < w.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (!inb(x | 0, y | 0)) { reach = s; break; } const b = bld[(y | 0) * W + (x | 0)]; if (b >= 0 || isCoreTile(x | 0, y | 0)) { reach = s; break; } }
+    for (let s = 0.4; s < w.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (wd.blocked(x, y)) { reach = s; break; } }
     const hits = [];
-    for (const z of zombies) {
+    for (const z of zs) {
       if (z.hp <= 0) continue;
       const rx = z.x - ox, ry = z.y - oy, t = rx * dx + ry * dy;
       if (t < 0 || t > reach) continue;
@@ -4756,11 +4830,11 @@ const Combat = (() => {
     hits.sort((p, q) => p.t - q.t);
     const n = Math.min(w.pen, hits.length), bt = n === w.pen ? hits[n - 1].t : reach;
     const ex = ox + dx * bt, ey = oy + dy * bt;
-    tracers.push({ x1: P.px + dx * 0.5, y1: P.py - 0.5, x2: ex, y2: ey - 0.4, life: w.sniper ? 0.16 : 0.09, ap: w.sniper });
-    if (flashes.length < 40) flashes.push({ x: P.px + dx * 0.6, y: P.py - 0.5, life: 0.09 });
-    Snd.shot(P.px, P.py, w.sniper); addHeat(HEAT.gun * w.heat); shake(w.sniper ? 1 : 0.5 * Math.min(1, w.heat + 0.3));
+    tracers.push({ x1: pp.x + dx * 0.5, y1: pp.y - 0.5, x2: ex, y2: ey - 0.4, life: w.sniper ? 0.16 : 0.09, ap: w.sniper });
+    if (flashes.length < 40) flashes.push({ x: pp.x + dx * 0.6, y: pp.y - 0.5, life: 0.09 });
+    Snd.shot(pp.x, pp.y, w.sniper); addHeat(HEAT.gun * w.heat); shake(w.sniper ? 1 : 0.5 * Math.min(1, w.heat + 0.3));
     P.face = dx >= 0 ? 1 : -1; P.st = 'shoot'; P.aimA = ang; P.aimT = 0.7; P.shot = 0.09;
-    if (parts.length < Q.parts) parts.push({ x: P.px, y: P.py - 0.5, vx: -P.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
+    if (parts.length < Q.parts) parts.push({ x: pp.x, y: pp.y - 0.5, vx: -P.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
     for (let k = 0; k < n; k++) {
       const { z, perp } = hits[k];
       const head = perp < w.headR && ZTYPES[z.type].boss !== true;
@@ -4770,10 +4844,11 @@ const Combat = (() => {
       if (head) floatText(z.x, z.y - 1.1, 'HEADSHOT', '#ffe27a');
       Snd.hit && Snd.hit(z.x, z.y);
     }
-    P.noiseT -= 0; if (P.noiseT <= 0) { P.noiseT = 0.6; alertNoise(P.px, P.py, gunRadius(w.sniper), 3); if (rings.length < 24) rings.push({ x: P.px, y: P.py, r: gunRadius(w.sniper), t: 0, max: NOISE.ring }); }
+    P.noiseT -= 0; if (P.noiseT <= 0) { P.noiseT = 0.6; wd.noise(gunRadius(w.sniper), w.sniper); }
   }
 
   function melee(a) {
+    const pp = WLD().pos(), zs = WLD().zs();
     if (P.mcd > 0 || P.dead > 0) return;
     a = a || aim();
     const wp = MW[P.mw && MW[P.mw] ? P.mw : 'knife'], reach = Math.max(MEL.reach, wp.reach + 0.35), cap = wp.pierce >= 2 ? 4 : 3;
@@ -4781,9 +4856,9 @@ const Combat = (() => {
     P.sta = Math.max(0, P.sta - MEL.sta * wp.sta); if (P.sta <= 0) P.tired = true;
     const ang = Math.atan2(a.dy, a.dx); let hit = 0;
     const dm = MELEE.dmg * 1.15 * wp.dmg * (P.tired ? STAMINA.tiredDmg : 1) * (has('hands') ? 1.35 : 1);
-    for (const z of zombies) {
+    for (const z of zs) {
       if (z.hp <= 0 || hit >= cap) continue;
-      const rx = z.x - P.px, ry = z.y - P.py, d = Math.hypot(rx, ry);
+      const rx = z.x - pp.x, ry = z.y - pp.y, d = Math.hypot(rx, ry);
       if (d > reach + radiusOf(z) * 0.5) continue;
       let da = Math.atan2(ry, rx) - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
       if (Math.abs(da) > (wp.reach >= 2.5 ? 0.35 : MEL.arc)) continue;
@@ -4792,9 +4867,9 @@ const Combat = (() => {
       const kx = z.x + rx / (d || 1) * MEL.shove, ky = z.y + ry / (d || 1) * MEL.shove; if (free2(kx, ky)) { z.x = kx; z.y = ky; }            // a shove that buys a moment
       addBurst(z.x, z.y - 0.3, '#9ad06a', 3); tracers.push({ x1: z.x - 0.25, y1: z.y - 0.5, x2: z.x + 0.25, y2: z.y - 0.1, life: 0.12, slash: true });
     }
-    Snd.stab(P.px + a.dx, P.py + a.dy); if (!hit) tracers.push({ x1: P.px + a.dx * 0.5, y1: P.py - 0.5 + a.dy * 0.3, x2: P.px + a.dx * (wp.reach + 0.2), y2: P.py - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
+    Snd.stab(pp.x + a.dx, pp.y + a.dy); if (!hit) tracers.push({ x1: pp.x + a.dx * 0.5, y1: pp.y - 0.5 + a.dy * 0.3, x2: pp.x + a.dx * (wp.reach + 0.2), y2: pp.y - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
   }
-  const free2 = (x, y) => inb(x | 0, y | 0) && bld[(y | 0) * W + (x | 0)] < 0 && !isCoreTile(x | 0, y | 0);
+  const free2 = (x, y) => !WLD().blocked(x, y);
   C.melee = melee;
 
   C.update = function (dt) {
@@ -4806,14 +4881,15 @@ const Combat = (() => {
     if (!manual()) return;
     const a = aim();
     if (P.stab <= 0) P.face = a.dx >= 0 ? 1 : -1;
-    C.over = null; for (const z of zombies) if (z.hp > 0 && (z.x - C.aimX) ** 2 + (z.y - C.aimY) ** 2 < 0.5) { C.over = z; break; }
+    C.over = null; for (const z of WLD().zs()) if (z.hp > 0 && (z.x - C.aimX) ** 2 + (z.y - C.aimY) ** 2 < 0.5) { C.over = z; break; }
     if (C.down && P.cd <= 0 && P.reloadT <= 0) shoot(a);
   };
 
   C.draw = function (ctx) {                                         // the sight, drawn in the world
+    const pp = WLD().pos();
     if (!G || !manual() || P.dead > 0) return;
     const w = WP(), a = aim(), sp = w.spread + (P.moving ? w.move : 0) + (P.bloom || 0), dist = Math.min(a.d, w.range), r = Math.max(3, Math.tan(sp) * dist * T);
-    const px = P.px * T, py = (P.py - 0.45) * T, ax = C.aimX * T, ay = C.aimY * T, hot = !!C.over;
+    const px = pp.x * T, py = (pp.y - 0.45) * T, ax = C.aimX * T, ay = C.aimY * T, hot = !!C.over;
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + a.dx * dist * T, py + a.dy * dist * T); ctx.stroke(); ctx.setLineDash([]);
     ctx.strokeStyle = hot ? '#ff5a48' : '#ffffffcc'; ctx.lineWidth = 1.4;
@@ -4825,7 +4901,7 @@ const Combat = (() => {
     const lowMag = P.mag <= 3;
     if (P.reloadT > 0) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, r + 9, -1.57, -1.57 + 6.283 * (1 - P.reloadT / w.reload)); ctx.stroke(); ctx.fillStyle = '#ffd27a'; ctx.fillText('RELOAD', ax + r + 12, ay); }
     else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(w.label + ' ' + P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
-    if (unlocked().length > 1) { ctx.fillStyle = '#8fa890'; ctx.fillText('B: switch gun', ax + r + 10, ay + 15); }
+    if (unlocked().length > 1) { ctx.fillStyle = '#8fa890'; ctx.fillText('Q: switch gun', ax + r + 10, ay + 15); }
     if (hot) { Weapons.drawTarget(ctx, C.over); const z = C.over; ctx.fillStyle = '#ffd7d0'; ctx.fillText(ZTYPES[z.type].label + ' ' + Math.ceil(z.hp), ax + r + 10, ay + (P.mag < 1 ? 10 : 5)); }
     ctx.restore();
   };
@@ -4856,9 +4932,9 @@ const Items = (() => {
     fuel_can: { name: 'Fuel can',      desc: 'Stash at camp for 8 fuel.', stash: { fuel: 8 }, w: 12 },
     jug:      { name: 'Water jug',     desc: 'Stash at camp for 10 water.', stash: { water: 10 }, w: 14 },
     keycard:  { name: 'Keycard',       desc: 'Opens one locked building without cutting.', special: true, w: 4 },
-    gun_smg:     { name: 'Machine pistol', desc: 'A military full-auto pistol. Sprays fast, drinks ammo. Switch guns with B.', special: true, weapon: 'smg', w: 1.2 },
-    gun_assault: { name: 'Assault rifle',  desc: 'A military rifle: fast, accurate, a long clip. Switch guns with B.', special: true, weapon: 'assault', w: 1 },
-    gun_marksman:{ name: 'Marksman rifle', desc: 'A scoped rifle: twice the reach, punches through three of the dead. Switch guns with B.', special: true, weapon: 'rifle', w: 0.8 },
+    gun_smg:     { name: 'Machine pistol', desc: 'A military full-auto pistol. Sprays fast, drinks ammo. Switch guns with Q.', special: true, weapon: 'smg', w: 1.2 },
+    gun_assault: { name: 'Assault rifle',  desc: 'A military rifle: fast, accurate, a long clip. Switch guns with Q.', special: true, weapon: 'assault', w: 1 },
+    gun_marksman:{ name: 'Marksman rifle', desc: 'A scoped rifle: twice the reach, punches through three of the dead. Switch guns with Q.', special: true, weapon: 'rifle', w: 0.8 },
     blueprint:{ name: 'Blueprint',     desc: 'Unlocks a piece of research.', special: true, w: 0 },
   };
   const PACK = { slots: 10, stack: 9, campR: 9 };
@@ -4958,7 +5034,7 @@ const Loot = (() => {
       const f = Items.RES[e.r].field, room = Math.max(0, Math.floor(storeCap() - G[f])), t = Math.min(e.n, room);
       if (t > 0) G[f] += t; return t;
     }
-    if (ITEMS_W(e.i)) { const g = Items.ITEMS[e.i].weapon; P.guns = P.guns || {}; if (P.guns[g]) return 0; P.guns[g] = 1; log('You found a ' + Items.nameOf(e.i).toLowerCase() + '. Press B in Fight mode to switch to it.'); floatText(P.px, P.py - 1.6, Items.nameOf(e.i).toUpperCase(), '#ffe27a'); Snd.upgrade && Snd.upgrade(); return e.n; }
+    if (ITEMS_W(e.i)) { const g = Items.ITEMS[e.i].weapon; P.guns = P.guns || {}; if (P.guns[g]) return 0; P.guns[g] = 1; log('You found a ' + Items.nameOf(e.i).toLowerCase() + '. Press Q to switch to it.'); floatText(P.px, P.py - 1.6, Items.nameOf(e.i).toUpperCase(), '#ffe27a'); Snd.upgrade && Snd.upgrade(); return e.n; }
     if (e.i === 'keycard') { G.keys++; return e.n; }
     if (e.i === 'blueprint') {
       const left = RESEARCH.filter(r => !G.res.done[r.id]);
@@ -4978,7 +5054,8 @@ const Loot = (() => {
   function leave() {
     const c = L.cur; if (!c) return;
     const left = c.entries.filter(e => e.n > 0);
-    if (c.o.crate) { const i = crates.indexOf(c.o.crate); if (left.length) c.o.crate.items = left; else if (i >= 0) crates.splice(i, 1); }
+    if (c.o.keep) c.o.keep(left);
+    else if (c.o.crate) { const i = crates.indexOf(c.o.crate); if (left.length) c.o.crate.items = left; else if (i >= 0) crates.splice(i, 1); }
     else if (left.length && c.o.x !== undefined) crates.push({ x: c.o.x, y: c.o.y, t: Items.DROP.life, type: 'pile', items: left });   // what you leave stays on the ground
     L.cur = null; L.cd = 0.3; keys.e = false;
     el.classList.remove('show');
@@ -4996,7 +5073,7 @@ const Loot = (() => {
   function render() {
     const c = L.cur; if (!c) return;
     el.classList.add('show');
-    el.innerHTML = '<div class="row"><h3>' + c.title + '</h3></div><div style="color:var(--dim);margin-bottom:6px">Take what you want. Whatever you leave stays on the ground.</div>' +
+    el.innerHTML = '<div class="row"><h3>' + c.title + '</h3></div><div style="color:var(--dim);margin-bottom:6px">' + (c.o.keep ? 'Take what you want. What you leave stays where it is.' : 'Take what you want. Whatever you leave stays on the ground.') + '</div>' +
       c.entries.map((e, i) => e.n > 0 ? '<div class="lootrow">' + Items.img(entryKey(e), 28) + '<span class="ln"><b>' + entryName(e) + '</b> <span class="lq">x' + e.n + '</span><br><small>' + (e.r ? Items.RES[e.r].use : Items.ITEMS[e.i].desc) + '</small></span><button data-t="' + i + '">Take</button></div>' : '').join('') +
       '<div class="row" style="margin-top:8px"><button id="lootAll">Take all <kbd>E</kbd></button><button id="lootLeave">Leave <kbd>Esc</kbd></button></div>';
     el.querySelectorAll('button[data-t]').forEach(b => b.onclick = () => takeIdx(+b.dataset.t));
@@ -5053,6 +5130,64 @@ const Loot = (() => {
   return L;
 })();
 
+/* js/icons.js */
+'use strict';
+/* icons.js - small pixel pictures for the build menu, one per tool, drawn once on a 16x16 grid. */
+const Icons = (() => {
+  const R = (c, x, y, w, h) => [c, x, y, w, h];
+  const brick = (x, y, w, h) => [R('#8a4a3a', x, y, w, h), R('#a86050', x, y, w, 1), R('#5a2e24', x, y + (h >> 1), w, 1), R('#5a2e24', x + (w >> 1), y, 1, h >> 1), R('#5a2e24', x + (w >> 2), y + (h >> 1), 1, h >> 1)];
+  const person = (c, x, y) => [R('#e0b890', x + 1, y, 3, 3), R(c, x, y + 3, 5, 5), R('#2a2a30', x, y + 8, 2, 3), R('#2a2a30', x + 3, y + 8, 2, 3)];
+  const ART = {
+    wall: [...brick(1, 5, 14, 9), R('#c8b090', 1, 4, 14, 1)],
+    tower: [R('#7a8088', 4, 5, 8, 10), R('#9aa0a8', 4, 5, 8, 2), R('#7a8088', 3, 2, 3, 3), R('#7a8088', 7, 2, 2, 3), R('#7a8088', 10, 2, 3, 3), R('#2a2c30', 7, 9, 2, 6), R('#b0b8c0', 5, 7, 1, 1)],
+    gate: [R('#5a3a1a', 1, 3, 3, 12), R('#5a3a1a', 12, 3, 3, 12), R('#7a5226', 4, 5, 8, 10), R('#4a2e14', 4, 5, 8, 1), R('#2a1a0a', 8, 5, 1, 10), R('#c8a050', 7, 10, 1, 2)],
+    lookout: [R('#6a4a22', 7, 5, 2, 10), R('#7a5a32', 3, 2, 10, 4), R('#9a7a4a', 3, 2, 10, 1), R('#2a2c30', 5, 3, 6, 2), R('#c8302a', 8, 0, 1, 2), R('#c8302a', 9, 0, 2, 1)],
+    reinforce: [...brick(1, 5, 14, 9), R('#8a909a', 2, 6, 5, 3), R('#c8ccd2', 2, 6, 5, 1), R('#8a909a', 9, 9, 5, 3), R('#c8ccd2', 9, 9, 5, 1)],
+    electrify: [...brick(1, 5, 14, 9), R('#ffe040', 8, 3, 2, 4), R('#ffe040', 6, 6, 4, 2), R('#ffe040', 6, 8, 2, 4), R('#fff', 8, 3, 1, 2)],
+    outpost: [R('#6a5a3a', 2, 8, 12, 6), R('#8a7a52', 3, 4, 10, 4), R('#4a3a22', 7, 9, 2, 5), R('#6a4a22', 12, 1, 1, 8), R('#c8302a', 7, 1, 5, 3)],
+    spike: [R('#5a4228', 1, 12, 14, 3), R('#c8ccd2', 2, 5, 2, 7), R('#c8ccd2', 6, 4, 2, 8), R('#c8ccd2', 10, 5, 2, 7), R('#fff', 2, 5, 1, 2), R('#fff', 6, 4, 1, 2), R('#fff', 10, 5, 1, 2)],
+    barrel: [R('#a03a2a', 4, 6, 8, 9), R('#c04a3a', 4, 6, 8, 2), R('#5a1e16', 4, 10, 8, 1), R('#ffb020', 6, 1, 4, 5), R('#ff6a1a', 7, 3, 2, 3), R('#fff0a0', 7, 2, 1, 2)],
+    decoy: [R('#5a5e66', 2, 6, 4, 5), R('#8a909a', 6, 3, 3, 11), R('#8a909a', 9, 1, 3, 15), R('#ffd27a', 13, 5, 1, 1), R('#ffd27a', 14, 7, 1, 1), R('#ffd27a', 13, 9, 1, 1)],
+    grate: [R('#3a3e44', 2, 2, 12, 12), R('#15171a', 3, 3, 10, 10), R('#7a7e86', 3, 5, 10, 1), R('#7a7e86', 3, 8, 10, 1), R('#7a7e86', 3, 11, 10, 1), R('#7a7e86', 5, 3, 1, 10), R('#7a7e86', 8, 3, 1, 10), R('#7a7e86', 11, 3, 1, 10)],
+    molotov: [R('#4a8a4a', 5, 6, 6, 9), R('#8ac88a', 5, 6, 2, 9), R('#c8b090', 6, 3, 4, 3), R('#e8e0c0', 7, 1, 2, 2), R('#ff9a1a', 6, 0, 4, 2), R('#fff0a0', 7, 0, 1, 1)],
+    garden: [R('#4a3622', 1, 11, 14, 4), R('#3a7a30', 3, 6, 2, 6), R('#5aa840', 2, 4, 4, 3), R('#3a7a30', 8, 5, 2, 7), R('#5aa840', 7, 3, 4, 3), R('#e8b020', 12, 7, 2, 2), R('#3a7a30', 12, 9, 1, 3)],
+    workshop: [R('#4a4e56', 2, 8, 12, 4), R('#6a707a', 3, 6, 10, 3), R('#8a909a', 3, 6, 10, 1), R('#3a3e44', 5, 12, 6, 3), R('#c8302a', 12, 2, 2, 5), R('#c8ccd2', 10, 4, 3, 2)],
+    generator: [R('#4a5a3a', 2, 5, 12, 9), R('#6a7a52', 2, 5, 12, 2), R('#2a2c30', 4, 8, 4, 4), R('#ffe040', 10, 7, 2, 3), R('#ffe040', 9, 9, 2, 3), R('#2a2c30', 3, 14, 3, 1), R('#2a2c30', 10, 14, 3, 1)],
+    floodlight: [R('#4a4e56', 7, 7, 2, 8), R('#2a2c30', 3, 2, 10, 5), R('#fff0a0', 4, 3, 8, 3), R('#ffe9a0', 1, 8, 1, 6), R('#ffe9a0', 14, 8, 1, 6), R('#ffe9a0', 4, 9, 1, 5), R('#ffe9a0', 11, 9, 1, 5)],
+    clinic: [R('#e8e8e0', 2, 4, 12, 10), R('#b8b8b0', 2, 12, 12, 2), R('#c8302a', 7, 6, 2, 6), R('#c8302a', 5, 8, 6, 2)],
+    depot: [R('#7a5a32', 1, 8, 7, 7), R('#9a7a4a', 1, 8, 7, 2), R('#6a4a22', 8, 8, 7, 7), R('#8a6a3a', 8, 8, 7, 2), R('#8a6a3a', 4, 1, 8, 7), R('#a88a52', 4, 1, 8, 2), R('#3a2a14', 7, 1, 1, 7)],
+    well: [R('#7a7a74', 3, 7, 10, 8), R('#9a9a92', 3, 7, 10, 2), R('#2a5a8a', 5, 9, 6, 4), R('#5a4228', 3, 2, 1, 6), R('#5a4228', 12, 2, 1, 6), R('#6a5232', 2, 1, 12, 2)],
+    rain: [R('#3a5a7a', 4, 8, 8, 7), R('#5a80a8', 4, 8, 8, 2), R('#9ad0ff', 3, 1, 1, 3), R('#9ad0ff', 7, 0, 1, 4), R('#9ad0ff', 11, 1, 1, 3), R('#6a7078', 2, 5, 12, 3)],
+    latrine: [R('#7a5a34', 4, 3, 8, 12), R('#9a7444', 4, 3, 8, 2), R('#4a3a24', 6, 7, 4, 8), R('#2a2018', 9, 10, 1, 2)],
+    turret: [R('#3a3e44', 3, 9, 10, 6), R('#5a5e66', 3, 9, 10, 2), R('#2a2c30', 5, 4, 6, 6), R('#26262c', 10, 6, 5, 2), R('#7dff8c', 7, 5, 2, 2)],
+    battery: [R('#2a3a2a', 3, 4, 10, 11), R('#4a5a3a', 3, 4, 10, 2), R('#c8c020', 5, 2, 6, 2), R('#7dff8c', 5, 7, 6, 1), R('#7dff8c', 5, 9, 6, 1), R('#3a5a3a', 5, 11, 6, 1)],
+    mine: [R('#4a3a2a', 1, 8, 14, 7), R('#6a5a44', 1, 8, 14, 1), R('#2a2218', 4, 10, 8, 5), R('#8a5a2a', 9, 1, 1, 8), R('#c8ccd2', 5, 2, 9, 2), R('#c8a040', 6, 11, 2, 1)],
+    solar: [R('#2a2c30', 7, 11, 2, 4), R('#1c2a4a', 1, 3, 14, 9), R('#2f4f8a', 2, 4, 12, 7), R('#4a74b8', 2, 4, 3, 3), R('#4a74b8', 6, 4, 3, 3), R('#4a74b8', 10, 4, 3, 3), R('#4a74b8', 2, 8, 3, 3), R('#4a74b8', 6, 8, 3, 3), R('#4a74b8', 10, 8, 3, 3)],
+    garagebay: [R('#5a5c60', 1, 3, 14, 12), R('#e8c020', 1, 4, 14, 1), R('#8a909a', 3, 7, 10, 7), R('#6a707a', 3, 9, 10, 1), R('#6a707a', 3, 11, 10, 1), R('#6a707a', 3, 13, 10, 1)],
+    yard: [R('#5a4a30', 1, 12, 14, 3), R('#5a4228', 7, 5, 2, 8), R('#c8b070', 4, 6, 8, 5), R('#d8c488', 6, 2, 4, 4), R('#6a5232', 1, 7, 14, 2), R('#c8302a', 7, 8, 2, 2)],
+    bunkhouse: [R('#5a4a38', 2, 7, 12, 8), R('#8a3a2a', 1, 3, 14, 5), R('#a04a38', 1, 3, 14, 2), R('#2a2018', 6, 10, 4, 5), R('#e8c860', 3, 9, 2, 2), R('#e8c860', 11, 9, 2, 2)],
+    barracks: [R('#4e5a4a', 1, 6, 14, 9), R('#3a4a34', 0, 3, 16, 4), R('#e8c860', 2, 9, 3, 3), R('#e8c860', 6, 9, 3, 3), R('#e8c860', 10, 9, 3, 3), R('#2a2018', 7, 12, 2, 3), R('#c8302a', 13, 0, 1, 4)],
+    demolish: [R('#6a4a22', 7, 3, 2, 11), R('#5a5e66', 3, 1, 10, 4), R('#8a909a', 3, 1, 10, 1), R('#8a4a3a', 2, 12, 4, 3), R('#a86050', 10, 11, 4, 4), R('#6a665c', 6, 14, 4, 1)],
+    erase: [R('#c8302a', 2, 2, 3, 3), R('#c8302a', 5, 5, 3, 3), R('#c8302a', 8, 8, 3, 3), R('#c8302a', 11, 11, 3, 3), R('#c8302a', 11, 2, 3, 3), R('#c8302a', 8, 5, 3, 3), R('#c8302a', 5, 8, 3, 3), R('#c8302a', 2, 11, 3, 3)],
+    def: [...person('#3f7fb8', 5, 1), R('#8a909a', 2, 12, 12, 3), R('#c8ccd2', 2, 12, 12, 1)],
+    crew: [...person('#d89a3a', 1, 3), ...person('#3f7fb8', 8, 3), R('#ffe27a', 5, 0, 6, 1), R('#ffe27a', 10, 0, 1, 2)],
+    siren: [R('#4a4e56', 4, 11, 8, 4), R('#c8302a', 4, 5, 8, 6), R('#ff6a5a', 5, 6, 3, 3), R('#ffd27a', 1, 7, 2, 1), R('#ffd27a', 13, 7, 2, 1), R('#ffd27a', 2, 3, 2, 1), R('#ffd27a', 12, 3, 2, 1)],
+    radio: [R('#6a707a', 7, 4, 2, 11), R('#8a909a', 5, 7, 6, 1), R('#8a909a', 4, 10, 8, 1), R('#e8e070', 6, 1, 4, 3), R('#fff', 7, 2, 1, 1), R('#e8e070', 3, 0, 1, 3), R('#e8e070', 12, 0, 1, 3)],
+    combat: [R('#1a1c20', 2, 6, 9, 3), R('#4a4f58', 2, 6, 9, 1), R('#1a1c20', 7, 9, 3, 5), R('#5a3a1a', 7, 9, 2, 5), R('#ffe27a', 12, 5, 3, 5), R('#fff', 13, 6, 1, 3)],
+    orders: [...person('#7fe08a', 2, 3), R('#7fe08a', 9, 6, 5, 1), R('#7fe08a', 12, 4, 1, 5), R('#7fe08a', 13, 5, 1, 3)],
+  };
+  const cache = {};
+  function canvas(id) {
+    if (cache[id]) return cache[id];
+    const cv = document.createElement('canvas'); cv.width = cv.height = 16; const g = cv.getContext('2d');
+    for (const [c, x, y, w, h] of ART[id] || [R('#8a909a', 3, 3, 10, 10)]) { g.fillStyle = c; g.fillRect(x, y, w, h); }
+    return (cache[id] = cv);
+  }
+  const url = id => { const c = canvas(id); if (!c._u) c._u = c.toDataURL(); return c._u; };
+  const img = (id, s) => '<img src="' + url(id) + '" width="' + (s || 32) + '" height="' + (s || 32) + '" style="image-rendering:pixelated" alt="">';
+  return { canvas, url, img };
+})();
+
 /* js/build.js */
 'use strict';
 /* build.js - nothing is built the instant you click. Every wall, tower, trap and facility is a blueprint: its supplies are
@@ -5062,12 +5197,16 @@ const Loot = (() => {
 const Build = (() => {
   const B = {};
   const REACH = 2.4, PER = 2;                                        // how close a worker must be; most workers on one blueprint
+  const SLOW = 1.7, CARRY = 12;                                        // everything takes longer than it looks; a hauler carries this many units of supplies per trip
+  const store = () => [CORE.x + 0.5, CORE.y + 2.6];                    // where the camp's stock is kept: builders fetch from here
   const TIME = { wall: 3.5, tower: 9, gate: 5, lookout: 8, radio: 24, outpost: 18, electrify: 4, reinforce: 6, spike: 2.5, barrel: 4 };
   const COLORS = { demolish: '#e0603a', wall: '#b58a52', tower: '#c8ccd2', gate: '#c8a050', lookout: '#8ad0a8', radio: '#e8e070', outpost: '#c89a62', electrify: '#7fd0ff', reinforce: '#a8a8a8', spike: '#d0d0d0', barrel: '#e8884a' };
   const PRIO = ['', 'Low', 'Normal', 'Urgent'];
   const list = () => G.blue || (G.blue = []);
   const labelOf = tool => { const t = TOOLS.find(x => x.id === tool); return t ? t.label : tool; };
-  const timeOf = (tool, i) => TIME[tool] ? TIME[tool] + (tool === 'reinforce' ? 3 * wallTier[i] : 0) : FACILITIES[tool] ? clamp(FACILITIES[tool].cost.m / 7, 8, 32) : 6;
+  const timeOf = (tool, i) => SLOW * (TIME[tool] ? TIME[tool] + (tool === 'reinforce' ? 3 * wallTier[i] : 0) : FACILITIES[tool] ? clamp(FACILITIES[tool].cost.m / 7, 8, 32) : 6);
+  const totOf = c => Object.keys(c).reduce((a, k) => a + (c[k] || 0), 0);
+  const supplied = bp => (bp.have || 0) >= (bp.tot || 0);
   const NAMES = { m: 'wood & scrap', f: 'food', a: 'ammo', med: 'medicine', fuel: 'fuel', water: 'water' };
   const costText = c => Object.keys(c).filter(k => c[k]).map(k => c[k] + ' ' + (NAMES[k] || k)).join(', ') || 'free';
   B.at = (x, y) => list().find(b => b.x === x && b.y === y);
@@ -5081,7 +5220,7 @@ const Build = (() => {
   // called by tryBuild once the supplies are paid: set the job down instead of building it
   B.defer = (tool, x, y, cost) => {
     if (G.completing) return false;
-    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool, x, y, cost: { ...cost }, work: timeOf(tool, y * W + x), prog: 0, prio: 2 };
+    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool, x, y, cost: { ...cost }, tot: totOf(cost), have: 0, work: timeOf(tool, y * W + x), prog: 0, prio: 2 };
     list().push(bp); Snd.click();
     B.pop = B.pop || { n: 0, cost: {}, t: 0 }; B.pop.n++; B.pop.t = 0.4; B.pop.x = x + 0.5; B.pop.y = y - 0.3;
     for (const k in cost) B.pop.cost[k] = (B.pop.cost[k] || 0) + cost[k];
@@ -5090,8 +5229,8 @@ const Build = (() => {
   // pulling a building down: it takes time, leaves rubble and a pile of salvage, and the ground is free for walls, fields and beds
   B.demolish = b => {
     if (b.razed) return; if (b.nest) return warn('Clear the nest first'); if (b.crew) return warn('A crew is working there');
-    if (B.at(b.x, b.y)) return warn('Already marked for demolition. Erase it to cancel.');
-    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, work: 5 + b.w * b.h * 1.3, prog: 0, prio: 2 };
+    if (B.at(b.x, b.y)) return warn('Already marked for demolition. The Erase tool cancels it.');
+    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, tot: 0, have: 0, work: 12 + b.w * b.h * 3.2, prog: 0, prio: 2 };
     list().push(bp); Snd.click();
     floatText(b.x + b.w / 2, b.y - 0.3, 'demolish: ' + Math.ceil(bp.work) + 's of work', '#e8c070');
     if (G.sealed && b.claimed) toast('Careful: this building is part of your wall. Replace it with walls or the camp opens up.');
@@ -5145,37 +5284,88 @@ const Build = (() => {
   const standAt = bp => bp.fw ? [bp.x + bp.fw / 2, bp.y + bp.fh + 0.7] : [bp.x + 0.5, bp.y + 0.5];
   const order = (a, b) => b.prio - a.prio || a.id - b.id;
 
+  B.supplied = supplied;
   B.update = dt => {
     if (B.pop && B.pop.n && (B.pop.t -= dt) <= 0) { floatText(B.pop.x, B.pop.y, '-' + costText(B.pop.cost) + (B.pop.n > 1 ? ' (' + B.pop.n + ' planned)' : ''), '#e8c070'); B.pop = { n: 0, cost: {}, t: 0 }; }
-    const L = list(); if (!L.length) { B.idle = 0; for (const u of Units.all()) u.working = false; return; }
+    const L = list(); if (!L.length) { B.idle = 0; P.carry = null; for (const u of Units.all()) { u.working = false; u.carry = null; } return; }
+    for (const bp of L) if (bp.tot === undefined) { bp.tot = 0; bp.have = 0; }                      // plans from an older save need no hauling
     const crew = new Set(); for (const c of G.crews) for (const s of c.members) crew.add(s.id);
     const work = new Map(); let hands = 0, busy = 0;
     const add = (bp, r) => { work.set(bp, (work.get(bp) || 0) + r); };
-    // you: stand beside it and keep still (the bot may keep walking)
+    const [sx0, sy0] = store();
+    // the supplies already on their way, so two people do not fetch the same thing
+    const inb = new Map(); const tally = c => { if (c) for (const e of c.plan) inb.set(e.id, (inb.get(e.id) || 0) + e.n); };
+    tally(P.carry); for (const u of Units.all()) tally(u.carry);
+    const demand = bp => Math.max(0, bp.tot - bp.have - (inb.get(bp.id) || 0));
+    const needers = () => L.filter(b => demand(b) > 0);
+    const load = (carrier) => {                                                                      // fill up at the stockpile: the most urgent plan first, then its neighbours
+      const pool = needers().sort((a, b) => b.prio - a.prio || dist(a, sx0, sy0) - dist(b, sx0, sy0)); if (!pool.length) return false;
+      const plan = []; let cap = CARRY, cur = pool[0];
+      while (cur && cap > 0) {
+        const n = Math.min(cap, demand(cur)); plan.push({ id: cur.id, n }); inb.set(cur.id, (inb.get(cur.id) || 0) + n); cap -= n;
+        const from = cur; cur = needers().filter(b => !plan.some(p => p.id === b.id) && dist(b, from.x, from.y) < 7).sort((a, b) => b.prio - a.prio || dist(a, from.x, from.y) - dist(b, from.x, from.y))[0];
+      }
+      carrier.carry = { plan }; return true;
+    };
+    const deliver = (carrier, x, y) => {                                                              // true while still carrying something
+      const c = carrier.carry; if (!c) return false;
+      while (c.plan.length && !L.find(b => b.id === c.plan[0].id)) c.plan.shift();
+      if (!c.plan.length) { carrier.carry = null; return false; }
+      const bp = L.find(b => b.id === c.plan[0].id);
+      if (dist(bp, x, y) <= 1.6) { bp.have = Math.min(bp.tot, bp.have + c.plan[0].n); c.plan.shift(); Snd.tick(); floatText(bp.x + 0.5, bp.y - 0.2, supplied(bp) ? 'supplied' : bp.have + '/' + bp.tot, '#cfe8b0'); if (!c.plan.length) carrier.carry = null; }
+      return !!carrier.carry;
+    };
     B.you = null;
-    if (P.dead <= 0 && !P.travel && (AI.on ? true : (!P.moving && !Combat.down))) {
-      const near = L.filter(b => dist(b, P.px, P.py) <= REACH).sort((a, b) => order(a, b) || dist(a, P.px, P.py) - dist(b, P.px, P.py))[0];
-      if (near) { add(near, 1); B.you = near; P.stab = Math.max(P.stab || 0, 0.12); P.face = near.x + 0.5 >= P.px ? 1 : -1; }
+    if (AI.on) { for (const b of L) if (dist(b, P.px, P.py) <= REACH) b.have = b.tot; }                // the bot does not run errands
+    // you: carry things from the stockpile to the plans, and work what has been supplied (standing still)
+    if (P.dead > 0 || P.travel) P.carry = null;
+    else if (!AI.on) {
+      if (P.carry) deliver(P, P.px, P.py);
+      else if (!P.moving && Math.hypot(P.px - sx0, P.py - sy0) <= 2.8 && needers().length) { if (load(P)) { Snd.pickup && Snd.pickup(); floatText(P.px, P.py - 1.2, 'loaded: ' + P.carry.plan.reduce((a, e) => a + e.n, 0) + ' supplies', '#cfe8b0'); } }
     }
-    // everyone else who is free and willing
+    if (P.dead <= 0 && !P.travel && (AI.on ? true : (!P.moving && !Combat.down))) {
+      const near = L.filter(b => supplied(b) && dist(b, P.px, P.py) <= REACH).sort((a, b) => order(a, b) || dist(a, P.px, P.py) - dist(b, P.px, P.py))[0];
+      if (near) { add(near, 0.8); B.you = near; P.stab = Math.max(P.stab || 0, 0.12); P.face = near.fw ? 1 : (near.x + 0.5 >= P.px ? 1 : -1); }
+    }
+    // everyone else who is free and willing: some haul, some build
     const alarm = Units.alarm(), counts = new Map();
-    for (const u of Units.all()) {
-      const s = u.s; u.working = false; if (crew.has(s.id) || !G.idle.includes(s)) continue;
+    const free = Units.all().filter(u => !crew.has(u.s.id) && G.idle.includes(u.s));
+    let haulers = 0;
+    const builtNow = L.some(b => supplied(b) && b.prog < b.work);
+    for (const u of free) {
+      const s = u.s; u.working = false; u.hauling = false;
       const w = Units.workOf(s); hands++;
-      let bp = u.bpId && L.find(b => b.id === u.bpId);
-      if (!w.build || alarm || s.sick > 0 || u.manual > 0 || u.order && !u.order.build) { u.bpId = 0; if (u.order && u.order.build) Units.cancel(u); continue; }
+      if (!w.build || alarm || s.sick > 0 || u.manual > 0 || u.order && !u.order.build) { u.bpId = 0; u.carry = null; if (u.order && u.order.build) Units.cancel(u); continue; }
+      // carrying: walk to where it goes
+      if (u.carry && u.carry.plan.length) {
+        haulers++; u.hauling = true; u.bpId = 0;
+        const still = deliver(u, u.px, u.py);
+        if (still && !u.order) { const bp = L.find(b => b.id === u.carry.plan[0].id); if (bp) { const [tx, ty] = standAt(bp); Units.moveTo(u, tx, ty); u.order.build = true; } }
+        continue;
+      }
+      // someone has to fetch: all of them if nothing is ready to build, otherwise about half
+      const nd = needers().length;
+      if (nd && (!builtNow || haulers < Math.ceil(free.length / 2))) {
+        haulers++; u.hauling = true; u.bpId = 0;
+        if (Math.hypot(sx0 - u.px, sy0 - u.py) <= 1.8) { load(u); if (u.carry) Snd.tick(); }
+        else if (!u.order) { Units.moveTo(u, sx0, sy0); u.order.build = true; }
+        continue;
+      }
+      let bp = u.bpId && L.find(b => b.id === u.bpId && supplied(b));
       if (!bp || (counts.get(bp) || 0) >= PER) {
         bp = null; let bs = -1e9;
-        for (const b of L) { if ((counts.get(b) || 0) >= PER) continue; const sc = b.prio * 100 - dist(b, u.px, u.py); if (sc > bs) { bs = sc; bp = b; } }
+        for (const b of L) { if (!supplied(b) || (counts.get(b) || 0) >= PER) continue; const sc = b.prio * 100 - dist(b, u.px, u.py); if (sc > bs) { bs = sc; bp = b; } }
         u.bpId = bp ? bp.id : 0;
       }
       if (!bp) continue;
       counts.set(bp, (counts.get(bp) || 0) + 1);
-      if (dist(bp, u.px, u.py) <= REACH - 0.5) { add(bp, (s.role === 'builder' ? 1.6 : 0.8) * skillMul(s, 'build')); busy++; u.st = 'stab'; u.stab = 0.12; u.working = true; u.face = bp.x + 0.5 >= u.px ? 1 : -1; u.moving = false; }
-      else if (!u.order) { const [sx, sy] = standAt(bp); Units.moveTo(u, sx, sy); u.order.build = true; }
+      if (dist(bp, u.px, u.py) <= REACH - 0.5) {
+        const lv = skillLv(s, 'build'), rate = (s.role === 'builder' ? 1 : 0.55) * (0.55 + 0.15 * lv);   // an untrained hand is slow
+        add(bp, rate); busy++; u.st = 'stab'; u.stab = 0.12; u.working = true; u.face = bp.x + 0.5 >= u.px ? 1 : -1; u.moving = false; addXp(s, 'build', 0.7 * dt);
+      } else if (!u.order) { const [tx, ty] = standAt(bp); Units.moveTo(u, tx, ty); u.order.build = true; }
     }
-    B.hands = hands + 1; B.busy = busy + (B.you ? 1 : 0);
-    if (!AI.on && !G.intro) { B.idle = (B.idle || 0) + (B.busy ? -B.idle : dt); if (B.idle > 14) { B.idle = -30; toast('Planned builds are waiting for hands. Stand next to them and hold still (J: build queue).'); } }
+    B.hands = hands + 1; B.busy = busy + (B.you ? 1 : 0); B.hauling = haulers + (P.carry ? 1 : 0);
+    if (!AI.on && !G.intro) { B.idle = (B.idle || 0) + (B.busy || B.hauling ? -B.idle : dt); if (B.idle > 14) { B.idle = -30; toast('Planned builds are waiting. Load supplies at the camp stockpile (stand by the fire), carry them over, then stand next to the plan and hold still (J: build queue).'); } }
     for (const [bp, r] of work) {
       bp.prog += r * dt; bp.w = r; bp.tick = (bp.tick || 0) - dt;
       if (bp.tick <= 0) { bp.tick = 1.1; Snd.tick(); investigate(bp.x + 0.5, bp.y + 0.5, NOISE.build, false); }
@@ -5187,9 +5377,25 @@ const Build = (() => {
   B.draw = ctx => {
     const L = list(); if (!L.length || !G) return;
     const t = G.time || 0;
+    // where to fetch from, and where to take it
+    if (!AI.on) {
+      const need = L.some(b => !supplied(b)), [ssx, ssy] = store(), px0 = ssx * T, py0 = ssy * T;
+      if (need && !P.carry) {
+        const bob = Math.sin(t * 4) * 1.5;
+        ctx.globalAlpha = 0.9; ctx.imageSmoothingEnabled = false; ctx.drawImage(Items.canvas('m'), px0 - 8, py0 - 24 + bob, 16, 16); ctx.globalAlpha = 1;
+        ctx.font = '7px monospace'; const lab = 'Stockpile: stand here to load supplies', w = ctx.measureText(lab).width + 8; ctx.fillStyle = '#000c'; ctx.fillRect(px0 - w / 2, py0 - 36, w, 10); ctx.fillStyle = '#cfe8b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, px0, py0 - 31); ctx.textAlign = 'left';
+      }
+      if (P.carry && P.carry.plan.length) {
+        const bp = L.find(b => b.id === P.carry.plan[0].id);
+        if (bp) { const tx = (bp.x + (bp.fw || 1) / 2) * T, ty = (bp.y + (bp.fh || 1) / 2) * T, a = Math.atan2(ty - (P.py - 0.5) * T, tx - P.px * T), ax = P.px * T + Math.cos(a) * 26, ay = (P.py - 0.5) * T + Math.sin(a) * 26;
+          ctx.save(); ctx.translate(ax, ay); ctx.rotate(a); ctx.fillStyle = '#cfe8b0'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-4, -5); ctx.lineTo(-2, 0); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+          ctx.strokeStyle = '#cfe8b0'; ctx.globalAlpha = 0.9; ctx.lineWidth = 1; ctx.strokeRect(bp.x * T - 1, bp.y * T - 1, (bp.fw || 1) * T + 2, (bp.fh || 1) * T + 2); ctx.globalAlpha = 1; }
+      }
+    }
     for (const bp of L) {
       const bw = (bp.fw || 1) * T, bh = (bp.fh || 1) * T, px = bp.x * T, py = bp.y * T, k = bp.prog / bp.work, col = COLORS[bp.tool] || '#cfd4d8';
-      ctx.globalAlpha = 0.28; ctx.fillStyle = col; ctx.fillRect(px, py, bw, bh);
+      const sup = supplied(bp);
+      ctx.globalAlpha = sup ? 0.28 : 0.14; ctx.fillStyle = col; ctx.fillRect(px, py, bw, bh);
       ctx.globalAlpha = 0.55 + 0.2 * k; ctx.fillRect(px, py + bh * (1 - k), bw, bh * k); ctx.globalAlpha = 1;      // fills from the ground up as it is worked
       ctx.strokeStyle = bp.w ? '#fff' : col; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.lineDashOffset = -t * 6; ctx.strokeRect(px + 0.5, py + 0.5, bw - 1, bh - 1); ctx.setLineDash([]);
       ctx.fillStyle = '#000b'; ctx.fillRect(px - 1, py + bh + 1, bw + 2, 3); ctx.fillStyle = bp.w ? '#ffe27a' : '#8a8f98'; ctx.fillRect(px, py + bh + 2, bw * k, 1);
@@ -5199,13 +5405,317 @@ const Build = (() => {
     if (G.hover) {                                                    // name what you are pointing at
       const bp = B.at(G.hover.tx, G.hover.ty);
       if (bp) {
-        const s = labelOf(bp.tool) + ' · ' + PRIO[bp.prio] + ' · ' + Math.round(bp.prog / bp.work * 100) + '%' + (bp.w ? '' : ' · needs a builder'), px = (bp.x + 0.5) * T, py = bp.y * T - 8;
+        const s = labelOf(bp.tool) + ' · ' + PRIO[bp.prio] + ' · ' + Math.round(bp.prog / bp.work * 100) + '%' + (!supplied(bp) ? ' · needs supplies ' + bp.have + '/' + bp.tot : bp.w ? '' : ' · needs a builder'), px = (bp.x + 0.5) * T, py = bp.y * T - 8;
         ctx.font = '6px monospace'; const w = ctx.measureText(s).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 5, w, 9); ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, px, py - 0.5); ctx.textAlign = 'left';
       }
     }
   };
   B.workLeft = () => list().reduce((a, b) => a + (b.work - b.prog), 0);
   return B;
+})();
+
+/* js/interior.js */
+'use strict';
+/* interior.js - buildings are places you go into. Each has rooms, furniture, containers that hold its stock, a few of the
+   dead who stayed, and more than one way out. Walk to a door and press E; open things with E; leave by any door.
+   If the dead crowd the front, use the back. The outside world keeps going while you are in there. */
+const Interior = (() => {
+  const I = { cur: null, exits: null, fade: 0, prompt: null };
+  const OPEN = { store: 1, warehouse: 1, garage: 1, junkyard: 1, gas: 1, farmstead: 1 };
+  const KINDS = {
+    house: ['cabinet', 'fridge', 'drawer', 'wardrobe'], store: ['shelf', 'fridge', 'register'], garage: ['toolbox', 'cabinet', 'tires'],
+    warehouse: ['crate', 'pallet', 'shelf'], pharmacy: ['medcab', 'shelf'], police: ['locker', 'safe'], bunker: ['crate', 'safe'],
+    junkyard: ['scrap'], gas: ['shelf', 'toolbox'], farmstead: ['sack', 'crate'],
+  };
+  const AFF = {
+    fridge: { f: 5, water: 4 }, cabinet: { f: 2, med: 2, m: 1, water: 1, a: 1 }, drawer: { m: 2, a: 2, med: 1 }, wardrobe: { m: 1 }, shelf: { f: 3, m: 2, water: 2, med: 1 },
+    register: { m: 1, a: 1 }, toolbox: { m: 4, fuel: 4, a: 1 }, tires: { m: 2 }, crate: { m: 3, a: 3, f: 2, fuel: 1 }, pallet: { m: 4, a: 2, f: 1 }, medcab: { med: 6 },
+    locker: { a: 5, m: 2, med: 1 }, safe: { a: 4, med: 2, m: 2, fuel: 1 }, scrap: { m: 6, fuel: 1 }, sack: { f: 5 },
+  };
+  const NAMEOF = { cabinet: 'cabinet', fridge: 'fridge', drawer: 'drawers', wardrobe: 'wardrobe', shelf: 'shelves', register: 'till', toolbox: 'toolbox', tires: 'tyre stack', crate: 'crate', pallet: 'pallet', medcab: 'medicine cabinet', locker: 'locker', safe: 'safe', scrap: 'scrap pile', sack: 'sacks' };
+  const ZCOUNT = { house: [0, 3], store: [2, 5], garage: [1, 3], warehouse: [3, 6], pharmacy: [1, 3], gas: [1, 3], police: [3, 6], junkyard: [2, 4], bunker: [4, 7], farmstead: [1, 3] };
+  const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  const FL = 0, WALL = 1, FURN = 2, CONT = 3, DOOR = 4;
+
+  // ---- layout: a building's inside, the same every time (seeded by the building) ----------------------------------------
+  const outFree = (x, y) => inb(x | 0, y | 0) && bld[(y | 0) * W + (x | 0)] < 0 && !isCoreTile(x | 0, y | 0) && wall[(y | 0) * W + (x | 0)] !== K.RADIO;
+  function layoutOf(b) {
+    if (b._lay) return b._lay;
+    const w = b.w * 3, h = b.h * 3, r = mulberry32(((b.seed | 0) ^ 0x9e3779b1) >>> 0);
+    const t = new Uint8Array(w * h), at = (x, y) => y * w + x;
+    for (let x = 0; x < w; x++) { t[at(x, 0)] = WALL; t[at(x, h - 1)] = WALL; }
+    for (let y = 0; y < h; y++) { t[at(0, y)] = WALL; t[at(w - 1, y)] = WALL; }
+    const gaps = [], open = !!OPEN[b.type];
+    let px = -1;
+    if (!open && w >= 9) {
+      px = 3 + ((r() * (w - 6)) | 0); for (let y = 1; y < h - 1; y++) t[at(px, y)] = WALL;
+      const gy = 2 + ((r() * (h - 5)) | 0); t[at(px, gy)] = FL; t[at(px, gy + 1)] = FL; gaps.push([px, gy], [px, gy + 1]);
+      if (w >= 12 && h >= 9) {
+        const left = r() < 0.5, x0 = left ? 1 : px + 1, x1 = left ? px : w - 1, py = 3 + ((r() * (h - 6)) | 0);
+        for (let x = x0; x < x1; x++) t[at(x, py)] = WALL;
+        const gx = x0 + 1 + ((r() * Math.max(1, x1 - x0 - 3)) | 0); t[at(gx, py)] = FL; t[at(Math.min(x1 - 1, gx + 1), py)] = FL; gaps.push([gx, py], [gx + 1, py]);
+      }
+    }
+    // exits: the front always, a back door, and side doors on bigger buildings
+    const ex = [];
+    const mk = (side, x, y, dx, dy) => { for (let k = 0; k < 2; k++) t[at(x + dx * k, y + dy * k)] = DOOR; ex.push({ side, x, y, dx, dy, cx: x + dx, cy: y + dy, tiles: [[x, y], [x + dx, y + dy]] }); };
+    mk('S', clamp((w * (0.25 + 0.5 * r())) | 0, 2, w - 4), h - 1, 1, 0);
+    if (w >= 8) mk('N', clamp((w * (0.2 + 0.6 * r())) | 0, 2, w - 4), 0, 1, 0);
+    if (w >= 12 && h >= 8) mk('W', 0, clamp((h * (0.3 + 0.4 * r())) | 0, 2, h - 4), 0, 1);
+    if (w >= 15 && h >= 8) mk('E', w - 1, clamp((h * (0.3 + 0.4 * r())) | 0, 2, h - 4), 0, 1);
+    for (const e of ex) {                                            // where each door lets out
+      const fx = (e.cx + 0.5) / w, fy = (e.cy + 0.5) / h;
+      let ox, oy;
+      if (e.side === 'S') { ox = b.x + fx * b.w; oy = b.y + b.h + 0.6; } else if (e.side === 'N') { ox = b.x + fx * b.w; oy = b.y - 0.6; }
+      else if (e.side === 'W') { ox = b.x - 0.6; oy = b.y + fy * b.h; } else { ox = b.x + b.w + 0.6; oy = b.y + fy * b.h; }
+      let ok = outFree(ox, oy);
+      for (let s = 1; s <= 3 && !ok; s++) for (const sg of [1, -1]) { const nx = ox + (e.side === 'S' || e.side === 'N' ? sg * s : 0), ny = oy + (e.side === 'W' || e.side === 'E' ? sg * s : 0); if (outFree(nx, ny)) { ox = nx; oy = ny; ok = true; break; } }
+      e.out = { x: ox, y: oy }; e.ok = ok;
+    }
+    const exits = ex.filter((e, i) => e.ok || i === 0);
+    for (const e of ex) if (!exits.includes(e)) for (const [x, y] of e.tiles) t[at(x, y)] = WALL;           // a door that opens onto a blocked street is bricked up
+    const near = (x, y, list, d) => list.some(([a, c]) => Math.max(Math.abs(a - x), Math.abs(c - y)) <= d);
+    const doorTiles = exits.flatMap(e => e.tiles), keepClear = [...doorTiles, ...gaps];
+    const wallAdj = (x, y) => t[at(x - 1, y)] === WALL || t[at(x + 1, y)] === WALL || t[at(x, y - 1)] === WALL || t[at(x, y + 1)] === WALL;
+    const kinds = KINDS[b.type] || ['crate'];
+    const cont = [], furn = [];
+    const place = (x, y, kind, solid) => { t[at(x, y)] = solid ? CONT : FURN; (solid ? cont : furn).push({ x, y, kind }); };
+    if (open && (b.type === 'store' || b.type === 'warehouse' || b.type === 'garage' || b.type === 'gas')) {      // rows of shelving with aisles
+      for (let y = 3; y < h - 3; y += 3) for (let x = 3; x < w - 3; x++) {
+        if ((x % 5) === 0 || near(x, y, keepClear, 1)) continue;
+        if (r() < 0.62) place(x, y, kinds[(r() * kinds.length) | 0], true); else if (r() < 0.5) place(x, y, 'shelf', false);
+      }
+    } else {
+      const cands = []; for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (t[at(x, y)] === FL && wallAdj(x, y) && !near(x, y, keepClear, 2)) cands.push([x, y]);
+      for (let i = cands.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [cands[i], cands[j]] = [cands[j], cands[i]]; }
+      const nC = clamp(Math.round(b.w * b.h / 3.2) + 1 + ((r() * 2) | 0), 3, 14), nF = clamp(Math.round(b.w * b.h / 4), 2, 8);
+      for (const [x, y] of cands) { if (t[at(x, y)] !== FL) continue; if (cont.length < nC) place(x, y, kinds[(r() * kinds.length) | 0], true); else if (furn.length < nF) place(x, y, r() < 0.5 ? 'bed' : 'table', false); else break; }
+    }
+    // everything must be reachable from the front door; anything walled off goes back to being floor
+    const sx = exits[0].cx, sy = exits[0].side === 'S' ? h - 2 : 1, seen = new Uint8Array(w * h), q = [at(sx, sy)];
+    if (t[q[0]] === FL) seen[q[0]] = 1;
+    for (let k = 0; k < q.length; k++) { const i = q[k], x = i % w, y = (i / w) | 0; for (const [dx, dy] of N4) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue; const ni = at(nx, ny); if (!seen[ni] && t[ni] === FL) { seen[ni] = 1; q.push(ni); } } }
+    const reach = (x, y) => N4.some(([dx, dy]) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < w && ny < h && seen[at(nx, ny)]; });
+    for (let i = cont.length - 1; i >= 0; i--) if (!reach(cont[i].x, cont[i].y)) { t[at(cont[i].x, cont[i].y)] = FL; cont.splice(i, 1); }
+    for (let i = furn.length - 1; i >= 0; i--) if (!reach(furn[i].x, furn[i].y)) { t[at(furn[i].x, furn[i].y)] = FL; furn.splice(i, 1); }
+    const floor = []; for (let i = 0; i < w * h; i++) if (seen[i]) floor.push(i);
+    return (b._lay = { w, h, t, cont, furn, exits, floor, px, r: mulberry32(((b.seed | 0) ^ 0x51ed270b) >>> 0) });
+  }
+  I.exitsOf = b => layoutOf(b).exits;
+  I.doorNear = (b, x, y) => {                                         // which door of b is the player standing at
+    const ex = layoutOf(b).exits; let best = null, bd = 2.0;
+    for (let i = 0; i < ex.length; i++) { const d = Math.hypot(ex[i].out.x - x, ex[i].out.y - y); if (d < bd) { bd = d; best = i; } }
+    return best;
+  };
+
+  // ---- what is in the containers: the building's own stock, split between them ----------------------------------------
+  function ensureCont(b) {
+    if (b.cont) return;
+    const lay = layoutOf(b), got = b.looted ? {} : takeLoot(b, has('scav') ? 1.35 : 1);
+    b.cont = lay.cont.map(() => []);
+    if (!lay.cont.length) return;
+    for (const [k] of LOOT_KEYS) {
+      let n = got[k] || 0; if (n <= 0) continue;
+      const pool = lay.cont.map((c, i) => ({ i, w: (AFF[c.kind] || {})[k] || 0 })).filter(c => c.w > 0);
+      const use = pool.length ? pool : lay.cont.map((c, i) => ({ i, w: 1 }));
+      for (let s = 0, parts = Math.min(use.length, 1 + ((rng() * 3) | 0)); s < parts && n > 0; s++) {
+        const tot = use.reduce((a, c) => a + c.w, 0); let rr = rng() * tot, pick = use[0];
+        for (const c of use) { rr -= c.w; if (rr <= 0) { pick = c; break; } }
+        const take = s === parts - 1 ? n : Math.max(1, Math.round(n * (0.35 + rng() * 0.4)));
+        const ex = b.cont[pick.i].find(e => e.r === k); if (ex) ex.n += take; else b.cont[pick.i].push({ r: k, n: take });
+        n -= take; use.splice(use.indexOf(pick), 1); if (!use.length) break;
+      }
+    }
+    if (b.looted) return;
+    for (let i = 0; i < lay.cont.length; i++) {                      // the odd find
+      const kind = lay.cont[i].kind;
+      if (rng() < 0.06) b.cont[i].push({ i: Items.roll(), n: 1 });
+      if ((kind === 'locker' && rng() < 0.12) || (kind === 'safe' && rng() < 0.25)) { const g = Items.rollGun(); if (g) b.cont[i].push({ i: g, n: 1 }); }
+      if (b.type === 'house' && kind === 'drawer' && rng() < KEYS.houseChance * 3) b.cont[i].push({ i: 'keycard', n: 1 });
+    }
+  }
+  function spawnZombies(b, lay, ent) {
+    if (b.zleft === undefined) { const [a, c] = ZCOUNT[b.type] || [0, 2]; b.zleft = a + ((rng() * (c - a + 1)) | 0); if (b.looted) b.zleft = Math.min(b.zleft, 1); }
+    const zs = [], far = lay.floor.filter(i => { const x = i % lay.w, y = (i / lay.w) | 0; return Math.hypot(x - ent.x, y - ent.y) > 6; });
+    for (let k = 0; k < b.zleft && far.length; k++) {
+      const i = far[(rng() * far.length) | 0], z = makeZombie((i % lay.w) + 0.5, ((i / lay.w) | 0) + 0.5, 0, 0, pickType(Math.max(1, waveNow() - 1)));
+      z.mode = 0; z.cd = 0; z.hit = 0; zs.push(z);
+    }
+    return zs;
+  }
+
+  // ---- going in and out -------------------------------------------------------------------------------------------------
+  I.active = () => !!(P.inside && I.cur);
+  const clearFx = () => { tracers.length = 0; parts.length = 0; texts.length = 0; flashes.length = 0; rings.length = 0; };
+  I.enter = function (b, di) {
+    const lay = layoutOf(b), e = lay.exits[di == null ? 0 : di];
+    ensureCont(b);
+    const sx = e.cx + 0.5 + (e.side === 'W' ? 1.3 : e.side === 'E' ? -1.3 : 0), sy = e.cy + 0.5 + (e.side === 'S' ? -1.3 : e.side === 'N' ? 1.3 : 0);
+    I.cur = { b, lay, p: { x: sx, y: sy }, zs: spawnZombies(b, lay, { x: sx, y: sy }), field: new Float32Array(lay.w * lay.h), fT: 0, streamT: [], via: di, t: 0, opened: 0, streamed: 0 };
+    P.inside = true; P.order = null; P.autoE = false; P.px = e.out.x; P.py = e.out.y; G.tool = 'combat';
+    clearFx(); I.fade = 0.35; Snd.click && Snd.click(); G.cam.free = false;
+    if (G.intro) G.intro.entered = true;
+    log('You go into the ' + BUILDING_TYPES[b.type].label.toLowerCase() + '.');
+  };
+  I.exit = function (di, quiet) {
+    const c = I.cur; if (!c) return;
+    const e = c.lay.exits[di], b = c.b;
+    // the ones right behind you follow you out
+    let n = 0; for (const z of c.zs) { if (z.hp > 0 && z.mode === 1 && Math.hypot(z.x - c.p.x, z.y - c.p.y) < 4 && n < 3) { const o = makeZombie(e.out.x, e.out.y, 1, 0, z.type); o.hp = z.hp; o.mode = 1; zombies.push(o); z.hp = 0; b.zleft = Math.max(0, b.zleft - 1); n++; } }
+    I.cur = null; P.inside = false; P.px = e.out.x; P.py = e.out.y; clearFx(); I.fade = 0.3; G.cam.x = P.px; G.cam.y = P.py;
+    if (!quiet) { Snd.click && Snd.click(); if (n) log(n + ' followed you out!'); }
+    if (b.cont && b.cont.every(a => !a.length) && !b.looted) { b.looted = true; }
+  };
+  I.forceOut = function () { if (!I.cur) { P.inside = false; return; } const e = I.cur.lay.exits[I.cur.via || 0]; I.cur = null; P.inside = false; P.px = e.out.x; P.py = e.out.y; clearFx(); };
+
+  // ---- the world as combat sees it ---------------------------------------------------------------------------------------
+  const solidAt = (lay, x, y) => { const tx = x | 0, ty = y | 0; if (tx < 0 || ty < 0 || tx >= lay.w || ty >= lay.h) return true; const v = lay.t[ty * lay.w + tx]; return v === WALL || v === FURN || v === CONT; };
+  I.world = {
+    pos: () => I.cur.p, zs: () => I.cur.zs,
+    blocked: (x, y) => { const c = I.cur; const tx = x | 0, ty = y | 0; if (tx < 0 || ty < 0 || tx >= c.lay.w || ty >= c.lay.h) return true; const v = c.lay.t[ty * c.lay.w + tx]; return v === WALL || v === FURN; },
+    noise: (r, sniper) => {
+      const c = I.cur; for (const z of c.zs) if (z.hp > 0 && z.mode === 0 && Math.hypot(z.x - c.p.x, z.y - c.p.y) < r) { z.mode = 1; }
+      const e = c.lay.exits[c.via || 0]; alertNoise(e.out.x, e.out.y, r * 0.55, 3);                           // the walls muffle it, but not entirely
+    },
+  };
+
+  // ---- each frame inside --------------------------------------------------------------------------------------------------
+  function bfs(c) {
+    const { lay } = c, f = c.field; f.fill(1e9); const px = c.p.x | 0, py = c.p.y | 0, q = [py * lay.w + px]; f[q[0]] = 0;
+    for (let k = 0; k < q.length; k++) { const i = q[k], x = i % lay.w, y = (i / lay.w) | 0; for (const [dx, dy] of N4) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= lay.w || ny >= lay.h) continue; const ni = ny * lay.w + nx; const v = lay.t[ni]; if (f[ni] <= f[i] + 1 || v === WALL || v === FURN || v === CONT) continue; f[ni] = f[i] + 1; q.push(ni); } }
+  }
+  const prompt = (c) => {
+    I.prompt = null; const { lay } = c;
+    for (let i = 0; i < lay.exits.length; i++) { const e = lay.exits[i]; if (Math.hypot(e.cx + 0.5 - c.p.x, e.cy + 0.5 - c.p.y) < 1.7) return (I.prompt = { x: e.cx + 0.5, y: e.cy + 0.5, text: 'E  Leave by the ' + { S: 'front', N: 'back', W: 'west', E: 'east' }[e.side] + ' door', kind: 'exit', i }); }
+    let best = null, bd = 1.6;
+    for (let i = 0; i < lay.cont.length; i++) { const k = lay.cont[i], d = Math.hypot(k.x + 0.5 - c.p.x, k.y + 0.5 - c.p.y); if (d < bd) { bd = d; best = i; } }
+    if (best !== null) { const k = lay.cont[best], items = c.b.cont[best]; I.prompt = { x: k.x + 0.5, y: k.y, text: items.length ? 'E  Search the ' + NAMEOF[k.kind] : 'The ' + NAMEOF[k.kind] + ' is empty', kind: items.length ? 'cont' : 'none', i: best }; }
+  };
+  I.update = function (dt) {
+    const c = I.cur; if (!c) { P.inside = false; return; }
+    c.t += dt; const { lay, b } = c;
+    if (!FIGHT_OK.includes(G.tool)) G.tool = 'combat';
+    // moving
+    let mx = 0, my = 0;
+    if (keys.w || keys.arrowup) my -= 1; if (keys.s || keys.arrowdown) my += 1; if (keys.a || keys.arrowleft) mx -= 1; if (keys.d || keys.arrowright) mx += 1;
+    let mag = 1; const jl = Math.hypot(joy.x, joy.y); if (jl > 0.18) { mx = joy.x; my = joy.y; mag = Math.min(1, jl); }
+    const moving = !!(mx || my); P.moving = moving;
+    G.noticeR = 0.6;                                                  // nobody outside can see you
+    if (moving) {
+      const sp = PLAYER.speed * mag * (keys.shift ? PLAYER.sprint : 1) * dt / Math.hypot(mx, my), rr = 0.22;
+      const free = (x, y) => !solidAt(lay, x - rr, y - rr) && !solidAt(lay, x + rr, y - rr) && !solidAt(lay, x - rr, y + rr) && !solidAt(lay, x + rr, y + rr);
+      if (free(c.p.x + mx * sp, c.p.y)) c.p.x += mx * sp; if (free(c.p.x, c.p.y + my * sp)) c.p.y += my * sp;
+      if (mx) P.face = mx > 0 ? 1 : -1; P.anim += dt * 9 * (keys.shift ? 1.4 : 1);
+    }
+    P.hurt -= dt; if (P.stab > 0) P.stab -= dt; if (P.safe > 0) P.safe -= dt;
+    if (P.hurt <= 0) P.hp = Math.min(PLAYER.hp, P.hp + 0.3 * dt);
+    Combat.update(dt); P.st = P.st === 'idle' && moving ? 'walk' : P.st;
+    // zombies in here
+    c.fT -= dt; if (c.fT <= 0) { c.fT = 0.3; bfs(c); }
+    for (let k = c.zs.length - 1; k >= 0; k--) {
+      const z = c.zs[k];
+      if (z.hp <= 0) { c.zs.splice(k, 1); b.zleft = Math.max(0, (b.zleft || 0) - 1); G.kills++; addBurst(z.x, z.y - 0.3, '#7a1c1c', 4, { grav: 3 }); continue; }
+      const d = Math.hypot(c.p.x - z.x, c.p.y - z.y); z.hit = Math.max(0, (z.hit || 0) - dt); z.anim += dt * 4;
+      if (z.mode === 0) { if (d < 4.5 + (keys.shift ? 2 : 0)) z.mode = 1; else continue; }
+      const zt = ZTYPES[z.type], spd = zt.speed * 1.8;
+      if (d < 0.75) { z.st = 1; P.hp -= zt.dmg * dt; P.hurt = 1.2; Snd.hurt && Snd.hurt(); if (P.hp <= 0) { killPlayer(); return; } continue; }
+      z.st = 0;
+      // step downhill on the distance field
+      const tx = z.x | 0, ty = z.y | 0; let bi = -1, bv = c.field[ty * lay.w + tx];
+      for (const [dx, dy] of N8) { const nx = tx + dx, ny = ty + dy; if (nx < 0 || ny < 0 || nx >= lay.w || ny >= lay.h) continue; const v = c.field[ny * lay.w + nx]; if (v < bv) { bv = v; bi = ny * lay.w + nx; } }
+      let gx = c.p.x, gy = c.p.y; if (bi >= 0 && c.field[ty * lay.w + tx] > 1) { gx = (bi % lay.w) + 0.5; gy = ((bi / lay.w) | 0) + 0.5; }
+      const dx = gx - z.x, dy = gy - z.y, dd = Math.hypot(dx, dy) || 1, s = spd * dt;
+      const nx = z.x + dx / dd * s, ny = z.y + dy / dd * s;
+      if (!solidAt(lay, nx, z.y)) z.x = nx; if (!solidAt(lay, z.x, ny)) z.y = ny; z.face = dx >= 0 ? 1 : -1;
+    }
+    // the crowd outside pours in through a door they are packed against
+    c.sT = (c.sT || 0) - dt;
+    if (c.sT <= 0) {
+      c.sT = 2.5;
+      for (let i = 0; i < lay.exits.length; i++) {
+        const e = lay.exits[i]; let n = 0; for (const z of zombies) { if (z.hp > 0 && z.mode !== 0 && (z.x - e.out.x) ** 2 + (z.y - e.out.y) ** 2 < 6.5) { if (++n >= 3) break; } }
+        if (n >= 3 && c.streamed < 8) { c.streamed++; const z = makeZombie(e.cx + 0.5, e.cy + 0.5, 1, 0, 'walker'); z.mode = 1; c.zs.push(z); if (c.streamed === 1) toast('The dead are coming in through the ' + { S: 'front', N: 'back', W: 'west', E: 'east' }[e.side] + ' door! Use another way out.'); }
+      }
+    }
+    // interacting
+    const ePress = keys.e && !P.ePrev; P.ePrev = !!keys.e;
+    prompt(c);
+    if (ePress && I.prompt && !Loot.isOpen()) {
+      if (I.prompt.kind === 'exit') { I.exit(I.prompt.i); return; }
+      if (I.prompt.kind === 'cont') {
+        const idx = I.prompt.i, items = b.cont[idx], kind = lay.cont[idx].kind;
+        c.opened++; if (G.intro) G.intro.opened = true;
+        Loot.open('You search the ' + NAMEOF[kind], items.map(e => ({ ...e })), { keep: left => { b.cont[idx] = left; }, then: () => { b.cont[idx] = []; } });
+        if (b.cont.every(a => !a.length)) b.looted = true;
+        addHeat(0.2);
+      }
+    }
+    if (b.cont && b.cont.every(a => !a.length) && !b.looted) b.looted = true;
+  };
+  const FIGHT_OK = ['combat', 'orders'];
+
+  // ---- drawing ------------------------------------------------------------------------------------------------------------------
+  const FLOOR = { house: ['#6a5238', '#76593c'], store: ['#5a5e60', '#646a6c'], garage: ['#4a4c50', '#54565a'], warehouse: ['#50504a', '#5a5a52'], police: ['#4a5260', '#545c6a'], pharmacy: ['#6a7478', '#747e82'], bunker: ['#3e4640', '#48504a'] };
+  const CONTC = { cabinet: '#7a5a34', fridge: '#d8dcd8', drawer: '#8a6a40', wardrobe: '#6a4a2c', shelf: '#7a6a4a', register: '#4a5058', toolbox: '#b02a2a', tires: '#26262a', crate: '#8a6a3a', pallet: '#9a7a4a', medcab: '#e8ece8', locker: '#5a6a7a', safe: '#3a3e44', scrap: '#6a655a', sack: '#c8b88a' };
+  I.render = function (realDt) {
+    const c = I.cur; if (!c) return;
+    const { lay, b } = c, z = G.cam.zoom * dpr, cw = canvas.width, ch = canvas.height;
+    I.fade = Math.max(0, I.fade - realDt);
+    // camera: the whole room if it fits, otherwise follow the player
+    const vw = cw / z / T, vh = ch / z / T;
+    G.cam.x = lay.w <= vw ? lay.w / 2 : clamp(c.p.x, vw / 2, lay.w - vw / 2); G.cam.y = lay.h <= vh ? lay.h / 2 : clamp(c.p.y, vh / 2, lay.h - vh / 2);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, cw, ch);
+    ctx.setTransform(z, 0, 0, z, cw / 2 - G.cam.x * T * z, ch / 2 - G.cam.y * T * z); ctx.imageSmoothingEnabled = false;
+    const fl = FLOOR[b.type] || FLOOR.house, t0 = G.time || 0;
+    for (let y = 0; y < lay.h; y++) for (let x = 0; x < lay.w; x++) {
+      const v = lay.t[y * lay.w + x], px = x * T, py = y * T;
+      if (v === WALL) { ctx.fillStyle = '#2a2622'; ctx.fillRect(px, py, T, T); ctx.fillStyle = '#4a443c'; ctx.fillRect(px, py, T, 4); ctx.fillStyle = '#1a1714'; ctx.fillRect(px, py + T - 3, T, 3); if ((x + y) % 3 === 0) { ctx.fillStyle = '#3a342c'; ctx.fillRect(px + 3, py + 6, 4, 3); } continue; }
+      ctx.fillStyle = fl[(x + y) & 1]; ctx.fillRect(px, py, T, T);
+      if (b.type === 'house' || b.type === 'police') { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + 5, T, 1); ctx.fillRect(px, py + 11, T, 1); }
+      if (v === DOOR) { ctx.fillStyle = '#3a2a18'; ctx.fillRect(px, py, T, T); ctx.fillStyle = '#e8c860'; ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t0 * 4); ctx.fillRect(px + 2, py + 2, T - 4, T - 4); ctx.globalAlpha = 1; }
+    }
+    for (const f of lay.furn) { const px = f.x * T, py = f.y * T; ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(px + 1, py + 11, T, 4); if (f.kind === 'bed') { ctx.fillStyle = '#4a5a7a'; ctx.fillRect(px + 1, py + 3, T - 2, 11); ctx.fillStyle = '#e8e0d0'; ctx.fillRect(px + 2, py + 4, 5, 4); } else if (f.kind === 'shelf') { ctx.fillStyle = '#5a4a30'; ctx.fillRect(px + 1, py + 2, T - 2, 12); ctx.fillStyle = '#8a7a58'; ctx.fillRect(px + 1, py + 2, T - 2, 2); } else { ctx.fillStyle = '#7a5a34'; ctx.fillRect(px + 1, py + 4, T - 2, 9); ctx.fillStyle = '#9a7444'; ctx.fillRect(px + 1, py + 4, T - 2, 2); } }
+    for (let i = 0; i < lay.cont.length; i++) {
+      const k = lay.cont[i], items = b.cont[i], px = k.x * T, py = k.y * T, col = CONTC[k.kind] || '#8a6a3a', has = items.length > 0;
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px + 1, py + 11, T, 4);
+      ctx.fillStyle = col; ctx.fillRect(px + 1, py + 2, T - 2, 12); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(px + 1, py + 2, T - 2, 2); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px + 1, py + 13, T - 2, 1);
+      if (has) { ctx.globalAlpha = 0.5 + 0.35 * Math.sin(t0 * 5 + i); ctx.fillStyle = '#ffe27a'; ctx.fillRect(px + 6, py + 5, 4, 4); ctx.globalAlpha = 1; } else { ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(px + 1, py + 2, T - 2, 12); }
+    }
+    // people and the dead, back to front
+    const ents = [...c.zs.filter(q => q.hp > 0), P]; ents.sort((a, d) => (a === P ? c.p.y : a.y) - (d === P ? c.p.y : d.y));
+    for (const o of ents) {
+      if (o === P) {
+        const sx = P.px, sy = P.py; P.px = c.p.x; P.py = c.p.y;
+        ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(Math.round(P.px * T - 5), Math.round(P.py * T - 1), 10, 3);
+        drawUnit(P, P.px, P.py + 0.1, P.face, 0); Weapons.drawHeld(ctx, P);
+        if (P.hp < PLAYER.hp) { ctx.fillStyle = '#000a'; ctx.fillRect(P.px * T - 6, P.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(P.px * T - 6, P.py * T - 26, 12 * Math.max(0, P.hp) / PLAYER.hp, 2); }
+        P.px = sx; P.py = sy;
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(Math.round(o.x * T - 5), Math.round(o.y * T - 1), 10, 3);
+        drawUnit(o, o.x, o.y + 0.1, o.face || 1, Math.sin(o.anim * 2) * 0.6);
+        if (o.hit > 0) { ctx.globalAlpha = 0.5; ctx.fillStyle = '#fff'; ctx.fillRect(o.x * T - 4, o.y * T - 14, 8, 12); ctx.globalAlpha = 1; }
+      }
+    }
+    // fire, effects
+    for (const tr of tracers) { if (tr.life <= 0) continue; ctx.strokeStyle = tr.slash ? '#fff' : tr.ap ? '#8fd0ff' : '#ffe9a0'; ctx.lineWidth = tr.slash ? 1.4 : 1; ctx.globalAlpha = Math.min(1, tr.life * 12); ctx.beginPath(); ctx.moveTo(tr.x1 * T, tr.y1 * T); ctx.lineTo(tr.x2 * T, tr.y2 * T); ctx.stroke(); ctx.globalAlpha = 1; }
+    for (const p of parts) { ctx.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1); ctx.fillStyle = p.color; ctx.fillRect(p.x * T, p.y * T, p.size, p.size); }
+    ctx.globalAlpha = 1;
+    // darkness: only a pool of light round you
+    const lx = c.p.x * T, ly = (c.p.y - 0.4) * T, g = ctx.createRadialGradient(lx, ly, T * 2, lx, ly, T * 9);
+    g.addColorStop(0, 'rgba(4,6,10,0)'); g.addColorStop(1, 'rgba(4,6,10,0.92)'); ctx.fillStyle = g; ctx.fillRect(0, 0, lay.w * T, lay.h * T);
+    for (const f of flashes) if (f.life > 0) { const fg = ctx.createRadialGradient(f.x * T, f.y * T, 0, f.x * T, f.y * T, T * 3.4); fg.addColorStop(0, 'rgba(255,220,140,.4)'); fg.addColorStop(1, 'rgba(255,220,140,0)'); ctx.fillStyle = fg; ctx.fillRect((f.x - 4) * T, (f.y - 4) * T, T * 8, T * 8); }
+    for (let i = flashes.length - 1; i >= 0; i--) { flashes[i].life -= realDt; if (flashes[i].life <= 0) flashes.splice(i, 1); }
+    // labels
+    ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const tx of texts) { ctx.globalAlpha = clamp(tx.life, 0, 1); ctx.fillStyle = '#000'; ctx.fillText(tx.str, tx.x * T + 0.7, tx.y * T + 0.7); ctx.fillStyle = tx.color; ctx.fillText(tx.str, tx.x * T, tx.y * T); } ctx.globalAlpha = 1;
+    for (const e of lay.exits) { ctx.fillStyle = 'rgba(255,230,160,.85)'; ctx.font = '6px monospace'; ctx.fillText({ S: 'FRONT', N: 'BACK', W: 'WEST', E: 'EAST' }[e.side], (e.cx + 0.5) * T, (e.cy + (e.side === 'N' ? 1.9 : e.side === 'S' ? -0.9 : 0.5)) * T); }
+    if (I.prompt) { const p = I.prompt; ctx.font = '7px monospace'; const w = ctx.measureText(p.text).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(p.x * T - w / 2, p.y * T - 22, w, 11); ctx.strokeStyle = p.kind === 'none' ? '#8a8f98' : '#ffd27a'; ctx.lineWidth = 1; ctx.strokeRect(p.x * T - w / 2 + 0.5, p.y * T - 21.5, w - 1, 10); ctx.fillStyle = '#ffe9b0'; ctx.fillText(p.text, p.x * T, p.y * T - 16.5); }
+    Combat.draw(ctx);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = 'rgba(0,0,0,' + (I.fade / 0.35) + ')'; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '12px monospace'; ctx.textAlign = 'left'; ctx.fillText(BUILDING_TYPES[b.type].label + (b.locked ? '' : '') + ' · ' + c.zs.filter(q => q.hp > 0).length + ' of the dead inside · ' + b.cont.filter(a => a.length).length + ' places left to search', 16, 70);
+  };
+  return I;
 })();
 
 /* js/weapons.js */
@@ -5277,23 +5787,26 @@ const Weapons = (() => {
     ctx.fillStyle = '#000b'; ctx.fillRect(x - 9, y + r + 3, 18, 3); ctx.fillStyle = f > 0.5 ? '#e8524a' : '#ff9a3a'; ctx.fillRect(x - 9, y + r + 3, 18 * f, 3);
   };
 
-  // markers over buildings that can still be searched
+  // doors: every building has more than one way in. Marked where they are, with a prompt when you are standing at one.
   W_.drawSearchables = function (ctx) {
-    if (!G || AI.on) return;
+    if (!G || AI.on || P.inside) return;
     const t = G.time || 0;
     for (const b of buildings) {
-      if (b.looted || b.nest || b.crew) continue;
-      const cx = b.x + b.w / 2, cy = b.y + b.h, d = Math.hypot(cx - P.px, cy - P.py);
-      if (d > 14 || !explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) continue;
-      const px = cx * T, py = cy * T - 3, near = d < 2.6;
-      ctx.globalAlpha = near ? 1 : Math.max(0.35, 1 - d / 16);
-      if (b.locked) { ctx.drawImage(Items.canvas('keycard'), Math.round(px - 6), Math.round(py - 12), 12, 12); }
-      else ctx.drawImage(Items.canvas('scrap'), Math.round(px - 6), Math.round(py - 12 + Math.sin(t * 3 + b.x) * 1.2), 12, 12);
-      ctx.globalAlpha = 1;
-      if (near) {
-        const lab = (b.locked ? 'Locked: keycard or fuel' : 'Hold E: search the ' + BUILDING_TYPES[b.type].label.toLowerCase()); ctx.font = '7px monospace';
-        const w = ctx.measureText(lab).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 29, w, 12); ctx.strokeStyle = b.locked ? '#e8c547' : '#7fcf6a'; ctx.lineWidth = 1; ctx.strokeRect(px - w / 2 + 0.5, py - 28.5, w - 1, 11);
-        ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, px, py - 22.5); ctx.textAlign = 'left';
+      if (b.razed || b.nest || b.crew) continue;
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - P.px, cy - P.py);
+      if (d > 18 || !explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) continue;
+      const ex = Interior.exitsOf(b);
+      for (let i = 0; i < ex.length; i++) {
+        const e = ex[i], ox = e.out.x * T, oy = e.out.y * T, dd = Math.hypot(e.out.x - P.px, e.out.y - P.py), near = dd < 2.1;
+        ctx.globalAlpha = b.looted ? 0.3 : near ? 1 : Math.max(0.35, 1 - dd / 18);
+        ctx.fillStyle = b.locked ? '#e8c547' : b.looted ? '#6a6f78' : '#ffe27a'; ctx.fillRect(Math.round(ox - 7), Math.round(oy - 2), 14, 2); ctx.fillRect(Math.round(ox - 7), Math.round(oy - 6), 2, 4); ctx.fillRect(Math.round(ox + 5), Math.round(oy - 6), 2, 4);
+        if (i === 0 && !b.looted) { ctx.drawImage(Items.canvas(b.locked ? 'keycard' : 'scrap'), Math.round(ox - 6), Math.round(oy - 20 + Math.sin(t * 3 + b.x) * 1.2), 12, 12); }
+        ctx.globalAlpha = 1;
+        if (near && !b.looted) {
+          const lab = b.locked ? 'Locked: hold E to open it (keycard or fuel)' : 'E  Go inside the ' + BUILDING_TYPES[b.type].label.toLowerCase() + ' (' + ex.length + ' doors)'; ctx.font = '7px monospace';
+          const ww = ctx.measureText(lab).width + 8, ly = oy - 28; ctx.fillStyle = '#000d'; ctx.fillRect(ox - ww / 2, ly - 7, ww, 11); ctx.strokeStyle = b.locked ? '#e8c547' : '#7fcf6a'; ctx.lineWidth = 1; ctx.strokeRect(ox - ww / 2 + 0.5, ly - 6.5, ww - 1, 10);
+          ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, ox, ly - 1.5); ctx.textAlign = 'left';
+        }
       }
     }
   };
@@ -5316,7 +5829,7 @@ const Hints = (() => {
     { id: 'people', title: 'Someone joined you', text: 'Survivors walk the camp on their own. <b>Select</b> them (C), then right-click: a wall to man it, a building to scavenge. <b>K</b> sets what each one does when left alone.', when: () => G.elapsed > 240 && G.idle.length + defenders.length >= 1 },
     { id: 'climb', title: 'They climb, they don\'t break', text: 'Walls are never smashed: the dead <b>pile up and climb</b>. Kill them as they climb, put towers where they gather, and keep people on the wall. A gap lets them walk straight in.', when: () => zombies.some(z => z.mode === 2 && z.st === 2) },
     { id: 'horde', title: 'A horde is coming', text: 'A real horde is on its way. Get everyone to the walls, check your ammo, and hold the core. The camp is what matters: people can be replaced.', when: () => hordes.some(h => !h.minor) },
-    { id: 'lookout', title: 'You are flying blind', text: 'Build a <b>lookout</b> (4) so the fog lifts and you hear about hordes early. One on each side of camp is enough.', when: () => G.elapsed > 300 && !wall.some(k => k === K.LOOKOUT) },
+    { id: 'lookout', title: 'You are flying blind', text: 'Build a <b>lookout</b> (build menu, B) so the fog lifts and you hear about hordes early. One on each side of camp is enough.', when: () => G.elapsed > 300 && !wall.some(k => k === K.LOOKOUT) },
     { id: 'ammo', title: 'Running low on ammo', text: 'Rounds are the clock. Search buildings, send crews, and build a <b>workshop</b> to turn materials into ammo. Walls and towers help you spend less of it.', when: () => G.ammo < 20 && G.elapsed > 200 },
     { id: 'food', title: 'Food is running out', text: 'People eat constantly and starving ones stop fighting. Build <b>gardens</b>, scavenge farms and stores, and watch the net rate beside the food count.', when: () => G.food < 25 && G.elapsed > 200 },
     { id: 'water', title: 'Water matters', text: 'Everyone drinks. <b>Wells</b> and rain collectors make more. A <b>latrine</b> keeps hygiene up so people stay well.', when: () => G.water < 35 },
@@ -5331,12 +5844,13 @@ const Hints = (() => {
     { id: 'morale', title: 'Morale is slipping', text: 'Deaths hurt morale, wins heal it. Low morale slows defenders and stops new arrivals; far enough down, people desert. Rules (P) like Feasts can lift it.', when: () => G.morale < 40 },
     { id: 'tired', title: 'You are worn out', text: 'Swinging drains stamina. Out of it you hit weak and slow. Back off and let it recover, or shoot from range instead.', when: () => !!P.tired },
     { id: 'down', title: 'You went down', text: 'You come back at camp after a few seconds, a little poorer for it. The camp keeps going without you, so make sure it can.', when: () => P.dead > 0 && G.deaths >= 1 },
-    { id: 'weapon', title: 'A new gun', text: 'You have another gun now. Press <b>B</b> to switch. The military ones (machine pistol, assault rifle, marksman rifle) can only be found; what you build at camp is cruder. Each gun keeps its own clip.', when: () => Combat.unlocked().length > 1 },
+    { id: 'weapon', title: 'A new gun', text: 'You have another gun now. Press <b>Q</b> to switch. The military ones (machine pistol, assault rifle, marksman rifle) can only be found; what you build at camp is cruder. Each gun keeps its own clip.', when: () => Combat.unlocked().length > 1 },
     { id: 'refugees', title: 'More people', text: 'Your camp is sealed, so <b>refugees</b> will start arriving, as long as there is food, spirits are up and there is room. You also find survivors hiding in buildings you search, and strangers sometimes wander in. The "New arrivals" line on the right tells you what is holding them back.', when: () => G.sealed && G.elapsed > 120 },
     { id: 'walledin', title: 'Wall in more ground', text: 'Your camp is sealed. Walls can close off far more than the camp: whole blocks, a district, the town. Everything inside a closed loop is yours. Add a second and third layer where they press hardest, and remember every wall you hold needs people and towers behind it.', when: () => G.sealed && G.elapsed > 400 },
     { id: 'train', title: 'Training', text: 'People who are not on guard can <b>train</b>. Open <b>K</b> and set Melee or Shoot, or select people (C) and use the buttons. Melee practice is free. Shooting practice burns ammo and the noise draws the dead. Past level 3 needs a <b>training yard</b>. Better weapons need a trained arm.', when: () => G.idle.length >= 2 },
     { id: 'weaponsmith', title: 'Make better weapons', text: 'A powered <b>workshop</b> can make melee weapons as well as ammo: spiked clubs, machetes, spears, and with Smithing, fire axes and war blades. Each person is handed the best one their skill allows. Heavier weapons hit harder but tire an untrained arm.', when: () => facilities.some(f => f.type === 'workshop') },
-    { id: 'demolish', title: 'Clear the ground', text: 'Need room for fields or beds? <b>Demolish</b> (N) pulls a building down: it takes time, leaves salvage, and the ground is free. Gardens, bunkhouses and wells go on free ground inside your walls.', when: () => G.sealed && G.elapsed > 500 },
+    { id: 'demolish', title: 'Clear the ground', text: 'Need room for fields or beds? <b>Demolish</b> (in the build menu, Land) pulls a building down: it takes time, leaves salvage, and the ground is free. Gardens, bunkhouses and wells go on free ground inside your walls.', when: () => G.sealed && G.elapsed > 500 },
+    { id: 'inside', title: 'Going inside', text: 'Press <b>E</b> at a door to go in. Open cabinets, fridges and lockers with E: that is where a building keeps its supplies. The dead inside stay put until you get close. Every building has more than one door: if the dead crowd the one you came in by, leave by another.', when: () => buildings.some(b => !b.looted && !b.razed && !b.nest && Math.hypot(b.x + b.w / 2 - P.px, b.y + b.h / 2 - P.py) < 5) },
     { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
     { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
     { id: 'secure', title: 'Making a town secure', text: 'A town is <b>secured</b> when it can look after itself: walls sealed and manned, food and water growing, ammo being made. Press <b>Y</b> to see what is missing. Secure it, then move on to the next.', when: () => G.level >= 3 && G.sealed },
@@ -5397,11 +5911,11 @@ const Intro = (() => {
       target: () => ({ x: CORE.x + 0.5, y: CORE.y + 1.2 }), prog: () => I.fireP, done: () => G.fireLit !== false },
     { id: 'fight',  title: 'They followed you', text: 'Walkers are coming up the road. <b>Aim with the mouse</b> and hold the <b>left button</b> to fire. <kbd>R</kbd> reloads. <kbd>F</kbd> or right-click swings at anything close. Every shot is heard. Put down 3.',
       prog: () => Math.min(1, (G.kills - I.k0) / 3), done: () => G.kills - I.k0 >= 3, start() { I.k0 = G.kills; spawnWalkers(3); } },
-    { id: 'search', title: 'Search a building', text: 'The marked house may still hold food, ammo and scrap. Walk to its door and hold <kbd>E</kbd>. A window will show what you found.',
-      target: () => { const b = I.house; return b ? { x: b.x + b.w / 2, y: b.y + b.h + 0.4 } : null; }, done: () => !I.house || I.house.looted, start() { I.house = pickHouse(); } },
-    { id: 'wall',   title: 'Plan a wall', text: 'Press <kbd>1</kbd> (Wall) and click the ground just outside camp, or drag to draw a line. Walls are <b>planned</b>, not built: the wood &amp; scrap is set aside and they wait for hands.',
+    { id: 'search', title: 'Search a building', text: 'The marked house may still hold food, ammo and scrap. Walk to a door and press <kbd>E</kbd> to go inside, then <kbd>E</kbd> at the cabinets and drawers. Every building has more than one way out.',
+      target: () => { const b = I.house; if (!b || P.inside) return null; const e = Interior.exitsOf(b)[0].out; return { x: e.x, y: e.y }; }, done: () => !I.house || I.house.looted || (G.intro && G.intro.opened), start() { I.house = pickHouse(); } },
+    { id: 'wall',   title: 'Plan a wall', text: 'Press <kbd>B</kbd> to open the build menu, pick <b>Wall</b>, then click the ground just outside camp or drag a line. Walls are <b>planned</b>, not built: the wood &amp; scrap is set aside and they wait for hands. <kbd>B</kbd> again returns you to the fight.',
       prog: () => Math.min(1, (wallCount() + (G.blue || []).length) / 4), done: () => wallCount() + (G.blue || []).length >= 4 },
-    { id: 'build',  title: 'Build it', text: 'Stand next to the blueprints and hold still. Each piece takes time, and you only have one pair of hands. <kbd>J</kbd> opens the build queue where you can set what comes first.',
+    { id: 'build',  title: 'Build it', text: 'The wood is in the camp stockpile, not on the wall. Stand by the fire to <b>load up</b>, carry it to the plan (an arrow shows the way), then stand beside it and hold still. A rookie is slow, and <kbd>J</kbd> shows the queue.',
       prog: () => Math.min(1, wallCount() / 4), done: () => wallCount() >= 4 && !(G.blue || []).length },
     { id: 'pack',   title: 'Know what you have', text: 'Press <kbd>I</kbd>. Your pack and the camp stockpile are listed with what each resource is for. Wood &amp; scrap builds, food and water keep people alive, ammo is everything.',
       done: () => I.packSeen },
@@ -5481,7 +5995,7 @@ const Intro = (() => {
     }
     I.cache = null;
     if (!skipped) { floatText(P.px, P.py - 1.6, 'THE CAMP STANDS', '#ffe27a'); log('The camp stands. Hold it. Others will come, and so will the dead.'); }
-    toast(skipped ? 'Tutorial skipped. Press J (build queue), I (pack), K (work) any time.' : 'You are on your own now. Hold the line.');
+    toast(skipped ? 'Tutorial skipped. B builds, K crew, I pack, J build queue.' : 'You are on your own now. Hold the line.');
   }
   I.update = function (dt) {
     const g = G.intro; if (!g || I.slidesOpen()) return;
@@ -5803,6 +6317,7 @@ function drawWorld(cam, cw, ch, z) {
       if (o.tired) { ctx.fillStyle = '#e8c547'; const zx = o.px * T + 5, zy = o.py * T - 27 - ((G.time * 6 | 0) % 2); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 2, zy + 1, 1, 1); ctx.fillRect(zx + 1, zy + 2, 1, 1); ctx.fillRect(zx, zy + 3, 3, 1); }
       drawUnit(o, o.px, o.py + 0.1, o.face, o.stab > 0 && o !== P ? -1 : 0);
       if (!crowd || o === P) Weapons.drawHeld(ctx, o);
+      if (o.carry && o.carry.plan && o.carry.plan.length) { const cx2 = Math.round(o.px * T - 4 - (o.face || 1) * 3), cy2 = Math.round(o.py * T - 20 + Math.sin(o.anim * 0.8) * 0.6); ctx.fillStyle = '#5a3a1a'; ctx.fillRect(cx2, cy2, 9, 6); ctx.fillStyle = '#8a5a2a'; ctx.fillRect(cx2, cy2, 9, 2); ctx.fillStyle = '#c8b090'; ctx.fillRect(cx2 + 4, cy2, 1, 6); }
       const mhp = o === P ? PLAYER.hp : (o.maxHp || 60);
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
       if (o.sta !== undefined && o.sta < STAMINA.max - 1) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12, 2); ctx.fillStyle = o.tired ? '#c9a23a' : '#6fb0e8'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12 * o.sta / STAMINA.max, 2); }
@@ -6061,6 +6576,7 @@ function updateFx(dt) {
 // ---- frame ---------------------------------------------------------------
 function render(realDt) {
   updateFx(realDt);
+  if (P.inside && Interior.active()) { Interior.render(realDt); return; }
   const { cam } = G, z = cam.zoom * dpr;
   const cw = canvas.width, ch = canvas.height;
   const sh = G.shake > 0 ? G.shake : 0, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
@@ -6147,7 +6663,7 @@ const Save = (() => {
     d.wall = b64(m.wall); d.explored = b64(m.explored); d.wallHp = b64(hp16); d.tier = b64(m.wallTier); d.elec = b64(m.elec);
     d.facilities = L.facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
     d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0) | (b.razed ? 4 : 0));
-    d.stock = L.buildings.map(b => b.stock); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
+    d.stock = L.buildings.map(b => b.stock); d.inside = L.buildings.map(b => (b.cont || b.zleft !== undefined) ? { c: b.cont || null, z: b.zleft === undefined ? null : b.zleft, u: b.locked ? 0 : 1 } : 0); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
     d.idle = g.idle; d.crews = g.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk, phase: c.phase || 'out', prog: c.prog || 0 }));
     d.defenders = L.defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s, blade: x.blade || null }));
     d.traps = L.traps.map(x => ({ ...x })); d.crates = L.crates.map(c => ({ ...c })); d.hordes = L.hordes.map(h => ({ ...h }));
@@ -6188,6 +6704,7 @@ const Save = (() => {
     for (const f of (td.facilities || [])) { const o = { type: f.type, x: f.x, y: f.y, t: 0, on: false }; if (f.type === 'turret') Object.assign(o, { px: f.x + 0.5, py: f.y + 0.5, cd: 0, mcd: 0, shot: 0, noiseT: 0, face: 1 }); facilities.push(o); facAt[f.y * W + f.x] = o; }
     for (const n of G.nests) if (buildings[n.bi]) buildings[n.bi].nest = true;
     if (td.stock) td.stock.forEach((st, i) => { if (buildings[i] && st) buildings[i].stock = st; });
+    if (td.inside) td.inside.forEach((v, i) => { const b = buildings[i]; if (b && v) { if (v.c) b.cont = v.c; if (v.z !== null && v.z !== undefined) b.zleft = v.z; } });
     if (td.sewers) td.sewers.forEach((f, i) => { if (sewers[i]) { sewers[i].found = !!(f & 1); sewers[i].sealed = !!(f & 2); } });
     let razedAny = false;
     td.buildings.forEach((f, i) => { const b = buildings[i]; if (b) { b.looted = !!(f & 1); b.crew = !!(f & 2); if (f & 4) { razedAny = true; b.razed = true; b.looted = true; for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === i) bld[y * W + x] = -1; } } });
@@ -6231,7 +6748,7 @@ const Save = (() => {
     Campaign.nextId = c.nextId || (Math.max(...Campaign.towns.map(t => t.id)) + 1);
     activeT = activeT || Campaign.towns[0];
     Towns.load(activeT); Campaign.active = activeT;
-    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {}; P.mw = d.P.mw || null;
+    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inside = false; Interior.cur = null; P.inv = d.P.inv || []; P.guns = d.P.guns || {}; P.mw = d.P.mw || null;
     computePlayerField(); updateVision();
     log('Game loaded');
     return true;
@@ -6269,7 +6786,7 @@ const TOOLS = [
   ...Object.keys(FACILITIES).map((id, n) => ({ cat: 'Facilities', id, key: '', label: FACILITIES[id].label, cost: facCost(id), lvl: FACILITIES[id].level, tip: FACILITIES[id].desc + ' (camp level ' + FACILITIES[id].level + ', inside territory)' })),
   { cat: 'People', id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
   { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
-  { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
+  { cat: 'People', id: 'erase',   key: '9', label: 'Erase',         cost: () => ({}),               tip: 'Remove a wall, trap or facility you built (refunds half), cancel a plan, or take a survivor off the wall.' },
   { cat: 'Camp', id: 'siren', key: '', label: 'Sound the siren', cost: () => HEAT.siren, tip: 'Deliberately draw a real horde to the camp. Click the camp core. Rare, big, and the only way besides noise to get one.' },
   { cat: 'Camp', id: 'radio',   key: '', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
@@ -6282,20 +6799,64 @@ const UI = (() => {
 
   // ---- build the static parts -------------------------------------------------------------
   const RESROW = [['a', 'rAmmo'], ['m', 'rMat'], ['f', 'rFood'], ['water', 'rWater'], ['fuel', 'rFuel'], ['med', 'rMed']];
+  // ---- the two states: the fight, and the build menu ------------------------------------------------------------------
+  const FIGHT_TOOLS = ['combat', 'orders'];
+  const inBuild = () => G && !FIGHT_TOOLS.includes(G.tool);
+  const TABS = [['Defence', ['Defense']], ['Traps', ['Traps & fire']], ['Facilities', ['Facilities']], ['Land & people', ['Land', 'People']], ['Camp', ['Camp']]];
+  let buildTab = 0;
+  function setTool(id) { G.tool = id; Snd.click(); }
+  function toggleBuild() { if (!G || G.over) return; setTool(inBuild() ? 'combat' : 'none'); }
+  function buildDock() {
+    const el = $('dock');
+    const b = (id, ic, label, key) => '<button id="dk' + id + '" title="' + label + '">' + Icons.img(ic, 24) + '<span>' + label + (key ? ' <kbd>' + key + '</kbd>' : '') + '</span></button>';
+    el.innerHTML = b('Fight', 'combat', 'Fight', '0') + b('Cmd', 'orders', 'Command', 'C') + '<span class="sep"></span>' + b('Build', 'wall', 'Build', 'B') + '<span class="sep"></span>' + b('Crew', 'crew', 'Crew', 'K') + b('Pack', 'depot', 'Pack', 'I') + b('Camp', 'bunkhouse', 'Camp', '') + b('More', 'generator', 'More', '');
+    $('dkFight').onclick = () => setTool('combat'); $('dkCmd').onclick = () => setTool('orders'); $('dkBuild').onclick = toggleBuild;
+    $('dkCrew').onclick = () => toggleWork(); $('dkPack').onclick = () => togglePack();
+    $('dkCamp').onclick = () => { document.body.classList.toggle('side-open'); Snd.click(); };
+    $('dkMore').onclick = () => { document.body.classList.toggle('more-open'); Snd.click(); };
+  }
+  function buildMenu() {
+    const el = $('bmenu');
+    el.innerHTML = '<div class="tabs">' + TABS.map((t, i) => '<button data-tab="' + i + '">' + t[0] + '</button>').join('') + '<span class="grow"></span><button id="bmDone">Back to the fight <kbd>B</kbd></button></div><div class="cards" id="bcards"></div><div class="btip" id="btip">Pick something, then click the ground. Nothing is built at once: it is planned, supplied and then worked.</div>';
+    el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { buildTab = +b.dataset.tab; renderCards(); Snd.click(); });
+    $('bmDone').onclick = () => setTool('combat');
+    renderCards();
+  }
+  function renderCards() {
+    const cards = $('bcards'), cats = TABS[buildTab][1];
+    document.querySelectorAll('#bmenu [data-tab]').forEach(b => b.classList.toggle('on', +b.dataset.tab === buildTab));
+    cards.innerHTML = '';
+    for (const t of TOOLS) {
+      if (!cats.includes(t.cat) || FIGHT_TOOLS.includes(t.id)) continue;
+      const b = document.createElement('button'); b.className = 'bcard'; b.dataset.tool = t.id; b.title = t.tip;
+      b.innerHTML = Icons.img(t.id, 40) + '<span>' + t.label + '</span><span class="cc"></span>' + (t.key ? '<kbd>' + t.key + '</kbd>' : '');
+      b.addEventListener('click', () => setTool(t.id));
+      b.addEventListener('mouseenter', () => { $('btip').textContent = t.label + ': ' + t.tip; });
+      b.addEventListener('mouseleave', () => { const s = TOOLS.find(x => x.id === G.tool); $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick something, then click the ground.'; });
+      cards.appendChild(b);
+    }
+  }
+  function updateBuildMenu() {
+    const RI = { m: 'm', f: 'f', a: 'a', med: 'med', fuel: 'fuel', water: 'water' };
+    document.querySelectorAll('#bcards [data-tool]').forEach(b => {
+      const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost(), locked = t.lvl && G.level < t.lvl;
+      b.classList.toggle('on', G.tool === t.id);
+      b.style.display = t.hidden && t.hidden() ? 'none' : '';
+      const afford = !(c.m || c.f || c.a || c.med || c.fuel) || canAfford(c);
+      b.classList.toggle('dim', !!locked || !afford);
+      const cc = b.querySelector('.cc'), key = t.id + JSON.stringify(c) + locked + afford;
+      if (cc.dataset.k !== key) { cc.dataset.k = key; cc.innerHTML = t.id === 'def' ? G.idle.length + ' idle' : locked ? 'camp level ' + t.lvl : Object.keys(c).filter(k => c[k]).map(k => '<span>' + Items.img(RI[k] || k, 11) + c[k] + '</span>').join('') || 'free'; }
+    });
+    const s = TOOLS.find(x => x.id === G.tool);
+    if (!document.querySelector('#bcards .bcard:hover')) $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick something, then click the ground. Nothing is built at once: it is planned, supplied and then worked.';
+  }
+
   function init() {
     Loot.init(); $('introCard').addEventListener('click', () => Intro.onClick());
     for (const [k, id] of RESROW) { const b = $(id).parentElement.querySelector('b'); if (b) b.outerHTML = '<img src="' + Items.url(k) + '" alt="">'; }
     $('packChip').addEventListener('click', () => togglePack()); $('jobChip').addEventListener('click', () => toggleJobs());
-    const list = $('toolList');
-    let lastCat = '';
-    for (const t of TOOLS) {
-      if (t.cat !== lastCat) { lastCat = t.cat; const h = document.createElement('div'); h.className = 'cat'; h.textContent = t.cat; list.appendChild(h); }
-      const b = document.createElement('button');
-      b.className = 'tool'; b.dataset.tool = t.id; b.title = t.tip;
-      b.innerHTML = '<span class="nm">' + (t.key ? '<kbd>' + t.key + '</kbd>' : '') + t.label + '</span><span class="cost"></span>';
-      b.addEventListener('click', () => { G.tool = t.id; Snd.click(); });
-      list.appendChild(b);
-    }
+    for (const id of ['townWrap', 'rMat', 'rFood', 'rWater', 'rFuel', 'rMed', 'jobChip', 'packChip', 'morWrap']) { const e = $(id); const w = e.classList.contains('res') ? e : e.parentElement; w.classList.add('bo'); }
+    buildDock(); buildMenu();
     document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
       const s = +b.dataset.speed; if (s === 0) G.paused = !G.paused; else { G.paused = false; G.speed = s; }
     }));
@@ -6313,6 +6874,36 @@ const UI = (() => {
       b.textContent = RECIPES[k].label; b.title = RECIPES[k].weapon ? MW[RECIPES[k].weapon].label + ': ' + Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ', ' + RECIPES[k].time + 's. Melee weapon: damage x' + MW[RECIPES[k].weapon].dmg + ', reach ' + MW[RECIPES[k].weapon].reach + ', needs melee level ' + MW[RECIPES[k].weapon].need + (RECIPES[k].tech ? '. Needs research.' : '') : Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
       b.addEventListener('click', () => { G.craft = k; Snd.click(); }); cs.appendChild(b);
     }
+  }
+
+  const LOWS = [['food', () => G.food < 25], ['water', () => G.water < 25], ['ammo', () => G.ammo < 20], ['medicine', () => G.med < 1 && G.idle.some(s => s.sick > 0)]];
+  function updateModeUI() {
+    const b = inBuild(), bd = document.body;
+    bd.classList.toggle('mode-build', b); bd.classList.toggle('mode-play', !b);
+    $('dkFight').classList.toggle('on', G.tool === 'combat'); $('dkCmd').classList.toggle('on', G.tool === 'orders'); $('dkBuild').classList.toggle('on', b);
+    $('dkCamp').classList.toggle('on', bd.classList.contains('side-open')); $('dkMore').classList.toggle('on', bd.classList.contains('more-open'));
+    if (b) {
+      $('modeBanner').textContent = 'BUILD MODE: you are not shooting. Press B or Esc to get back to the fight.';
+      updateBuildMenu();
+      // zombies on you? the menu gets out of the way
+      if (!AI.on && !G.over) {
+        let close = P.hurt > 0;
+        if (!close) for (const z of zombies) { if (z.mode !== 0 && z.hp > 0 && (z.x - P.px) ** 2 + (z.y - P.py) ** 2 < 49) { close = true; break; } }
+        if (close) { G.tool = 'combat'; toast('Zombies on you. Back to the fight.'); Snd.error && Snd.error(); }
+      }
+    }
+    // the fight panel: health, stamina, what is in your hands
+    const w = Combat.WP(), mw = MW[P.mw && MW[P.mw] ? P.mw : 'knife'];
+    const hp = Math.max(0, P.hp) / PLAYER.hp * 100, sta = (P.sta === undefined ? 100 : P.sta) / STAMINA.max * 100;
+    const key = [hp | 0, sta | 0, w.label, P.mag, G.ammo | 0, P.reloadT > 0, mw.label, P.tired].join('|');
+    const cb = $('cbt'); if (cb.dataset.k !== key) {
+      cb.dataset.k = key;
+      cb.innerHTML = '<div class="bars"><div class="bar2"><i style="width:' + hp + '%;background:' + (hp < 35 ? 'var(--bad)' : '#6fcf6a') + '"></i></div><div class="bar2"><i style="width:' + sta + '%;background:' + (P.tired ? '#c9a23a' : '#6fb0e8') + '"></i></div></div>' +
+        '<div class="gun"><b>' + (P.reloadT > 0 ? 'RELOADING' : P.mag + ' <span style="color:var(--dim);font-size:13px">/ ' + (G.ammo | 0) + '</span>') + '</b><small>' + w.label + (Combat.unlocked().length > 1 ? ' · Q switch' : '') + '</small></div>' +
+        '<div class="gun"><b style="font-size:13px">' + mw.label + '</b><small>melee: F or right-click</small></div>';
+    }
+    const low = LOWS.filter(([, f]) => f()).map(([n]) => n); const lc = $('lowChip');
+    lc.textContent = low.length ? 'Running low: ' + low.join(', ') : ''; lc.classList.toggle('show', low.length > 0 && !G.intro);
   }
 
   // ---- HUD ---------------------------------------------------------------
@@ -6365,18 +6956,12 @@ const UI = (() => {
     if (G.hordeMsg) { hd.className = 'panel ' + G.hordeMsg.cls; hd.textContent = G.hordeMsg.text; }
     else if (G.herdMsg) { hd.className = 'panel alert'; hd.textContent = G.herdMsg; }
     else if (G.intro) { hd.className = 'panel'; hd.style.display = 'none'; }
+    else if (!inBuild() && !AI.on) { hd.style.display = 'none'; }
     else { hd.style.display = ''; hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
     if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = G.rescueKind === 'convoy' ? 'Convoy arrives in ' + fmtTime(Math.max(0, G.rescue)) : 'Broadcasting for supplies: next drop in ' + fmtTime(Math.max(0, G.dropT)) + ' - ends in ' + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
 
-    document.querySelectorAll('[data-tool]').forEach(b => {
-      const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost();
-      b.classList.toggle('on', G.tool === t.id);
-      b.style.display = t.hidden && t.hidden() ? 'none' : '';
-      const locked = t.lvl && G.level < t.lvl;
-      b.querySelector('.cost').textContent = t.id === 'def' ? G.idle.length + ' idle' : costStr(c) + (locked ? ' L' + t.lvl : '');
-      b.disabled = locked || (!!(c.m || c.f || c.a || c.med || c.fuel) && !canAfford(c));
-    });
+    updateModeUI();
     document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === 0 ? G.paused : !G.paused && +b.dataset.speed === G.speed));
     $('cUp').textContent = L.up ? costStr(L.up) : 'MAX';
     $('btnUp').disabled = !L.up || !canAfford(L.up);
@@ -6398,9 +6983,8 @@ const UI = (() => {
     if (P.travel > 0) $('respawn').textContent = 'Arriving in ' + G.townName + '...';
     else if (P.dead > 0) $('respawn').textContent = 'Survivor down - a replacement arrives in ' + Math.ceil(P.dead) + 's';
     const b = nearBuilding(), pr = $('prompt');
-    if (b && !G.over && P.dead <= 0) {
-      pr.style.display = 'block';
-      pr.textContent = b.locked && !b.looted && !b.nest ? 'Locked: hold E to open (keycard, or ' + KEYS.breachFuel + ' fuel to cut through)' : b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
+    if (b && !G.over && P.dead <= 0 && !P.inside && !AI.on && (b.nest || b.crew)) {
+      pr.style.display = 'block'; pr.textContent = b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : 'A crew is working here';
     } else pr.style.display = 'none';
 
     const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';
@@ -6545,11 +7129,11 @@ const UI = (() => {
       '<td><small>' + Build.costText(g.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
       '<td style="white-space:nowrap"><button data-gp="' + gi + '" data-d="1" title="Higher priority">▲</button><button data-gp="' + gi + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (g.prio === 3 ? '#ff8a6a' : g.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[g.prio] + '</b> <button data-gx="' + gi + '" title="Cancel the lot and get unused supplies back">✕</button></td></tr>').join('') :
       L.map(b => '<tr><td>' + (b.w ? '<span style="color:var(--amber)">▸</span> ' : '') + '<a href="#" data-go="' + b.id + '" style="color:inherit"><b>' + Build.label(b.tool) + '</b></a> <small style="color:var(--dim)">at ' + b.x + ',' + b.y + '</small></td>' +
-      '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(b.prog / b.work * 100) + '%;background:' + (b.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(b.work - b.prog) + 's of work</small></td>' +
+      '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(b.prog / b.work * 100) + '%;background:' + (b.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(b.work - b.prog) + 's of work' + ((b.have || 0) < (b.tot || 0) ? ' · supplies ' + (b.have || 0) + '/' + b.tot : '') + '</small></td>' +
       '<td><small>' + Build.costText(b.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
       '<td style="white-space:nowrap"><button data-p="' + b.id + '" data-d="1" title="Higher priority">▲</button><button data-p="' + b.id + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (b.prio === 3 ? '#ff8a6a' : b.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[b.prio] + '</b> <button data-x="' + b.id + '" title="Cancel and get the unused supplies back">✕</button></td></tr>').join('');
     el.innerHTML = '<div class="row"><h3>Build queue</h3><button id="jbClose" style="padding:2px 8px">Close (J)</button></div>' +
-      '<div style="color:var(--dim);margin-bottom:6px">Supplies are set aside the moment you place something. It is built by <b>you</b> (stand next to it and hold still) and by free survivors with <b>Build</b> on (K). Urgent jobs are worked first. ' + (L.length ? 'About <b>' + Math.ceil(left) + ' hand-seconds</b> of work queued; hands available: <b>' + (Build.hands | 0) + '</b>, working now: <b>' + (Build.busy | 0) + '</b>.' : '') + '</div>' +
+      '<div style="color:var(--dim);margin-bottom:6px">Supplies are set aside when you plan something, but they sit in the camp stockpile: someone has to <b>carry them over</b> first (stand by the fire to load up, or free survivors do it). Then it is built by <b>you</b> (stand next to it and hold still) and by survivors with <b>Build</b> on (K). Untrained hands are slow. Urgent jobs are worked first. ' + (L.length ? 'About <b>' + Math.ceil(left) + ' hand-seconds</b> of work queued; hands available: <b>' + (Build.hands | 0) + '</b>, working now: <b>' + (Build.busy | 0) + '</b>.' : '') + '</div>' +
       (L.length ? '<table class="wk" style="width:100%">' + rows + '</table><div style="margin-top:8px"><button id="jbClear">Cancel everything (refund unused)</button></div>' : '<div style="color:var(--dim)">Nothing queued. Pick a wall or tower and click or drag on the ground to plan it.</div>');
     $('jbClose').onclick = toggleJobs;
     const find = id => (G.blue || []).find(b => b.id === +id);
@@ -6944,17 +7528,18 @@ const UI = (() => {
       const k = e.key.toLowerCase();
       if (Intro.onKey(k)) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
-      if (k === 'escape') { if (!G) return; if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
+      if (k === 'escape') { if (!G) return; if (!menuMode && inBuild()) { G.tool = 'combat'; Snd.click(); return; } if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
       if (menuMode) return;
       keys[k] = true; if (e.shiftKey) keys.shift = true;
       if (!G) return;
-      if (toolKeys[k]) { const t = TOOLS.find(x => x.id === toolKeys[k]); if (!(t.hidden && t.hidden())) G.tool = t.id; }
+      if (toolKeys[k] && (inBuild() || k === '0' || k === 'c')) { const t = TOOLS.find(x => x.id === toolKeys[k]); if (!(t.hidden && t.hidden())) G.tool = t.id; }
+      else if (k === 'b') toggleBuild();
+      else if (k === 'q' && !inBuild() && !AI.on) Combat.swap();
       else if (k === 'u') upgradeCore();
       else if (k === 'x') { Units.standDownSelected(); lastPeople = ''; }
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
       else if (k === 'i') togglePack();
-      else if (k === 'b' && G.tool === 'combat' && !AI.on) Combat.swap();
       else if (k === 'j') toggleJobs();
       else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();

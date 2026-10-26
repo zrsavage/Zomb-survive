@@ -38,7 +38,7 @@ const Build = (() => {
   // pulling a building down: it takes time, leaves rubble and a pile of salvage, and the ground is free for walls, fields and beds
   B.demolish = b => {
     if (b.razed) return; if (b.nest) return warn('Clear the nest first'); if (b.crew) return warn('A crew is working there');
-    if (B.at(b.x, b.y)) return warn('Already marked for demolition. Erase it to cancel.');
+    if (B.at(b.x, b.y)) return warn('Already marked for demolition. The Erase tool cancels it.');
     const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, tot: 0, have: 0, work: 12 + b.w * b.h * 3.2, prog: 0, prio: 2 };
     list().push(bp); Snd.click();
     floatText(b.x + b.w / 2, b.y - 0.3, 'demolish: ' + Math.ceil(bp.work) + 's of work', '#e8c070');

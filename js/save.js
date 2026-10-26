@@ -23,7 +23,7 @@ const Save = (() => {
     d.wall = b64(m.wall); d.explored = b64(m.explored); d.wallHp = b64(hp16); d.tier = b64(m.wallTier); d.elec = b64(m.elec);
     d.facilities = L.facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
     d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0) | (b.razed ? 4 : 0));
-    d.stock = L.buildings.map(b => b.stock); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
+    d.stock = L.buildings.map(b => b.stock); d.inside = L.buildings.map(b => (b.cont || b.zleft !== undefined) ? { c: b.cont || null, z: b.zleft === undefined ? null : b.zleft, u: b.locked ? 0 : 1 } : 0); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
     d.idle = g.idle; d.crews = g.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk, phase: c.phase || 'out', prog: c.prog || 0 }));
     d.defenders = L.defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s, blade: x.blade || null }));
     d.traps = L.traps.map(x => ({ ...x })); d.crates = L.crates.map(c => ({ ...c })); d.hordes = L.hordes.map(h => ({ ...h }));
@@ -64,6 +64,7 @@ const Save = (() => {
     for (const f of (td.facilities || [])) { const o = { type: f.type, x: f.x, y: f.y, t: 0, on: false }; if (f.type === 'turret') Object.assign(o, { px: f.x + 0.5, py: f.y + 0.5, cd: 0, mcd: 0, shot: 0, noiseT: 0, face: 1 }); facilities.push(o); facAt[f.y * W + f.x] = o; }
     for (const n of G.nests) if (buildings[n.bi]) buildings[n.bi].nest = true;
     if (td.stock) td.stock.forEach((st, i) => { if (buildings[i] && st) buildings[i].stock = st; });
+    if (td.inside) td.inside.forEach((v, i) => { const b = buildings[i]; if (b && v) { if (v.c) b.cont = v.c; if (v.z !== null && v.z !== undefined) b.zleft = v.z; } });
     if (td.sewers) td.sewers.forEach((f, i) => { if (sewers[i]) { sewers[i].found = !!(f & 1); sewers[i].sealed = !!(f & 2); } });
     let razedAny = false;
     td.buildings.forEach((f, i) => { const b = buildings[i]; if (b) { b.looted = !!(f & 1); b.crew = !!(f & 2); if (f & 4) { razedAny = true; b.razed = true; b.looted = true; for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === i) bld[y * W + x] = -1; } } });
@@ -107,7 +108,7 @@ const Save = (() => {
     Campaign.nextId = c.nextId || (Math.max(...Campaign.towns.map(t => t.id)) + 1);
     activeT = activeT || Campaign.towns[0];
     Towns.load(activeT); Campaign.active = activeT;
-    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {}; P.mw = d.P.mw || null;
+    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inside = false; Interior.cur = null; P.inv = d.P.inv || []; P.guns = d.P.guns || {}; P.mw = d.P.mw || null;
     computePlayerField(); updateVision();
     log('Game loaded');
     return true;

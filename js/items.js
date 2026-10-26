@@ -143,7 +143,8 @@ const Loot = (() => {
   function leave() {
     const c = L.cur; if (!c) return;
     const left = c.entries.filter(e => e.n > 0);
-    if (c.o.crate) { const i = crates.indexOf(c.o.crate); if (left.length) c.o.crate.items = left; else if (i >= 0) crates.splice(i, 1); }
+    if (c.o.keep) c.o.keep(left);
+    else if (c.o.crate) { const i = crates.indexOf(c.o.crate); if (left.length) c.o.crate.items = left; else if (i >= 0) crates.splice(i, 1); }
     else if (left.length && c.o.x !== undefined) crates.push({ x: c.o.x, y: c.o.y, t: Items.DROP.life, type: 'pile', items: left });   // what you leave stays on the ground
     L.cur = null; L.cd = 0.3; keys.e = false;
     el.classList.remove('show');
@@ -161,7 +162,7 @@ const Loot = (() => {
   function render() {
     const c = L.cur; if (!c) return;
     el.classList.add('show');
-    el.innerHTML = '<div class="row"><h3>' + c.title + '</h3></div><div style="color:var(--dim);margin-bottom:6px">Take what you want. Whatever you leave stays on the ground.</div>' +
+    el.innerHTML = '<div class="row"><h3>' + c.title + '</h3></div><div style="color:var(--dim);margin-bottom:6px">' + (c.o.keep ? 'Take what you want. What you leave stays where it is.' : 'Take what you want. Whatever you leave stays on the ground.') + '</div>' +
       c.entries.map((e, i) => e.n > 0 ? '<div class="lootrow">' + Items.img(entryKey(e), 28) + '<span class="ln"><b>' + entryName(e) + '</b> <span class="lq">x' + e.n + '</span><br><small>' + (e.r ? Items.RES[e.r].use : Items.ITEMS[e.i].desc) + '</small></span><button data-t="' + i + '">Take</button></div>' : '').join('') +
       '<div class="row" style="margin-top:8px"><button id="lootAll">Take all <kbd>E</kbd></button><button id="lootLeave">Leave <kbd>Esc</kbd></button></div>';
     el.querySelectorAll('button[data-t]').forEach(b => b.onclick = () => takeIdx(+b.dataset.t));

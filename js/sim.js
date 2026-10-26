@@ -210,6 +210,7 @@ function buildTown(seed, name, opts) {
     time: 0, hover: null, deaths: 0, morale: MORALE.start, moraleTarget: MORALE.start, desertT: MORALE.desertGap, memorial: Campaign.memorial,
     story: storyKey || 'cassandra', rules: {}, ruleCd: 0, flags: Campaign.flags, radioT: 200, radioMsg: null, rescueKind: 'heli', stress: 0, stressT: 1, recentDeaths: 0, relT: REL.checkGap, noticeR: AMBIENT.notice, nfT: 0,
   };
+  Interior.cur = null;
   P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0, mag: 12, reloadT: 0, bloom: 0, sta: 100, tired: false, emptyT: 0, mcd: 0 };
   Art.renderTerrain();
   computeBaseField(); computePlayerField(); computeTerritory(); Survival.refreshIncome();
@@ -774,6 +775,7 @@ const lootTime = () => LOOT_TIME * (has('scav') ? 0.7 : 1);
 // Your survivor is expendable: only the camp falling ends the run.
 function killPlayer() {
   if (P.dead > 0) return;
+  if (P.inside) Interior.forceOut();
   P.dead = PLAYER.respawn; P.hp = 0; P.loot = 0; P.moving = false; G.deaths++;
   for (const z of zombies) if (z.mode === 1 || z.mode === 3) { z.mode = 0; z.lose = 0; }     // the pack that killed you loses the trail
   P.px = CORE.x + 0.5; P.py = CORE.y + 2.8;                 // chasers lose the trail and head for the walls
@@ -790,6 +792,7 @@ function updatePlayer(dt) {
     if (P.dead <= 0) { P.dead = 0; P.hp = PLAYER.hp * 0.6; P.hurt = 0; P.safe = 4; log('A new survivor takes the field.'); }
     return;
   }
+  if (P.inside) { Interior.update(dt); return; }                       // you are indoors: that has its own rules
   let mx = 0, my = 0;
   if (keys.w || keys.arrowup) my -= 1;
   if (keys.s || keys.arrowdown) my += 1;
@@ -819,9 +822,30 @@ function updatePlayer(dt) {
     P.hp = Math.min(PLAYER.hp, P.hp + ((safe ? 2.5 : 0.3) + medic) * (has('medicine') ? 2 : 1) * dt);
   }
 
-  // scavenging: hold E beside a building
+  // buildings: go in through a door (E). The bot still searches from the street.
   const b = nearBuilding();
-  if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving && !Loot.near && !Loot.isOpen()) {
+  const ePress = keys.e && !P.ePrev; P.ePrev = !!keys.e;
+  P.doorAt = null;
+  if (!AI.on) {
+    if (b && !b.razed && !b.crew && !b.nest && !Loot.near && !Loot.isOpen()) {
+      const di = Interior.doorNear(b, P.px, P.py);
+      if (di !== null && !b.looted) {
+        P.doorAt = { b, di };
+        if (b.locked) {                                                    // locked: a keycard or a cutting torch, held while it works
+          const bi = buildings.indexOf(b);
+          const need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
+          if ((keys.e || P.autoE) && !moving) {
+            if (!need) { warn('Locked. You need a keycard or ' + KEYS.breachFuel + ' fuel to cut through.'); P.loot = 0; P.lootB = -1; }
+            else {
+              if (P.lootB !== bi) { P.lootB = bi; P.loot = 0; }
+              P.loot += dt; P.lootNeed = need.t; Snd.tick();
+              if (P.loot >= need.t) { if (need.key) G.keys--; if (need.fuel) { G.fuel -= need.fuel; addHeat(HEAT.breach); } if (b.type === 'bunker') addHeat(HEAT.vault); b.locked = false; P.loot = 0; P.lootB = -1; Interior.enter(b, di); }
+            }
+          } else { P.loot = 0; P.lootB = -1; }
+        } else if (ePress || P.autoE) { P.loot = 0; P.lootB = -1; P.autoE = false; Interior.enter(b, di); }
+      } else { P.loot = 0; P.lootB = -1; }
+    } else { P.loot = 0; P.lootB = -1; }
+  } else if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving && !Loot.near && !Loot.isOpen()) {
     const bi = buildings.indexOf(b);
     let need = { t: lootTime() };                                         // locked buildings need a keycard or a cutting torch (fuel)
     if (b.locked) need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
@@ -1143,7 +1167,7 @@ function tryBuild(tx, ty) {
   if (tool === 'crew') return;
   if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
   if (!G.completing && !explored[i]) return warn('Unexplored ground: walk closer, or build a lookout to see that far');
-  if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. Right-click-erase it to cancel.');
+  if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. The Erase tool cancels a plan.');
   if (TOOL_KIND[tool]) {
     const kind = TOOL_KIND[tool];
     if (tool === 'radio' && wall[i] === K.RADIO) return startBroadcast(true);                // click the tower again to call again

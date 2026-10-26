@@ -439,6 +439,7 @@ function updateFx(dt) {
 // ---- frame ---------------------------------------------------------------
 function render(realDt) {
   updateFx(realDt);
+  if (P.inside && Interior.active()) { Interior.render(realDt); return; }
   const { cam } = G, z = cam.zoom * dpr;
   const cw = canvas.width, ch = canvas.height;
   const sh = G.shake > 0 ? G.shake : 0, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;

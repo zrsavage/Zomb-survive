@@ -66,23 +66,26 @@ const Weapons = (() => {
     ctx.fillStyle = '#000b'; ctx.fillRect(x - 9, y + r + 3, 18, 3); ctx.fillStyle = f > 0.5 ? '#e8524a' : '#ff9a3a'; ctx.fillRect(x - 9, y + r + 3, 18 * f, 3);
   };
 
-  // markers over buildings that can still be searched
+  // doors: every building has more than one way in. Marked where they are, with a prompt when you are standing at one.
   W_.drawSearchables = function (ctx) {
-    if (!G || AI.on) return;
+    if (!G || AI.on || P.inside) return;
     const t = G.time || 0;
     for (const b of buildings) {
-      if (b.looted || b.nest || b.crew) continue;
-      const cx = b.x + b.w / 2, cy = b.y + b.h, d = Math.hypot(cx - P.px, cy - P.py);
-      if (d > 14 || !explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) continue;
-      const px = cx * T, py = cy * T - 3, near = d < 2.6;
-      ctx.globalAlpha = near ? 1 : Math.max(0.35, 1 - d / 16);
-      if (b.locked) { ctx.drawImage(Items.canvas('keycard'), Math.round(px - 6), Math.round(py - 12), 12, 12); }
-      else ctx.drawImage(Items.canvas('scrap'), Math.round(px - 6), Math.round(py - 12 + Math.sin(t * 3 + b.x) * 1.2), 12, 12);
-      ctx.globalAlpha = 1;
-      if (near) {
-        const lab = (b.locked ? 'Locked: keycard or fuel' : 'Hold E: search the ' + BUILDING_TYPES[b.type].label.toLowerCase()); ctx.font = '7px monospace';
-        const w = ctx.measureText(lab).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 29, w, 12); ctx.strokeStyle = b.locked ? '#e8c547' : '#7fcf6a'; ctx.lineWidth = 1; ctx.strokeRect(px - w / 2 + 0.5, py - 28.5, w - 1, 11);
-        ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, px, py - 22.5); ctx.textAlign = 'left';
+      if (b.razed || b.nest || b.crew) continue;
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = Math.hypot(cx - P.px, cy - P.py);
+      if (d > 18 || !explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) continue;
+      const ex = Interior.exitsOf(b);
+      for (let i = 0; i < ex.length; i++) {
+        const e = ex[i], ox = e.out.x * T, oy = e.out.y * T, dd = Math.hypot(e.out.x - P.px, e.out.y - P.py), near = dd < 2.1;
+        ctx.globalAlpha = b.looted ? 0.3 : near ? 1 : Math.max(0.35, 1 - dd / 18);
+        ctx.fillStyle = b.locked ? '#e8c547' : b.looted ? '#6a6f78' : '#ffe27a'; ctx.fillRect(Math.round(ox - 7), Math.round(oy - 2), 14, 2); ctx.fillRect(Math.round(ox - 7), Math.round(oy - 6), 2, 4); ctx.fillRect(Math.round(ox + 5), Math.round(oy - 6), 2, 4);
+        if (i === 0 && !b.looted) { ctx.drawImage(Items.canvas(b.locked ? 'keycard' : 'scrap'), Math.round(ox - 6), Math.round(oy - 20 + Math.sin(t * 3 + b.x) * 1.2), 12, 12); }
+        ctx.globalAlpha = 1;
+        if (near && !b.looted) {
+          const lab = b.locked ? 'Locked: hold E to open it (keycard or fuel)' : 'E  Go inside the ' + BUILDING_TYPES[b.type].label.toLowerCase() + ' (' + ex.length + ' doors)'; ctx.font = '7px monospace';
+          const ww = ctx.measureText(lab).width + 8, ly = oy - 28; ctx.fillStyle = '#000d'; ctx.fillRect(ox - ww / 2, ly - 7, ww, 11); ctx.strokeStyle = b.locked ? '#e8c547' : '#7fcf6a'; ctx.lineWidth = 1; ctx.strokeRect(ox - ww / 2 + 0.5, ly - 6.5, ww - 1, 10);
+          ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, ox, ly - 1.5); ctx.textAlign = 'left';
+        }
       }
     }
   };

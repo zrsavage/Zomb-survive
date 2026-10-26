@@ -224,9 +224,8 @@ const UI = (() => {
     if (P.travel > 0) $('respawn').textContent = 'Arriving in ' + G.townName + '...';
     else if (P.dead > 0) $('respawn').textContent = 'Survivor down - a replacement arrives in ' + Math.ceil(P.dead) + 's';
     const b = nearBuilding(), pr = $('prompt');
-    if (b && !G.over && P.dead <= 0) {
-      pr.style.display = 'block';
-      pr.textContent = b.locked && !b.looted && !b.nest ? 'Locked: hold E to open (keycard, or ' + KEYS.breachFuel + ' fuel to cut through)' : b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
+    if (b && !G.over && P.dead <= 0 && !P.inside && !AI.on && (b.nest || b.crew)) {
+      pr.style.display = 'block'; pr.textContent = b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : 'A crew is working here';
     } else pr.style.display = 'none';
 
     const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';

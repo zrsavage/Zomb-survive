@@ -38,7 +38,7 @@ const Campaign = {
     Towns.snapshot(this.active);
     Towns.load(t); this.active = t;
     G.tool = keep.tool; G.speed = keep.speed; G.paused = keep.paused; G.cam = { x: CORE.x + 0.5, y: CORE.y + 3, zoom: keep.zoom, free: false };
-    P.px = CORE.x + 0.5; P.py = CORE.y + 2.8; P.dead = 0; P.hp = Math.max(P.hp, 40); P.travel = TRAVEL.arrive; P.loot = 0; P.moving = false;
+    P.inside = false; Interior.cur = null; P.px = CORE.x + 0.5; P.py = CORE.y + 2.8; P.dead = 0; P.hp = Math.max(P.hp, 40); P.travel = TRAVEL.arrive; P.loot = 0; P.moving = false;
     computePlayerField(); updateVision();
     if (t.pending) {                                    // a horde that was on its way in the background arrives for real
       const pd = t.pending; t.pending = null;
@@ -94,7 +94,7 @@ const Campaign = {
     const seed = (Math.random() * 2 ** 31) | 0, profile = { wealth: 1.2 + rng() * 0.3, ambient: 1.1 };
     buildTown(seed, name, { wealth: profile.wealth, ambient: profile.ambient, safe: 19, grace: FOUND.grace, res: { mat: FOUND.cost.m, food: FOUND.cost.f, ammo: FOUND.cost.a, fuel: FOUND.cost.fuel - FOUND.tripFuel, water: FOUND.cost.water, med: 2 } });
     G.idle.push(...founders);
-    G.tool = keep.tool; G.speed = keep.speed; G.cam.zoom = keep.zoom; P.travel = TRAVEL.arrive;
+    G.tool = keep.tool; G.speed = keep.speed; G.cam.zoom = keep.zoom; P.travel = TRAVEL.arrive; P.inside = false; Interior.cur = null;
     const t = Towns.register(name, seed, profile); this.active = t;
     log('You founded ' + name + ' with ' + founders.length + ' survivors. It is a ruined camp: fortify it, and keep an eye on ' + this.towns[0].name + ' while you are away.');
     Snd.upgrade();
