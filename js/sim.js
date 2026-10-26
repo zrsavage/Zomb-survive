@@ -676,6 +676,7 @@ function fight(e, dt, o) {
   for (let j = 0; j < zombies.length; j++) {
     const z = zombies[j]; if (z.hp <= 0) continue;
     const dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
+    if (e !== P && !vis[(z.y | 0) * W + (z.x | 0)]) continue;      // nobody shoots at what they cannot see (fog, storms)
     if (o.noiseMode === 1 && z.mode !== 1 && q > 9) continue;      // the survivor does not waste rounds on idle dead that haven't noticed them
     if (o.noiseMode !== 1 && G.ammo < 30 && (z.mode === 0 || z.mode === 3) && q > 6) continue;
     if (q < bd) { bd = q; best = z; }

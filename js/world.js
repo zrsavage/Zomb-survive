@@ -259,12 +259,14 @@ function reveal(cx, cy, r) {
 }
 const fogCanvas = document.createElement('canvas'); fogCanvas.width = W; fogCanvas.height = H;
 const fogCtx = fogCanvas.getContext('2d'), fogImg = fogCtx.createImageData(W, H);
+// a posted defender sees as far as the gun can reach, and no further
+const defSight = d => { const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST; return (tower ? GUN.towerRange : GUN.range) * (d.s.role === 'sniper' ? SNIPER.range : 1) * tmul(d.s, 'range') + 2; };
 function updateVision() {
   vis.fill(0);
   const storm = (G.storm > 0 ? 0.65 : 1) * (G.fog > 0 ? FOG.vision : 1);
   reveal(P.px, P.py, PLAYER.vision * storm);
-  reveal(CORE.x + 0.5, CORE.y + 0.5, 8 * storm);
-  for (const d of defenders) reveal(d.px, d.py, 7 * storm);
+  reveal(CORE.x + 0.5, CORE.y + 0.5, 12 * storm);
+  for (const d of defenders) reveal(d.px, d.py, defSight(d) * storm);
   G.lookouts = []; G.outposts = [];
   for (let i = 0; i < W * H; i++) if (wall[i] === K.LOOKOUT || wall[i] === K.OUTPOST) {
     const x = i % W + 0.5, y = ((i / W) | 0) + 0.5;

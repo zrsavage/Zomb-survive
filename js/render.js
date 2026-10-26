@@ -308,14 +308,14 @@ function collectLights(cam) {
   const fl = 1 + Math.sin(t * 13) * 0.06 + Math.sin(t * 7.1) * 0.05;
   if (G.fireLit === false) L.push({ x: CORE.x + 0.5, y: CORE.y + 1.6, r: 2.6, a: 0.35, c: [200, 90, 40], glow: 0.04 });         // a dead fire: a few embers
   else L.push({ x: CORE.x + 0.5, y: CORE.y + 1.6, r: (9 + G.level * 0.5) * fl, a: 0.95, c: [255, 160, 70], glow: 0.22 });
-  if (P.dead <= 0) L.push({ x: P.px, y: P.py - 0.4, r: 5.6, a: 0.8, c: [255, 235, 190], glow: 0.05 });
+  if (P.dead <= 0) L.push({ x: P.px, y: P.py - 0.4, r: 11, a: 0.85, c: [255, 235, 190], glow: 0.05 });
   for (const l of lamps) {
     if (!l.on || !explored[(l.y | 0) * W + (l.x | 0)]) continue;
     const flick = Math.sin(t * 30 + l.ph) > 0.93 ? 0.3 : 1;
     L.push({ x: l.x, y: l.y - 0.6, r: 4.6 * flick, a: 0.7 * flick, c: [255, 225, 150], glow: 0.14 });
   }
   for (const lk of G.lookouts) L.push({ x: lk.x, y: lk.y - 0.4, r: 4, a: 0.6, c: [120, 200, 255], glow: 0.18 });
-  for (const d of defenders) L.push({ x: d.px, y: d.py - 0.4, r: 2.6, a: 0.4, c: [255, 220, 160], glow: 0.04 });
+  for (const d of defenders) L.push({ x: d.px, y: d.py - 0.4, r: 5.5, a: 0.55, c: [255, 220, 160], glow: 0.04 });
   for (const f of flashes) { f.life -= 0.016; if (f.life > 0) L.push({ x: f.x, y: f.y, r: 3.4, a: 1, c: [255, 220, 140], glow: 0.35 }); }
   flashes = flashes.filter(f => f.life > 0);
   for (const tr of traps) if (tr.type === 'barrel' && tr.fire > 0) L.push({ x: tr.x + 0.5, y: tr.y + 0.4, r: 6, a: 1, c: [255, 120, 40], glow: 0.35 });
@@ -337,7 +337,7 @@ function drawLighting(cam, cw, ch, z) {
   const [ar, ag, ab] = LIGHT.ambient, [dr, dg, db] = LIGHT.dangerTint;
   const mix = d * 0.35;
   lg.globalCompositeOperation = 'source-over';
-  lg.fillStyle = 'rgba(' + [lerp(ar, dr, mix), lerp(ag, dg, mix), lerp(ab, db, mix)].map(Math.round).join(',') + ',' + (storm ? LIGHT.stormAlpha : LIGHT.ambientAlpha) + ')';
+  lg.fillStyle = 'rgba(' + [lerp(ar, dr, mix), lerp(ag, dg, mix), lerp(ab, db, mix)].map(Math.round).join(',') + ',' + (storm ? LIGHT.stormAlpha : G.fog > 0 ? LIGHT.fogAlpha : LIGHT.ambientAlpha) + ')';
   lg.fillRect(0, 0, lw, lh);
   lg.globalCompositeOperation = 'destination-out';
   const L = collectLights(cam), sc = z / LS;
@@ -399,8 +399,8 @@ function drawAtmosphere(cw, ch) {
     ctx.fillStyle = hg; ctx.fillRect(0, 0, cw, ch);
   }
   // vignette
-  const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.55);
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.55 + G.danger * 0.15) + ')');
+  const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.5, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.6);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.32 + G.danger * 0.15) + ')');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
   // rain
   if (G.storm > 0) {

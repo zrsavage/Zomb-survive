@@ -173,6 +173,36 @@ const Units = (() => {
     }
     return best;
   }
+  // ---- chores: anyone with nothing to do tends the garden, tidies up or sits by the fire ------------------------------------
+  const CHORE = { farm: 0.03, clean: 0.05, relax: 0.07, gap: [14, 26] };
+  function pickChore(u) {
+    const gardens = facilities.filter(f => f.type === 'garden'), lats = facilities.filter(f => f.type === 'latrine');
+    const opts = [];
+    if (gardens.length) opts.push(['farm', G.food < 150 ? 3 : 1]);
+    opts.push(['clean', G.hygiene < 60 ? 4 : lats.length ? 1.5 : 1]);
+    opts.push(['relax', G.morale < 60 ? 4 : 1.5]);
+    let tot = 0; for (const o of opts) tot += o[1];
+    let r = rng() * tot, kind = opts[0][0]; for (const o of opts) { if ((r -= o[1]) < 0) { kind = o[0]; break; } }
+    let x, y;
+    if (kind === 'farm') { const g = pick(gardens); x = g.x + 0.5 + (rng() - 0.5) * 0.8; y = g.y + 1.1; }
+    else if (kind === 'clean') { const l = lats.length && rng() < 0.6 ? pick(lats) : null; const [hx, hy] = home(); x = l ? l.x + 0.5 + (rng() - 0.5) : hx + (rng() - 0.5) * 8; y = l ? l.y + 1.1 : hy + (rng() - 0.5) * 3; }
+    else { x = CORE.x + 0.5 + (rng() - 0.5) * 3.2; y = CORE.y + 2 + rng() * 0.8; }
+    if (!inb(x | 0, y | 0) || bld[(y | 0) * W + (x | 0)] >= 0 || wall[(y | 0) * W + (x | 0)]) return false;
+    u.chore = { kind, x, y, t: CHORE.gap[0] + rng() * (CHORE.gap[1] - CHORE.gap[0]), on: false };
+    orderMove(u, x, y, false); u.order.slow = true; return true;
+  }
+  function choreTick(u, dt) {
+    const c = u.chore; if (!c) return;
+    if (alarm() || u.bpId || u.manual > 0 || u.s.sick > 0 || (u.tr)) { u.chore = null; return; }
+    if (u.order) return;
+    if (Math.hypot(c.x - u.px, c.y - u.py) > 1.6) { u.chore = null; return; }
+    c.on = true; c.t -= dt;
+    if (c.kind === 'farm') { G.food = Math.min(storeCap(), G.food + CHORE.farm * dt); if (u.st === 'idle') u.st = 'stab'; }
+    else if (c.kind === 'clean') { G.hygiene = Math.min(100, G.hygiene + CHORE.clean * dt); if (u.st === 'idle') u.st = 'stab'; }
+    else { G.morale = Math.min(100, G.morale + CHORE.relax * dt); }
+    if (c.kind !== 'relax' && (u.trT = (u.trT || 0) - dt) <= 0) { u.trT = 0.8; u.stab = 0.15; }
+    if (c.t <= 0) u.chore = null;
+  }
   function think(u) {
     const s = u.s, w = workOf(s);
     if (u.bpId) return;                                  // on their way to a build job
@@ -187,6 +217,7 @@ const Units = (() => {
     const drop = crates.find(c => c.type === 'airdrop');
     if (drop && !G.idle.some(o => { const b = U.get(o.id); return b && b.order && b.order.drop; })) { orderMove(u, drop.x, drop.y, false); u.order.drop = true; return; }      // someone fetches the supply drop
     if (w.train && w.train !== 'off') { const [sx, sy] = trainSpot(u); if (Math.hypot(sx - u.px, sy - u.py) > 1.6) { orderMove(u, sx, sy, false); u.order.train = true; } return; }
+    if (pickChore(u)) return;
     if (rng() < 0.5) {                                   // mill about the camp
       const [hx, hy] = home(); orderMove(u, hx + (rng() - 0.5) * 6.5, hy + rng() * 2.2, false); u.order.slow = true;
     }
@@ -305,7 +336,7 @@ const Units = (() => {
     }
     // fight whatever is close; calm survivors only fire at what is nearly on top of them
     if (zombies.length) fight(u, dt, fightOpts(u, !alarm() && !inCrew)); else { u.st = 'idle'; if (u.sta < STAMINA.max) u.sta = Math.min(STAMINA.max, u.sta + STAMINA.restRegen * dt); }
-    if (!inCrew) trainTick(u, dt);
+    if (!inCrew) { trainTick(u, dt); choreTick(u, dt); }
     if (u.moving && u.st === 'idle') u.st = 'walk';
     // shout of the gun / the smell of people: nearby idle dead come to look
     u.alertT -= dt;
@@ -394,6 +425,7 @@ const Units = (() => {
     const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : u.order.train ? 'heading to train' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
     if (u.working) return 'building';
     if (u.hauling) return u.carry && u.carry.plan && u.carry.plan.length ? 'carrying supplies' : 'fetching supplies';
+    if (u.chore && u.chore.on) return { farm: 'tending the garden', clean: 'cleaning up', relax: 'resting by the fire' }[u.chore.kind];
     if (u.tr) return { melee: 'training melee', shoot: 'training shooting', cap: 'needs a training yard', max: 'a master', noammo: 'training paused: low ammo' }[u.tr];
     return 'idle';
   }

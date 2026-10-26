@@ -32,7 +32,7 @@ const BROADCAST = { time: 480, gap: 140, again: { m: 60, fuel: 10 }, cooldown: 4
 const SECURE = { time: 360, mine: 0.3, matMin: 0.25, ammoMin: 100, wallMin: 0.8, calmFor: 120, garrison: 0.7 };
 const WIN_TOWNS = 3;                // secure this many towns at once to win
 const BUILD_RANGE = 11;          // tiles from the survivor
-const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
+const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 17, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
 // Zombies queue at a wall, claw at it and climb the heap. Weak wall sections give way, so the garrison has to thin them out.
 const PILE_SPEEDUP = 0.08, PILE_MAX_SPEEDUP = 3.5, PILE_PRESSURE = 0.02, WALL_CLAW = 0.35, CLIMB_SLOW = 1.8;
@@ -96,7 +96,7 @@ const PRESSURE = { start: 210, base: 1.8, ramp: 0.36, max: 80, levelMul: 0.15, g
 const HEAT = { mine: 0.02, max: 100, decay: 0.12, gun: 0.003, gen: 0.16, flood: 0.03, shop: 0.04, radio: 0.35, decoy: 7, breach: 12, vault: 10, siren: { m: 25, fuel: 1 }, after: 25 };
 // Hordes: first arrives after DIFFICULTY.first seconds (long enough to scavenge, wall in and recruit), then at random intervals, growing 1.4x each time.
 const HORDE = { gapMin: 90, gapMax: 160, base: 45, growth: 1.12, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
-const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 12 };
+const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 20 };
 
 // ---- combat ---------------------------------------------------------------
 const GUN = { dmg: 24, range: 8, cd: 0.8, towerRange: 11, towerCd: 0.55 };
@@ -164,7 +164,7 @@ const EVENTS = {
 
 // ---- colours / lighting ---------------------------------------------------------------
 const LIGHT = {
-  ambient: [10, 16, 34], ambientAlpha: 0.52, stormAlpha: 0.72, dangerTint: [40, 8, 10],
+  ambient: [10, 16, 34], ambientAlpha: 0.24, stormAlpha: 0.72, fogAlpha: 0.6, dangerTint: [40, 8, 10],
 };
 
 // ---- quality / device ---------------------------------------------------------------
