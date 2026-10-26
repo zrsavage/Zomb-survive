@@ -70,7 +70,7 @@ const UI = (() => {
     for (const t of TOOLS) {
       if (!cats.includes(t.cat) || FIGHT_TOOLS.includes(t.id)) continue;
       const b = document.createElement('button'); b.className = 'bcard'; b.dataset.tool = t.id; b.title = t.tip;
-      b.innerHTML = Icons.img(t.id, 28) + '<span>' + t.label + '</span><span class="cc"></span>';
+      b.innerHTML = Icons.img(t.id, 22) + '<span>' + t.label + '</span><span class="cc"></span>';
       b.addEventListener('click', () => setTool(t.id));
       b.addEventListener('mouseenter', () => { $('btip').textContent = t.label + ': ' + t.tip; });
       b.addEventListener('mouseleave', () => { const s = TOOLS.find(x => x.id === G.tool); $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick one, then click the ground.'; });
