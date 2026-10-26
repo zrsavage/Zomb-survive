@@ -91,4 +91,4 @@ WASD move (Shift sprint) - hold E scavenge - click/drag build (within range of y
 ## Melee weapons, training, and clearing land
 - The workshop (powered) makes **melee weapons** as well as ammo: spiked club, spear, machete, and (research *Smithing*) fire axe and war blade. Each person is handed the best one their melee level can handle (auto), or you choose in **K**. Heavier weapons need a trained arm (machete 1, axe 3, war blade 4); under-skilled people hit weaker and tire faster. You carry one too (pack panel, **I**).
 - **Training** (K or the command bar): free survivors practise melee on their own, or shoot. Shooting practice burns ammo, makes noise and draws the dead. Without a **Training yard** people stop improving at level 3.
-- **Demolish** (7) pulls a building down: it takes time, leaves rubble and a pile of salvage, and clears the ground for gardens, wells, **Bunkhouses** (+5 beds) or **Barracks** (+14).
+- **Demolish** (N) pulls a building down: it takes time, leaves rubble and a pile of salvage, and clears the ground for gardens, wells, **Bunkhouses** (+5 beds) or **Barracks** (+14).

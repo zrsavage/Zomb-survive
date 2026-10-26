@@ -100,6 +100,10 @@ const Intro = (() => {
     if (!G.intro) return;
     G.intro = null; G.introHold = false; G.fireLit = true; shown = ''; panel().classList.remove('show');
     G.nextHorde = Math.max(G.nextHorde, 420); G.eventT = 150; G.refugeeT = 240;
+    if (skipped && I.cache && crates.includes(I.cache)) {                  // skipping should not leave the starting cache lying in the dirt
+      crates.splice(crates.indexOf(I.cache), 1); Loot.open('', (I.cache.items || []).map(e => ({ ...e })), { auto: true }); log('You took the buried cache with you.');
+    }
+    I.cache = null;
     if (!skipped) { floatText(P.px, P.py - 1.6, 'THE CAMP STANDS', '#ffe27a'); log('The camp stands. Hold it. Others will come, and so will the dead.'); }
     toast(skipped ? 'Tutorial skipped. Press J (build queue), I (pack), K (work) any time.' : 'You are on your own now. Hold the line.');
   }

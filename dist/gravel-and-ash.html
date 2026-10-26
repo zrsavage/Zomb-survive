@@ -571,7 +571,7 @@ const MW = {
 };
 for (const k in MW) if (MW[k].cost) RECIPES['mw_' + k] = { label: MW[k].label, in: MW[k].cost, out: { mw: k }, time: MW[k].time, tech: MW[k].tech, weapon: k };
 // Training: people who are not on guard practise on their own when told to. Shooting costs ammo and is loud.
-const TRAIN = { melee: 1.1, shoot: 3.0, shootGap: 1.4, yardMelee: 2.2, yardShoot: 1.5, noCapLevel: 3, minAmmo: 25 };
+const TRAIN = { heat: 0.15, noise: 1.6, melee: 1.1, shoot: 3.0, shootGap: 1.4, yardMelee: 2.2, yardShoot: 1.5, noCapLevel: 3, minAmmo: 25 };
 const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
 const SEWER = { count: 6, minD: 10, maxD: 30, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
 const HERD = { gapMin: 420, gapMax: 720, min: 20, max: 50, cap: 2, attackR: 14 };
@@ -1263,6 +1263,24 @@ function noiseTex() {
   return k.c;
 }
 
+Art.paintOverlay = function (g) {                                     // everything standing on the ground: buildings, rubble, lamps, the camp plaza
+  const r = mulberry32(4321), R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
+  // buildings (roof + facade)
+  for (const b of buildings) { if (b.razed) drawRubble(g, b); else drawBuilding(g, b); }
+  // lamp posts
+  for (const l of lamps) {
+    const px = l.x * T, py = l.y * T;
+    g.globalAlpha = 0.3; R('#000', px - 1, py + 4, 5, 2); g.globalAlpha = 1;
+    R('#26282c', px, py - 8, 2, 12);
+    R('#26282c', px - 2, py - 9, 6, 2);
+    R(l.on ? '#ffe9a0' : '#4a4a46', px - 2, py - 7, 6, 1);
+  }
+  // camp plaza
+  const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T;
+  R('#55564e', cx - 8, cy - 8, T * 3 + 16, T * 3 + 16);
+  for (let i = 0; i < 60; i++) R(r() < 0.5 ? '#5e5f56' : '#4a4b44', cx - 8 + (r() * (T * 3 + 14) | 0), cy - 8 + (r() * (T * 3 + 14) | 0), 2, 1);
+  R('#6a6a60', cx - 8, cy - 8, T * 3 + 16, 1); R('#3c3d36', cx - 8, cy + T * 3 + 7, T * 3 + 16, 1);
+};
 Art.renderTerrain = function () {
   const k = cell(W * T, H * T), g = k.g, r = mulberry32(1234);
   const R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
@@ -1312,21 +1330,8 @@ Art.renderTerrain = function () {
     } else if (v < 0.24) { R('#2a5a2a', px - 3, py, 7, 4); R('#3a7438', px - 2, py - 1, 4, 3); }
     else if (v < 0.265) { R('#5a4228', px - 4, py + 1, 9, 2); R('#3a2a18', px - 4, py + 3, 1, 2); R('#3a2a18', px + 4, py + 3, 1, 2); }
   }
-  // buildings (roof + facade)
-  for (const b of buildings) { if (b.razed) drawRubble(g, b); else drawBuilding(g, b); }
-  // lamp posts
-  for (const l of lamps) {
-    const px = l.x * T, py = l.y * T;
-    g.globalAlpha = 0.3; R('#000', px - 1, py + 4, 5, 2); g.globalAlpha = 1;
-    R('#26282c', px, py - 8, 2, 12);
-    R('#26282c', px - 2, py - 9, 6, 2);
-    R(l.on ? '#ffe9a0' : '#4a4a46', px - 2, py - 7, 6, 1);
-  }
-  // camp plaza
-  const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T;
-  R('#55564e', cx - 8, cy - 8, T * 3 + 16, T * 3 + 16);
-  for (let i = 0; i < 60; i++) R(r() < 0.5 ? '#5e5f56' : '#4a4b44', cx - 8 + (r() * (T * 3 + 14) | 0), cy - 8 + (r() * (T * 3 + 14) | 0), 2, 1);
-  R('#6a6a60', cx - 8, cy - 8, T * 3 + 16, 1); R('#3c3d36', cx - 8, cy + T * 3 + 7, T * 3 + 16, 1);
+  { const gs = cell(W * T, H * T); gs.g.drawImage(k.c, 0, 0); k.c._ground = gs.c; }          // the bare ground, kept so a demolished building only costs a cheap repaint
+  Art.paintOverlay(g);
   Art.terrain = k.c;
 
   Art.decals = cell(W * T, H * T).c;
@@ -1348,9 +1353,11 @@ function drawRubble(g, b) {                                          // what is 
   }
   for (let k = 0; k < 2 + b.w; k++) { const px = x + 3 + (r() * (w - 12) | 0), py = y + 3 + (r() * (h - 10) | 0); R('#7a766a', px, py, 5, 3); R('#9a968a', px, py, 5, 1); R('#4a463e', px + 1, py + 3, 4, 1); }
 }
-Art.rebakeTerrain = function () {                                    // repaint the ground after a building falls, keeping blood, claim and fog layers
-  const d = Art.decals, c = Art.claim, f = Art.fogTex;
-  Art.renderTerrain(); Art.decals = d; Art.claim = c; Art.fogTex = f;
+Art.rebakeTerrain = function () {                                    // repaint after a building falls: bare ground + overlay, in place
+  const c = Art.terrain; if (!c || !c._ground) { const d = Art.decals, cl = Art.claim, f = Art.fogTex; Art.renderTerrain(); Art.decals = d; Art.claim = cl; Art.fogTex = f; return; }
+  const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.drawImage(c._ground, 0, 0); Art.paintOverlay(g);
+  const m = Art.mini && Art.mini.getContext('2d'); if (m) { m.clearRect(0, 0, W, H); m.imageSmoothingEnabled = true; m.drawImage(c, 0, 0, W, H); }
+  if (typeof miniFor !== 'undefined') miniFor = null;                      // the minimap redraws its backdrop
 };
 function drawBuilding(g, b) {
   const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, FH = 9;
@@ -4527,8 +4534,9 @@ const Units = (() => {
   function trainSpot(u) {
     let best = null, bd = 1e9;
     for (const f of facilities) if (f.type === 'yard') { const d = Math.hypot(f.x - u.px, f.y - u.py); if (d < bd) { bd = d; best = f; } }
-    if (best) return [best.x + 0.5 + ((u.s.id % 3) - 1) * 0.7, best.y + 1.1, true];
-    const [hx, hy] = home(); return [hx + ((u.s.id % 5) - 2) * 1.2, hy + 1.3 + (u.s.id % 2) * 0.8, false];
+    const id = u.s.id;
+    if (best) return [best.x + 0.5 + ((id % 4) - 1.5) * 0.9, best.y + 1.1 + (((id >> 2) % 3)) * 0.8, true];
+    const [hx, hy] = home(); return [hx + ((id % 5) - 2) * 1.5, hy + 1.8 + ((id >> 2) % 3) * 1.1, false];       // everyone gets their own patch of ground
   }
   function trainTick(u, dt) {
     const w = workOf(u.s), kind = w.train;
@@ -4552,7 +4560,7 @@ const Units = (() => {
         u.trT = TRAIN.shootGap; G.ammo -= 1; u.shot = 0.09; u.st = 'shoot'; u.act = 0.2; u.actK = 'shoot'; u.aimA = 0; u.aimT = 0.6;
         if (flashes.length < 40) flashes.push({ x: u.px + 0.5, y: u.py - 0.5, life: 0.09 });
         tracers.push({ x1: u.px + 0.5, y1: u.py - 0.5, x2: u.px + 5, y2: u.py - 0.5, life: 0.07 });
-        Snd.shot(u.px, u.py, false); addHeat(HEAT.gun * 0.6); alertNoise(u.px, u.py, gunRadius(false) * 0.85, 3);
+        Snd.shot(u.px, u.py, false); addHeat(TRAIN.heat); alertNoise(u.px, u.py, gunRadius(false) * TRAIN.noise, 3);
         addXp(u.s, 'shoot', TRAIN.shoot * (yard ? TRAIN.yardShoot : 1));
       }
     }
@@ -5083,7 +5091,7 @@ const Build = (() => {
   B.demolish = b => {
     if (b.razed) return; if (b.nest) return warn('Clear the nest first'); if (b.crew) return warn('A crew is working there');
     if (B.at(b.x, b.y)) return warn('Already marked for demolition. Erase it to cancel.');
-    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, work: 5 + b.w * b.h * 0.9, prog: 0, prio: 2 };
+    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, work: 5 + b.w * b.h * 1.3, prog: 0, prio: 2 };
     list().push(bp); Snd.click();
     floatText(b.x + b.w / 2, b.y - 0.3, 'demolish: ' + Math.ceil(bp.work) + 's of work', '#e8c070');
     if (G.sealed && b.claimed) toast('Careful: this building is part of your wall. Replace it with walls or the camp opens up.');
@@ -5091,7 +5099,7 @@ const Build = (() => {
   };
   function razeDo(bp) {
     const b = buildings[bp.bi]; if (!b || b.razed) return;
-    const ent = [{ r: 'm', n: Math.round(b.w * b.h * 2.4 * (0.8 + rng() * 0.4)) }];
+    const ent = [{ r: 'm', n: Math.round(b.w * b.h * 1.6 * (0.8 + rng() * 0.4)) }];
     if (!b.looted) { const got = takeLoot(b, 0.7); for (const [k] of LOOT_KEYS) if (got[k]) ent.push({ r: k, n: got[k] }); }
     for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === bp.bi) bld[y * W + x] = -1;
     b.razed = true; b.looted = true; b.crew = false; b.locked = false;
@@ -5139,7 +5147,7 @@ const Build = (() => {
 
   B.update = dt => {
     if (B.pop && B.pop.n && (B.pop.t -= dt) <= 0) { floatText(B.pop.x, B.pop.y, '-' + costText(B.pop.cost) + (B.pop.n > 1 ? ' (' + B.pop.n + ' planned)' : ''), '#e8c070'); B.pop = { n: 0, cost: {}, t: 0 }; }
-    const L = list(); if (!L.length) { B.idle = 0; return; }
+    const L = list(); if (!L.length) { B.idle = 0; for (const u of Units.all()) u.working = false; return; }
     const crew = new Set(); for (const c of G.crews) for (const s of c.members) crew.add(s.id);
     const work = new Map(); let hands = 0, busy = 0;
     const add = (bp, r) => { work.set(bp, (work.get(bp) || 0) + r); };
@@ -5305,7 +5313,7 @@ const Hints = (() => {
   const near = (r, f) => { for (const b of buildings) if (f(b) && Math.hypot(b.x + b.w / 2 - P.px, b.y + b.h / 2 - P.py) < r) return true; return false; };
   const LIST = [
     { id: 'noise', title: 'Noise draws them', text: 'Every shot is heard. Generators, floodlights, workshops and hammering fill the <b>noise</b> meter on the right. Filled, it brings a horde. Choose what you run, and when.', when: () => G.heat >= 12 },
-    { id: 'people', title: 'Someone joined you', text: 'Survivors walk the camp on their own. <b>Select</b> them (C), then right-click: a wall to man it, a building to scavenge. <b>K</b> sets what each one does when left alone.', when: () => G.idle.length + defenders.length >= 1 },
+    { id: 'people', title: 'Someone joined you', text: 'Survivors walk the camp on their own. <b>Select</b> them (C), then right-click: a wall to man it, a building to scavenge. <b>K</b> sets what each one does when left alone.', when: () => G.elapsed > 240 && G.idle.length + defenders.length >= 1 },
     { id: 'climb', title: 'They climb, they don\'t break', text: 'Walls are never smashed: the dead <b>pile up and climb</b>. Kill them as they climb, put towers where they gather, and keep people on the wall. A gap lets them walk straight in.', when: () => zombies.some(z => z.mode === 2 && z.st === 2) },
     { id: 'horde', title: 'A horde is coming', text: 'A real horde is on its way. Get everyone to the walls, check your ammo, and hold the core. The camp is what matters: people can be replaced.', when: () => hordes.some(h => !h.minor) },
     { id: 'lookout', title: 'You are flying blind', text: 'Build a <b>lookout</b> (4) so the fog lifts and you hear about hordes early. One on each side of camp is enough.', when: () => G.elapsed > 300 && !wall.some(k => k === K.LOOKOUT) },
@@ -5314,7 +5322,7 @@ const Hints = (() => {
     { id: 'water', title: 'Water matters', text: 'Everyone drinks. <b>Wells</b> and rain collectors make more. A <b>latrine</b> keeps hygiene up so people stay well.', when: () => G.water < 35 },
     { id: 'power', title: 'Power costs noise', text: 'Generators burn <b>fuel</b> and are loud. Solar is quiet but slow. Powered things (workshop, floodlights, electric walls) stop when the power does.', when: () => facilities.some(f => f.type === 'generator' || f.type === 'floodlight') },
     { id: 'workshop', title: 'The workshop', text: 'It turns materials into ammo and gear, but only while powered, and it is noisy. Pick what it makes in the panel on the right.', when: () => facilities.some(f => f.type === 'workshop') },
-    { id: 'research', title: 'Research', text: 'Press <b>R</b>. Better walls, faster reloads, cheaper builds. One project at a time, so choose what hurts most.', when: () => G.level >= 2 || G.elapsed > 600 },
+    { id: 'research', title: 'Research', text: 'Press <b>R</b>. Better walls, faster reloads, cheaper builds. One project at a time, so choose what hurts most.', when: () => G.level >= 2 || G.elapsed > 1000 },
     { id: 'locked', title: 'A locked building', text: 'Some buildings need a <b>keycard</b>, or fuel to cut through. Cutting is loud. The vault and bunker hold the best loot.', when: () => near(8, b => b.locked && !b.looted) },
     { id: 'trader', title: 'A trader', text: 'A trader has set up near camp for a short while. Open the trade panel on the right to swap supplies before they leave.', when: () => !!G.trader },
     { id: 'sewer', title: 'Sewers', text: 'Zombies can climb out of manholes inside your walls. Use <b>Seal sewer</b> on the access to close it.', when: () => (typeof sewers !== 'undefined') && sewers.some(s => s.found && !s.sealed) },
@@ -5328,13 +5336,13 @@ const Hints = (() => {
     { id: 'walledin', title: 'Wall in more ground', text: 'Your camp is sealed. Walls can close off far more than the camp: whole blocks, a district, the town. Everything inside a closed loop is yours. Add a second and third layer where they press hardest, and remember every wall you hold needs people and towers behind it.', when: () => G.sealed && G.elapsed > 400 },
     { id: 'train', title: 'Training', text: 'People who are not on guard can <b>train</b>. Open <b>K</b> and set Melee or Shoot, or select people (C) and use the buttons. Melee practice is free. Shooting practice burns ammo and the noise draws the dead. Past level 3 needs a <b>training yard</b>. Better weapons need a trained arm.', when: () => G.idle.length >= 2 },
     { id: 'weaponsmith', title: 'Make better weapons', text: 'A powered <b>workshop</b> can make melee weapons as well as ammo: spiked clubs, machetes, spears, and with Smithing, fire axes and war blades. Each person is handed the best one their skill allows. Heavier weapons hit harder but tire an untrained arm.', when: () => facilities.some(f => f.type === 'workshop') },
-    { id: 'demolish', title: 'Clear the ground', text: 'Need room for fields or beds? <b>Demolish</b> (7) pulls a building down: it takes time, leaves salvage, and the ground is free. Gardens, bunkhouses and wells go on free ground inside your walls.', when: () => G.sealed && G.elapsed > 500 },
+    { id: 'demolish', title: 'Clear the ground', text: 'Need room for fields or beds? <b>Demolish</b> (N) pulls a building down: it takes time, leaves salvage, and the ground is free. Gardens, bunkhouses and wells go on free ground inside your walls.', when: () => G.sealed && G.elapsed > 500 },
     { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
     { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
     { id: 'secure', title: 'Making a town secure', text: 'A town is <b>secured</b> when it can look after itself: walls sealed and manned, food and water growing, ammo being made. Press <b>Y</b> to see what is missing. Secure it, then move on to the next.', when: () => G.level >= 3 && G.sealed },
     { id: 'pile', title: 'Something was dropped', text: 'The dead sometimes carry something. Walk up and press <b>E</b>: a window shows what it is. Take it, stash it at camp, or leave it.', when: () => crates.some(c => c.type === 'pile' && Math.hypot(c.x - P.px, c.y - P.py) < 7) },
   ];
-  let cur = null, since = 25, tick = 0, el = null, shown = 0;
+  let cur = null, since = -40, tick = 0, el = null, shown = 0;
   const save = () => { store.set(KEY, JSON.stringify(seen)); };
   function show(h) {
     cur = h; seen[h.id] = 1; save(); shown = 0;
@@ -5345,7 +5353,7 @@ const Hints = (() => {
     Snd.click && Snd.click();
   }
   function hide() { if (el) el.classList.remove('show'); cur = null; since = 0; }
-  H.reset = () => { if (el) el.classList.remove('show'); cur = null; since = 25; };
+  H.reset = () => { if (el) el.classList.remove('show'); cur = null; since = -40; };
   H.setOn = v => { store.set('gravel-hints', v ? 'on' : 'off'); if (!v) hide(); };
   H.on = on;
   H.update = function (dt) {
@@ -5468,6 +5476,10 @@ const Intro = (() => {
     if (!G.intro) return;
     G.intro = null; G.introHold = false; G.fireLit = true; shown = ''; panel().classList.remove('show');
     G.nextHorde = Math.max(G.nextHorde, 420); G.eventT = 150; G.refugeeT = 240;
+    if (skipped && I.cache && crates.includes(I.cache)) {                  // skipping should not leave the starting cache lying in the dirt
+      crates.splice(crates.indexOf(I.cache), 1); Loot.open('', (I.cache.items || []).map(e => ({ ...e })), { auto: true }); log('You took the buried cache with you.');
+    }
+    I.cache = null;
     if (!skipped) { floatText(P.px, P.py - 1.6, 'THE CAMP STANDS', '#ffe27a'); log('The camp stands. Hold it. Others will come, and so will the dead.'); }
     toast(skipped ? 'Tutorial skipped. Press J (build queue), I (pack), K (work) any time.' : 'You are on your own now. Hold the line.');
   }
@@ -6241,7 +6253,7 @@ const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) 
 const TOOLS = [
   { cat: 'Command', id: 'combat', key: '0', label: 'Fight', cost: () => ({}), tip: 'Aim with the mouse. Hold left-click to fire, R reloads, right-click or F swings at what is close. Every shot is yours and every shot is heard.' },
   { cat: 'Command', id: 'orders', key: 'C', label: 'Select & command', cost: () => ({}), tip: 'Click or drag to select survivors. Right-click: move there, man a wall, or scavenge a building. They carry it out on their own.' },
-  { cat: 'Land', id: 'demolish', key: '7', label: 'Demolish', cost: () => ({}), tip: 'Click a building to pull it down. It takes time, recovers salvage, and leaves clear ground for fields, beds, workshops or walls.' },
+  { cat: 'Land', id: 'demolish', key: 'N', label: 'Demolish', cost: () => ({}), tip: 'Click a building to pull it down. It takes time, recovers salvage, and leaves clear ground for fields, beds, workshops or walls.' },
   { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
   { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
   { cat: 'Defense', id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
@@ -6259,7 +6271,7 @@ const TOOLS = [
   { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
   { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
   { cat: 'Camp', id: 'siren', key: '', label: 'Sound the siren', cost: () => HEAT.siren, tip: 'Deliberately draw a real horde to the camp. Click the camp core. Rare, big, and the only way besides noise to get one.' },
-  { cat: 'Camp', id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
+  { cat: 'Camp', id: 'radio',   key: '', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
 const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a', c.med && c.med + 'med', c.fuel && c.fuel + 'fuel'].filter(Boolean).join(' ');
 const fmtRate = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '/s';

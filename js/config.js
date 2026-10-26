@@ -300,7 +300,7 @@ const MW = {
 };
 for (const k in MW) if (MW[k].cost) RECIPES['mw_' + k] = { label: MW[k].label, in: MW[k].cost, out: { mw: k }, time: MW[k].time, tech: MW[k].tech, weapon: k };
 // Training: people who are not on guard practise on their own when told to. Shooting costs ammo and is loud.
-const TRAIN = { melee: 1.1, shoot: 3.0, shootGap: 1.4, yardMelee: 2.2, yardShoot: 1.5, noCapLevel: 3, minAmmo: 25 };
+const TRAIN = { heat: 0.15, noise: 1.6, melee: 1.1, shoot: 3.0, shootGap: 1.4, yardMelee: 2.2, yardShoot: 1.5, noCapLevel: 3, minAmmo: 25 };
 const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
 const SEWER = { count: 6, minD: 10, maxD: 30, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
 const HERD = { gapMin: 420, gapMax: 720, min: 20, max: 50, cap: 2, attackR: 14 };

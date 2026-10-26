@@ -276,6 +276,24 @@ function noiseTex() {
   return k.c;
 }
 
+Art.paintOverlay = function (g) {                                     // everything standing on the ground: buildings, rubble, lamps, the camp plaza
+  const r = mulberry32(4321), R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
+  // buildings (roof + facade)
+  for (const b of buildings) { if (b.razed) drawRubble(g, b); else drawBuilding(g, b); }
+  // lamp posts
+  for (const l of lamps) {
+    const px = l.x * T, py = l.y * T;
+    g.globalAlpha = 0.3; R('#000', px - 1, py + 4, 5, 2); g.globalAlpha = 1;
+    R('#26282c', px, py - 8, 2, 12);
+    R('#26282c', px - 2, py - 9, 6, 2);
+    R(l.on ? '#ffe9a0' : '#4a4a46', px - 2, py - 7, 6, 1);
+  }
+  // camp plaza
+  const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T;
+  R('#55564e', cx - 8, cy - 8, T * 3 + 16, T * 3 + 16);
+  for (let i = 0; i < 60; i++) R(r() < 0.5 ? '#5e5f56' : '#4a4b44', cx - 8 + (r() * (T * 3 + 14) | 0), cy - 8 + (r() * (T * 3 + 14) | 0), 2, 1);
+  R('#6a6a60', cx - 8, cy - 8, T * 3 + 16, 1); R('#3c3d36', cx - 8, cy + T * 3 + 7, T * 3 + 16, 1);
+};
 Art.renderTerrain = function () {
   const k = cell(W * T, H * T), g = k.g, r = mulberry32(1234);
   const R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
@@ -325,21 +343,8 @@ Art.renderTerrain = function () {
     } else if (v < 0.24) { R('#2a5a2a', px - 3, py, 7, 4); R('#3a7438', px - 2, py - 1, 4, 3); }
     else if (v < 0.265) { R('#5a4228', px - 4, py + 1, 9, 2); R('#3a2a18', px - 4, py + 3, 1, 2); R('#3a2a18', px + 4, py + 3, 1, 2); }
   }
-  // buildings (roof + facade)
-  for (const b of buildings) { if (b.razed) drawRubble(g, b); else drawBuilding(g, b); }
-  // lamp posts
-  for (const l of lamps) {
-    const px = l.x * T, py = l.y * T;
-    g.globalAlpha = 0.3; R('#000', px - 1, py + 4, 5, 2); g.globalAlpha = 1;
-    R('#26282c', px, py - 8, 2, 12);
-    R('#26282c', px - 2, py - 9, 6, 2);
-    R(l.on ? '#ffe9a0' : '#4a4a46', px - 2, py - 7, 6, 1);
-  }
-  // camp plaza
-  const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T;
-  R('#55564e', cx - 8, cy - 8, T * 3 + 16, T * 3 + 16);
-  for (let i = 0; i < 60; i++) R(r() < 0.5 ? '#5e5f56' : '#4a4b44', cx - 8 + (r() * (T * 3 + 14) | 0), cy - 8 + (r() * (T * 3 + 14) | 0), 2, 1);
-  R('#6a6a60', cx - 8, cy - 8, T * 3 + 16, 1); R('#3c3d36', cx - 8, cy + T * 3 + 7, T * 3 + 16, 1);
+  { const gs = cell(W * T, H * T); gs.g.drawImage(k.c, 0, 0); k.c._ground = gs.c; }          // the bare ground, kept so a demolished building only costs a cheap repaint
+  Art.paintOverlay(g);
   Art.terrain = k.c;
 
   Art.decals = cell(W * T, H * T).c;
@@ -361,9 +366,11 @@ function drawRubble(g, b) {                                          // what is 
   }
   for (let k = 0; k < 2 + b.w; k++) { const px = x + 3 + (r() * (w - 12) | 0), py = y + 3 + (r() * (h - 10) | 0); R('#7a766a', px, py, 5, 3); R('#9a968a', px, py, 5, 1); R('#4a463e', px + 1, py + 3, 4, 1); }
 }
-Art.rebakeTerrain = function () {                                    // repaint the ground after a building falls, keeping blood, claim and fog layers
-  const d = Art.decals, c = Art.claim, f = Art.fogTex;
-  Art.renderTerrain(); Art.decals = d; Art.claim = c; Art.fogTex = f;
+Art.rebakeTerrain = function () {                                    // repaint after a building falls: bare ground + overlay, in place
+  const c = Art.terrain; if (!c || !c._ground) { const d = Art.decals, cl = Art.claim, f = Art.fogTex; Art.renderTerrain(); Art.decals = d; Art.claim = cl; Art.fogTex = f; return; }
+  const g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); g.drawImage(c._ground, 0, 0); Art.paintOverlay(g);
+  const m = Art.mini && Art.mini.getContext('2d'); if (m) { m.clearRect(0, 0, W, H); m.imageSmoothingEnabled = true; m.drawImage(c, 0, 0, W, H); }
+  if (typeof miniFor !== 'undefined') miniFor = null;                      // the minimap redraws its backdrop
 };
 function drawBuilding(g, b) {
   const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, FH = 9;

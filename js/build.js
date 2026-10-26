@@ -35,7 +35,7 @@ const Build = (() => {
   B.demolish = b => {
     if (b.razed) return; if (b.nest) return warn('Clear the nest first'); if (b.crew) return warn('A crew is working there');
     if (B.at(b.x, b.y)) return warn('Already marked for demolition. Erase it to cancel.');
-    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, work: 5 + b.w * b.h * 0.9, prog: 0, prio: 2 };
+    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, work: 5 + b.w * b.h * 1.3, prog: 0, prio: 2 };
     list().push(bp); Snd.click();
     floatText(b.x + b.w / 2, b.y - 0.3, 'demolish: ' + Math.ceil(bp.work) + 's of work', '#e8c070');
     if (G.sealed && b.claimed) toast('Careful: this building is part of your wall. Replace it with walls or the camp opens up.');
@@ -43,7 +43,7 @@ const Build = (() => {
   };
   function razeDo(bp) {
     const b = buildings[bp.bi]; if (!b || b.razed) return;
-    const ent = [{ r: 'm', n: Math.round(b.w * b.h * 2.4 * (0.8 + rng() * 0.4)) }];
+    const ent = [{ r: 'm', n: Math.round(b.w * b.h * 1.6 * (0.8 + rng() * 0.4)) }];
     if (!b.looted) { const got = takeLoot(b, 0.7); for (const [k] of LOOT_KEYS) if (got[k]) ent.push({ r: k, n: got[k] }); }
     for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === bp.bi) bld[y * W + x] = -1;
     b.razed = true; b.looted = true; b.crew = false; b.locked = false;
@@ -91,7 +91,7 @@ const Build = (() => {
 
   B.update = dt => {
     if (B.pop && B.pop.n && (B.pop.t -= dt) <= 0) { floatText(B.pop.x, B.pop.y, '-' + costText(B.pop.cost) + (B.pop.n > 1 ? ' (' + B.pop.n + ' planned)' : ''), '#e8c070'); B.pop = { n: 0, cost: {}, t: 0 }; }
-    const L = list(); if (!L.length) { B.idle = 0; return; }
+    const L = list(); if (!L.length) { B.idle = 0; for (const u of Units.all()) u.working = false; return; }
     const crew = new Set(); for (const c of G.crews) for (const s of c.members) crew.add(s.id);
     const work = new Map(); let hands = 0, busy = 0;
     const add = (bp, r) => { work.set(bp, (work.get(bp) || 0) + r); };

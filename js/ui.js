@@ -11,7 +11,7 @@ const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) 
 const TOOLS = [
   { cat: 'Command', id: 'combat', key: '0', label: 'Fight', cost: () => ({}), tip: 'Aim with the mouse. Hold left-click to fire, R reloads, right-click or F swings at what is close. Every shot is yours and every shot is heard.' },
   { cat: 'Command', id: 'orders', key: 'C', label: 'Select & command', cost: () => ({}), tip: 'Click or drag to select survivors. Right-click: move there, man a wall, or scavenge a building. They carry it out on their own.' },
-  { cat: 'Land', id: 'demolish', key: '7', label: 'Demolish', cost: () => ({}), tip: 'Click a building to pull it down. It takes time, recovers salvage, and leaves clear ground for fields, beds, workshops or walls.' },
+  { cat: 'Land', id: 'demolish', key: 'N', label: 'Demolish', cost: () => ({}), tip: 'Click a building to pull it down. It takes time, recovers salvage, and leaves clear ground for fields, beds, workshops or walls.' },
   { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
   { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
   { cat: 'Defense', id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
@@ -29,7 +29,7 @@ const TOOLS = [
   { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
   { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
   { cat: 'Camp', id: 'siren', key: '', label: 'Sound the siren', cost: () => HEAT.siren, tip: 'Deliberately draw a real horde to the camp. Click the camp core. Rare, big, and the only way besides noise to get one.' },
-  { cat: 'Camp', id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
+  { cat: 'Camp', id: 'radio',   key: '', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
 const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a', c.med && c.med + 'med', c.fuel && c.fuel + 'fuel'].filter(Boolean).join(' ');
 const fmtRate = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '/s';

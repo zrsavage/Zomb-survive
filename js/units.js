@@ -249,8 +249,9 @@ const Units = (() => {
   function trainSpot(u) {
     let best = null, bd = 1e9;
     for (const f of facilities) if (f.type === 'yard') { const d = Math.hypot(f.x - u.px, f.y - u.py); if (d < bd) { bd = d; best = f; } }
-    if (best) return [best.x + 0.5 + ((u.s.id % 3) - 1) * 0.7, best.y + 1.1, true];
-    const [hx, hy] = home(); return [hx + ((u.s.id % 5) - 2) * 1.2, hy + 1.3 + (u.s.id % 2) * 0.8, false];
+    const id = u.s.id;
+    if (best) return [best.x + 0.5 + ((id % 4) - 1.5) * 0.9, best.y + 1.1 + (((id >> 2) % 3)) * 0.8, true];
+    const [hx, hy] = home(); return [hx + ((id % 5) - 2) * 1.5, hy + 1.8 + ((id >> 2) % 3) * 1.1, false];       // everyone gets their own patch of ground
   }
   function trainTick(u, dt) {
     const w = workOf(u.s), kind = w.train;
@@ -274,7 +275,7 @@ const Units = (() => {
         u.trT = TRAIN.shootGap; G.ammo -= 1; u.shot = 0.09; u.st = 'shoot'; u.act = 0.2; u.actK = 'shoot'; u.aimA = 0; u.aimT = 0.6;
         if (flashes.length < 40) flashes.push({ x: u.px + 0.5, y: u.py - 0.5, life: 0.09 });
         tracers.push({ x1: u.px + 0.5, y1: u.py - 0.5, x2: u.px + 5, y2: u.py - 0.5, life: 0.07 });
-        Snd.shot(u.px, u.py, false); addHeat(HEAT.gun * 0.6); alertNoise(u.px, u.py, gunRadius(false) * 0.85, 3);
+        Snd.shot(u.px, u.py, false); addHeat(TRAIN.heat); alertNoise(u.px, u.py, gunRadius(false) * TRAIN.noise, 3);
         addXp(u.s, 'shoot', TRAIN.shoot * (yard ? TRAIN.yardShoot : 1));
       }
     }
