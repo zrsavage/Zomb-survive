@@ -4,17 +4,23 @@
    magazine runs dry. The posted defenders still shoot for themselves. */
 const Combat = (() => {
   const C = { mouse: { x: 0, y: 0 }, down: false, aimX: 0, aimY: 0, over: null, ptype: 'mouse' };
+  // Pistol: yours from the start. Homemade: built at camp (research), decent but crude. Machine pistol, assault rifle and
+  // marksman rifle are real military guns: they can only be FOUND, never built.
+  const owns = id => !!(P.guns && P.guns[id]);
   const WEAPONS = {
-    pistol: { label: 'Pistol',         mag: 12, reload: 1.5, cd: 0.27,  spread: 0.028, move: 0.06, bloom: 0.016, bloomMax: 0.09, range: 10, dmg: 1,    pen: 1, heat: 1,   sniper: false, headR: 0.15, headX: 1.9, need: null },
-    smg:    { label: 'Machine pistol', mag: 24, reload: 2.0, cd: 0.085, spread: 0.05,  move: 0.1,  bloom: 0.012, bloomMax: 0.14, range: 9,  dmg: 0.5,  pen: 1, heat: 0.6, sniper: false, headR: 0.12, headX: 1.5, need: 'smg' },
-    rifle:  { label: 'Marksman rifle', mag: 6,  reload: 2.3, cd: 0.7,   spread: 0.006, move: 0.05, bloom: 0.02,  bloomMax: 0.06, range: 20, dmg: 2.7,  pen: 3, heat: 1,   sniper: true,  headR: 0.2,  headX: 2.2, need: 'marksman' },
+    pistol:  { label: 'Pistol',           mag: 12, reload: 1.5, cd: 0.27,  spread: 0.028, move: 0.06, bloom: 0.016, bloomMax: 0.09, range: 10, dmg: 1,    pen: 1, heat: 1,   sniper: false, headR: 0.15, headX: 1.9, have: () => true },
+    carbine: { label: 'Homemade carbine', mag: 8,  reload: 2.0, cd: 0.45,  spread: 0.024, move: 0.07, bloom: 0.02,  bloomMax: 0.1,  range: 12, dmg: 1.7,  pen: 1, heat: 1,   sniper: false, headR: 0.16, headX: 1.7, have: () => has('homemade') },
+    hauto:   { label: 'Homemade auto',    mag: 16, reload: 2.4, cd: 0.16,  spread: 0.06,  move: 0.11, bloom: 0.016, bloomMax: 0.15, range: 8,  dmg: 0.7,  pen: 1, heat: 0.8, sniper: false, headR: 0.12, headX: 1.4, have: () => has('homemade2') },
+    smg:     { label: 'Machine pistol',   mag: 24, reload: 2.0, cd: 0.085, spread: 0.05,  move: 0.1,  bloom: 0.012, bloomMax: 0.14, range: 9,  dmg: 0.5,  pen: 1, heat: 0.6, sniper: false, headR: 0.12, headX: 1.5, have: () => owns('smg') },
+    assault: { label: 'Assault rifle',    mag: 30, reload: 2.2, cd: 0.115, spread: 0.022, move: 0.07, bloom: 0.012, bloomMax: 0.09, range: 14, dmg: 0.82, pen: 1, heat: 0.75, sniper: false, headR: 0.14, headX: 1.8, have: () => owns('assault') },
+    rifle:   { label: 'Marksman rifle',   mag: 6,  reload: 2.3, cd: 0.7,   spread: 0.006, move: 0.05, bloom: 0.02,  bloomMax: 0.06, range: 20, dmg: 2.7,  pen: 3, heat: 1,   sniper: true,  headR: 0.2,  headX: 2.2, have: () => owns('rifle') },
   };
-  const unlocked = () => Object.keys(WEAPONS).filter(k => !WEAPONS[k].need || has(WEAPONS[k].need));
+  const unlocked = () => Object.keys(WEAPONS).filter(k => WEAPONS[k].have());
   const wid = () => (P.weapon && unlocked().includes(P.weapon)) ? P.weapon : 'pistol';
   const WP = () => WEAPONS[wid()];
   C.weapon = wid; C.unlocked = unlocked; C.WP = WP;
   C.swap = function () {
-    const u = unlocked(); if (u.length < 2) { toast('Only a pistol so far. Research better guns (R).'); return; }
+    const u = unlocked(); if (u.length < 2) { toast('Only a pistol so far. Better guns are found out in the ruins, or built crudely (research).'); return; }
     P.mags = P.mags || {}; P.mags[wid()] = P.mag;
     P.weapon = u[(u.indexOf(wid()) + 1) % u.length]; P.reloadT = 0;
     P.mag = P.mags[P.weapon] !== undefined ? P.mags[P.weapon] : WP().mag;

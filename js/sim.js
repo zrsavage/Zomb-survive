@@ -844,6 +844,7 @@ function scavenge(b) {
   for (const [k] of LOOT_KEYS) if (got[k]) ent.push({ r: k, n: got[k] });
   if (b.type === 'house' && rng() < KEYS.houseChance) ent.push({ i: 'keycard', n: 1 });
   if (rng() < 0.08) ent.push({ i: Items.roll(), n: 1 });
+  { const gp = { police: 0.2, bunker: 0.5, warehouse: 0.03, garage: 0.03, house: 0.012 }[b.type] || 0; if (gp && rng() < gp) { const gg = Items.rollGun(); if (gg) ent.push({ i: gg, n: 1 }); } }
   Loot.open('Searched the ' + t.label.toLowerCase(), ent, { x: b.x + b.w / 2, y: b.y + b.h + 0.6 });
   let msg = t.label + ': ' + lootText(got);
   if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + intro(s) + ' was hiding inside and follows you back!'; }
@@ -1112,7 +1113,7 @@ function tryBuild(tx, ty) {
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
   if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
-  if (!G.completing && !explored[i]) return;
+  if (!G.completing && !explored[i]) return warn('Unexplored ground: walk closer, or build a lookout to see that far');
   if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. Right-click-erase it to cancel.');
   if (TOOL_KIND[tool]) {
     const kind = TOOL_KIND[tool];

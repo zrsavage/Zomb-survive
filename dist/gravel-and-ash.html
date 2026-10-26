@@ -312,8 +312,8 @@ const LEVELS = [   // index = camp level - 1
   { cap: 150, defs: 6,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
   { cap: 260, defs: 12, store: 700,  coreHp: 900,  up: { m: 280, f: 120 } },
   { cap: 380, defs: 20, store: 1100, coreHp: 1300, up: { m: 500, f: 200 } },
-  { cap: 540, defs: 30, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
-  { cap: 780, defs: 45, store: 2400, coreHp: 2500, up: null },
+  { cap: 540, defs: 36, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
+  { cap: 780, defs: 60, store: 2400, coreHp: 2500, up: null },
 ];
 
 const BUILDING_TYPES = {
@@ -414,8 +414,8 @@ const RESEARCH = [
   { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
-  { id: 'smg',      name: 'Machine Pistol',   desc: 'A full-auto conversion for your pistol: hold to spray about 11 rounds a second from a 24-round clip. Weaker rounds, a lot of ammo, a lot of noise. Switch guns with B.', cost: { m: 160, a: 70 }, time: 70 },
-  { id: 'marksman', name: 'Marksman Rifle',  desc: 'A scoped rifle for you: twice the range, heavy rounds that punch through three zombies, and a clean headshot on anything. Slow to cycle. Switch guns with B.', cost: { m: 220, a: 90 }, time: 90 },
+  { id: 'homemade', name: 'Homemade Carbine', desc: 'Bolt, pipe and scrap wood: a crude single-shot-at-a-time carbine for you. Longer reach and harder hitting than the pistol, but slow, rough and only 8 to a load. Switch guns with B.', cost: { m: 140, a: 40 }, time: 60 },
+  { id: 'homemade2', name: 'Homemade Auto',  desc: 'A hand-built full-auto, all pipe and rubber bands: sprays about 6 rounds a second from 16, and it will never be as good as a real one. Switch guns with B.', cost: { m: 260, a: 80 }, time: 90 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 
@@ -2569,6 +2569,7 @@ function scavenge(b) {
   for (const [k] of LOOT_KEYS) if (got[k]) ent.push({ r: k, n: got[k] });
   if (b.type === 'house' && rng() < KEYS.houseChance) ent.push({ i: 'keycard', n: 1 });
   if (rng() < 0.08) ent.push({ i: Items.roll(), n: 1 });
+  { const gp = { police: 0.2, bunker: 0.5, warehouse: 0.03, garage: 0.03, house: 0.012 }[b.type] || 0; if (gp && rng() < gp) { const gg = Items.rollGun(); if (gg) ent.push({ i: gg, n: 1 }); } }
   Loot.open('Searched the ' + t.label.toLowerCase(), ent, { x: b.x + b.w / 2, y: b.y + b.h + 0.6 });
   let msg = t.label + ': ' + lootText(got);
   if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + intro(s) + ' was hiding inside and follows you back!'; }
@@ -2837,7 +2838,7 @@ function tryBuild(tx, ty) {
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
   if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
-  if (!G.completing && !explored[i]) return;
+  if (!G.completing && !explored[i]) return warn('Unexplored ground: walk closer, or build a lookout to see that far');
   if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. Right-click-erase it to cancel.');
   if (TOOL_KIND[tool]) {
     const kind = TOOL_KIND[tool];
@@ -4575,17 +4576,23 @@ const Units = (() => {
    magazine runs dry. The posted defenders still shoot for themselves. */
 const Combat = (() => {
   const C = { mouse: { x: 0, y: 0 }, down: false, aimX: 0, aimY: 0, over: null, ptype: 'mouse' };
+  // Pistol: yours from the start. Homemade: built at camp (research), decent but crude. Machine pistol, assault rifle and
+  // marksman rifle are real military guns: they can only be FOUND, never built.
+  const owns = id => !!(P.guns && P.guns[id]);
   const WEAPONS = {
-    pistol: { label: 'Pistol',         mag: 12, reload: 1.5, cd: 0.27,  spread: 0.028, move: 0.06, bloom: 0.016, bloomMax: 0.09, range: 10, dmg: 1,    pen: 1, heat: 1,   sniper: false, headR: 0.15, headX: 1.9, need: null },
-    smg:    { label: 'Machine pistol', mag: 24, reload: 2.0, cd: 0.085, spread: 0.05,  move: 0.1,  bloom: 0.012, bloomMax: 0.14, range: 9,  dmg: 0.5,  pen: 1, heat: 0.6, sniper: false, headR: 0.12, headX: 1.5, need: 'smg' },
-    rifle:  { label: 'Marksman rifle', mag: 6,  reload: 2.3, cd: 0.7,   spread: 0.006, move: 0.05, bloom: 0.02,  bloomMax: 0.06, range: 20, dmg: 2.7,  pen: 3, heat: 1,   sniper: true,  headR: 0.2,  headX: 2.2, need: 'marksman' },
+    pistol:  { label: 'Pistol',           mag: 12, reload: 1.5, cd: 0.27,  spread: 0.028, move: 0.06, bloom: 0.016, bloomMax: 0.09, range: 10, dmg: 1,    pen: 1, heat: 1,   sniper: false, headR: 0.15, headX: 1.9, have: () => true },
+    carbine: { label: 'Homemade carbine', mag: 8,  reload: 2.0, cd: 0.45,  spread: 0.024, move: 0.07, bloom: 0.02,  bloomMax: 0.1,  range: 12, dmg: 1.7,  pen: 1, heat: 1,   sniper: false, headR: 0.16, headX: 1.7, have: () => has('homemade') },
+    hauto:   { label: 'Homemade auto',    mag: 16, reload: 2.4, cd: 0.16,  spread: 0.06,  move: 0.11, bloom: 0.016, bloomMax: 0.15, range: 8,  dmg: 0.7,  pen: 1, heat: 0.8, sniper: false, headR: 0.12, headX: 1.4, have: () => has('homemade2') },
+    smg:     { label: 'Machine pistol',   mag: 24, reload: 2.0, cd: 0.085, spread: 0.05,  move: 0.1,  bloom: 0.012, bloomMax: 0.14, range: 9,  dmg: 0.5,  pen: 1, heat: 0.6, sniper: false, headR: 0.12, headX: 1.5, have: () => owns('smg') },
+    assault: { label: 'Assault rifle',    mag: 30, reload: 2.2, cd: 0.115, spread: 0.022, move: 0.07, bloom: 0.012, bloomMax: 0.09, range: 14, dmg: 0.82, pen: 1, heat: 0.75, sniper: false, headR: 0.14, headX: 1.8, have: () => owns('assault') },
+    rifle:   { label: 'Marksman rifle',   mag: 6,  reload: 2.3, cd: 0.7,   spread: 0.006, move: 0.05, bloom: 0.02,  bloomMax: 0.06, range: 20, dmg: 2.7,  pen: 3, heat: 1,   sniper: true,  headR: 0.2,  headX: 2.2, have: () => owns('rifle') },
   };
-  const unlocked = () => Object.keys(WEAPONS).filter(k => !WEAPONS[k].need || has(WEAPONS[k].need));
+  const unlocked = () => Object.keys(WEAPONS).filter(k => WEAPONS[k].have());
   const wid = () => (P.weapon && unlocked().includes(P.weapon)) ? P.weapon : 'pistol';
   const WP = () => WEAPONS[wid()];
   C.weapon = wid; C.unlocked = unlocked; C.WP = WP;
   C.swap = function () {
-    const u = unlocked(); if (u.length < 2) { toast('Only a pistol so far. Research better guns (R).'); return; }
+    const u = unlocked(); if (u.length < 2) { toast('Only a pistol so far. Better guns are found out in the ruins, or built crudely (research).'); return; }
     P.mags = P.mags || {}; P.mags[wid()] = P.mag;
     P.weapon = u[(u.indexOf(wid()) + 1) % u.length]; P.reloadT = 0;
     P.mag = P.mags[P.weapon] !== undefined ? P.mags[P.weapon] : WP().mag;
@@ -4731,6 +4738,9 @@ const Items = (() => {
     fuel_can: { name: 'Fuel can',      desc: 'Stash at camp for 8 fuel.', stash: { fuel: 8 }, w: 12 },
     jug:      { name: 'Water jug',     desc: 'Stash at camp for 10 water.', stash: { water: 10 }, w: 14 },
     keycard:  { name: 'Keycard',       desc: 'Opens one locked building without cutting.', special: true, w: 4 },
+    gun_smg:     { name: 'Machine pistol', desc: 'A military full-auto pistol. Sprays fast, drinks ammo. Switch guns with B.', special: true, weapon: 'smg', w: 1.2 },
+    gun_assault: { name: 'Assault rifle',  desc: 'A military rifle: fast, accurate, a long clip. Switch guns with B.', special: true, weapon: 'assault', w: 1 },
+    gun_marksman:{ name: 'Marksman rifle', desc: 'A scoped rifle: twice the reach, punches through three of the dead. Switch guns with B.', special: true, weapon: 'rifle', w: 0.8 },
     blueprint:{ name: 'Blueprint',     desc: 'Unlocks a piece of research.', special: true, w: 0 },
   };
   const PACK = { slots: 10, stack: 9, campR: 9 };
@@ -4754,6 +4764,9 @@ const Items = (() => {
     planks: [R('#000a', 1, 10, 10, 1), R('#8a5a2a', 1, 7, 10, 3), R('#b07a3c', 1, 7, 10, 1), R('#8a5a2a', 2, 4, 9, 3), R('#c08a4c', 2, 4, 9, 1), R('#6a4018', 1, 9, 10, 1), R('#e8e0c0', 3, 5, 1, 1), R('#e8e0c0', 9, 8, 1, 1)],
     fuel_can: null, jug: [R('#000a', 2, 10, 8, 1), R('#bfe8ff', 2, 3, 8, 7), R('#4fb0e8', 2, 5, 8, 5), R('#8fd0ff', 2, 3, 8, 1), R('#2a6aa8', 2, 9, 8, 1), R('#c8d0d8', 4, 1, 4, 2)],
     keycard: [R('#000a', 1, 10, 10, 1), R('#2a3a5a', 1, 3, 10, 6), R('#4a6a9a', 1, 3, 10, 1), R('#e8d070', 2, 4, 3, 2), R('#101820', 1, 7, 10, 1), R('#7fd0ff', 6, 5, 3, 1)],
+    gun_smg: [R('#000a', 1, 10, 10, 1), R('#1a1c20', 1, 4, 9, 3), R('#4a4f58', 1, 4, 9, 1), R('#101114', 9, 4, 2, 2), R('#2a2d33', 4, 7, 2, 3), R('#5a3a1a', 1, 7, 3, 2), R('#8a909a', 5, 3, 3, 1)],
+    gun_assault: [R('#000a', 1, 10, 10, 1), R('#3a3a34', 0, 4, 4, 4), R('#1a1c20', 3, 4, 8, 2), R('#4a4f58', 3, 4, 8, 1), R('#101114', 10, 4, 2, 1), R('#2a2d33', 5, 6, 2, 4), R('#8a909a', 6, 3, 3, 1), R('#7a8a3a', 7, 7, 1, 3)],
+    gun_marksman: [R('#000a', 1, 10, 10, 1), R('#7a5226', 0, 5, 4, 3), R('#9a7040', 0, 5, 4, 1), R('#1a1c20', 3, 5, 9, 2), R('#4a4f58', 3, 5, 9, 1), R('#2a8ad0', 5, 3, 3, 2), R('#8a909a', 9, 5, 3, 1), R('#2a2d33', 4, 7, 2, 2)],
     blueprint: [R('#000a', 1, 10, 10, 1), R('#2a5aa8', 1, 2, 10, 8), R('#5a8ad8', 1, 2, 10, 1), R('#bfe0ff', 3, 4, 6, 1), R('#bfe0ff', 3, 6, 4, 1), R('#bfe0ff', 3, 8, 6, 1), R('#bfe0ff', 3, 4, 1, 5)],
   };
   ART.fuel_can = ART.fuel;
@@ -4797,7 +4810,13 @@ const Items = (() => {
   }
   function roll(chanceMul) {
     const ids = Object.keys(ITEMS).filter(k => ITEMS[k].w > 0), tot = ids.reduce((a, k) => a + ITEMS[k].w, 0);
-    let r = rng() * tot; for (const k of ids) { r -= ITEMS[k].w; if (r <= 0) return k; } return ids[0];
+    let r = rng() * tot, pick = ids[0]; for (const k of ids) { r -= ITEMS[k].w; if (r <= 0) { pick = k; break; } }
+    return ITEMS[pick].weapon && P.guns && P.guns[ITEMS[pick].weapon] ? 'ammo_box' : pick;       // you only ever find a gun you do not have yet
+  }
+  // a gun you do not own yet, or null: the found-only military weapons
+  function rollGun() {
+    const left = Object.keys(ITEMS).filter(k => ITEMS[k].weapon && !(P.guns && P.guns[ITEMS[k].weapon]));
+    return left.length ? pick(left) : null;
   }
   function zombieDrop(z) {
     const p = DROP.chance * (DROP.mult[z.type] || 1) * (G.flags && G.flags.scav ? 1 : 1);
@@ -4805,10 +4824,11 @@ const Items = (() => {
     const id = roll();
     crates.push({ x: z.x, y: z.y, t: DROP.life, type: 'pile', items: [{ i: id, n: 1 }] });
   }
-  return { RES, ITEMS, PACK, DROP, canvas, url, img, nameOf, pack, packCount, packAdd, stashOne, stashAll, useOne, dropOne, zombieDrop, roll, atCamp };
+  return { rollGun, RES, ITEMS, PACK, DROP, canvas, url, img, nameOf, pack, packCount, packAdd, stashOne, stashAll, useOne, dropOne, zombieDrop, roll, atCamp };
 })();
 
 /* The loot window. open() is the one door every kind of looting goes through. */
+const ITEMS_W = id => !!(Items.ITEMS[id] && Items.ITEMS[id].weapon);
 const Loot = (() => {
   const L = { cur: null, cd: 0 };
   let el = null;
@@ -4820,6 +4840,7 @@ const Loot = (() => {
       const f = Items.RES[e.r].field, room = Math.max(0, Math.floor(storeCap() - G[f])), t = Math.min(e.n, room);
       if (t > 0) G[f] += t; return t;
     }
+    if (ITEMS_W(e.i)) { const g = Items.ITEMS[e.i].weapon; P.guns = P.guns || {}; if (P.guns[g]) return 0; P.guns[g] = 1; log('You found a ' + Items.nameOf(e.i).toLowerCase() + '. Press B in Fight mode to switch to it.'); floatText(P.px, P.py - 1.6, Items.nameOf(e.i).toUpperCase(), '#ffe27a'); Snd.upgrade && Snd.upgrade(); return e.n; }
     if (e.i === 'keycard') { G.keys++; return e.n; }
     if (e.i === 'blueprint') {
       const left = RESEARCH.filter(r => !G.res.done[r.id]);
@@ -4873,8 +4894,8 @@ const Loot = (() => {
   function entriesOf(c) {
     if (c.items) return c.items;
     let e = [];
-    if (c.type === 'boss') { e = [{ r: 'm', n: 150 }, { r: 'f', n: 60 }, { r: 'a', n: 80 }, { r: 'med', n: 20 }, { r: 'fuel', n: 20 }, { r: 'water', n: 30 }, { i: 'keycard', n: 1 }, { i: 'blueprint', n: 1 }]; }
-    else if (c.type === 'airdrop') { const rl = v => Math.round(v * (0.9 + rng() * 0.2) * (c.mult || 1)); for (const k in BROADCAST.drop) e.push({ r: k, n: rl(BROADCAST.drop[k]) }); }
+    if (c.type === 'boss') { e = [{ r: 'm', n: 150 }, { r: 'f', n: 60 }, { r: 'a', n: 80 }, { r: 'med', n: 20 }, { r: 'fuel', n: 20 }, { r: 'water', n: 30 }, { i: 'keycard', n: 1 }, { i: 'blueprint', n: 1 }]; const gg = Items.rollGun(); if (gg) e.push({ i: gg, n: 1 }); }
+    else if (c.type === 'airdrop') { const rl = v => Math.round(v * (0.9 + rng() * 0.2) * (c.mult || 1)); for (const k in BROADCAST.drop) e.push({ r: k, n: rl(BROADCAST.drop[k]) }); if (rng() < 0.08) { const gg = Items.rollGun(); if (gg) e.push({ i: gg, n: 1 }); } }
     else { const L2 = EVENTS.crateLoot, rl = v => Math.round(v * (0.8 + rng() * 0.5)); e = [{ r: 'm', n: rl(L2.m) }, { r: 'f', n: rl(L2.f) }, { r: 'a', n: rl(L2.a) }]; if (rng() < 0.35) e.push({ i: Items.roll(), n: 1 }); }
     return (c.items = e);
   }
@@ -5056,6 +5077,8 @@ const Weapons = (() => {
   const R = (c, x, y, w, h) => [c, x, y, w, h];
   const SPR = {
     pistol: () => mk('pistol', 9, 6, [R('#1a1c20', 0, 1, 7, 2), R('#3a3f48', 0, 1, 7, 1), R('#8a909a', 1, 1, 5, 1), R('#1a1c20', 5, 3, 3, 3), R('#2a2d33', 5, 3, 2, 2), R('#101114', 7, 1, 2, 1), R('#5a3a1a', 4, 3, 2, 3)]),
+    assault: () => mk('assault', 15, 6, [R('#1a1c20', 3, 1, 12, 2), R('#4a4f58', 3, 1, 12, 1), R('#3a3a34', 0, 1, 4, 3), R('#101114', 12, 1, 3, 1), R('#2a2d33', 6, 3, 2, 3), R('#8a909a', 9, 0, 3, 1), R('#5a5f68', 4, 0, 4, 1)]),
+    carbine: () => mk('carbine', 14, 5, [R('#7a5226', 0, 1, 6, 3), R('#9a7040', 0, 1, 6, 1), R('#3a3f48', 5, 1, 9, 2), R('#6a6f78', 5, 1, 9, 1), R('#c8a060', 4, 2, 2, 1), R('#2a2d33', 7, 3, 2, 2)]),
     smg: () => mk('smg', 11, 7, [R('#1a1c20', 0, 1, 9, 2), R('#4a4f58', 0, 1, 9, 1), R('#101114', 8, 1, 3, 2), R('#2a2d33', 3, 3, 2, 4), R('#d8a030', 3, 5, 2, 1), R('#5a3a1a', 0, 3, 3, 3), R('#8a909a', 5, 0, 3, 1)]),
     rifle: () => mk('rifle', 17, 5, [R('#1a1c20', 3, 1, 14, 2), R('#4a4f58', 3, 1, 14, 1), R('#5a3a1a', 0, 1, 5, 3), R('#7a5226', 0, 1, 5, 1), R('#101114', 9, 3, 2, 2), R('#2a8ad0', 7, 0, 3, 1), R('#8a909a', 12, 1, 5, 1)]),
     knife: () => mk('knife', 8, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#d8dde2', 3, 0, 5, 2), R('#fff', 3, 0, 5, 1), R('#8a909a', 6, 1, 2, 1)]),
@@ -5066,7 +5089,7 @@ const Weapons = (() => {
 
   // which weapon is this person using right now
   function kindOf(o) {
-    if (o === P) return P.dead > 0 ? 'pistol' : ({ rifle: 'rifle', smg: 'smg' }[Combat.weapon()] || 'pistol');
+    if (o === P) return P.dead > 0 ? 'pistol' : ({ rifle: 'rifle', smg: 'smg', assault: 'assault', carbine: 'carbine', hauto: 'smg' }[Combat.weapon()] || 'pistol');
     const r = o.s && o.s.role;
     return r === 'sniper' ? 'rifle' : 'pistol';
   }
@@ -5157,7 +5180,7 @@ const Hints = (() => {
     { id: 'morale', title: 'Morale is slipping', text: 'Deaths hurt morale, wins heal it. Low morale slows defenders and stops new arrivals; far enough down, people desert. Rules (P) like Feasts can lift it.', when: () => G.morale < 40 },
     { id: 'tired', title: 'You are worn out', text: 'Swinging drains stamina. Out of it you hit weak and slow. Back off and let it recover, or shoot from range instead.', when: () => !!P.tired },
     { id: 'down', title: 'You went down', text: 'You come back at camp after a few seconds, a little poorer for it. The camp keeps going without you, so make sure it can.', when: () => P.dead > 0 && G.deaths >= 1 },
-    { id: 'weapon', title: 'A new gun', text: 'Your research unlocked a second weapon. Press <b>B</b> to switch: the machine pistol sprays, the marksman rifle reaches twice as far and punches through three of the dead. Each keeps its own clip.', when: () => Combat.unlocked().length > 1 },
+    { id: 'weapon', title: 'A new gun', text: 'You have another gun now. Press <b>B</b> to switch. The military ones (machine pistol, assault rifle, marksman rifle) can only be found; what you build at camp is cruder. Each gun keeps its own clip.', when: () => Combat.unlocked().length > 1 },
     { id: 'walledin', title: 'Wall in more ground', text: 'Your camp is sealed. Walls can close off far more than the camp: whole blocks, a district, the town. Everything inside a closed loop is yours. Add a second and third layer where they press hardest, and remember every wall you hold needs people and towers behind it.', when: () => G.sealed && G.elapsed > 400 },
     { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
     { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
@@ -5975,7 +5998,7 @@ const Save = (() => {
     Towns.snapshot(Campaign.active);                       // refresh the live town's record (also writes back the id counter)
     const c = Campaign;
     return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
-      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })) }, towns: c.towns.map(serializeTown) };
+      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })), guns: P.guns || {} }, towns: c.towns.map(serializeTown) };
   }
   // where the save lives: the browser's storage, a copy in memory for this visit, and the private cloud copy
   let mem = null;
@@ -6046,7 +6069,7 @@ const Save = (() => {
     Campaign.nextId = c.nextId || (Math.max(...Campaign.towns.map(t => t.id)) + 1);
     activeT = activeT || Campaign.towns[0];
     Towns.load(activeT); Campaign.active = activeT;
-    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || [];
+    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {};
     computePlayerField(); updateVision();
     log('Game loaded');
     return true;
@@ -6350,7 +6373,13 @@ const UI = (() => {
     const key = L.map(b => b.id + ':' + b.prio + ':' + Math.round(b.prog / b.work * 20)).join() + '|' + (Build.hands | 0) + (Build.busy | 0) + (G.mat | 0);
     if (key === lastJobs) return; lastJobs = key;
     const el = $('jobs'), left = Build.workLeft();
-    const rows = L.map(b => '<tr><td>' + (b.w ? '<span style="color:var(--amber)">▸</span> ' : '') + '<a href="#" data-go="' + b.id + '" style="color:inherit"><b>' + Build.label(b.tool) + '</b></a> <small style="color:var(--dim)">at ' + b.x + ',' + b.y + '</small></td>' +
+    const big = L.length > 14;                                               // a big wall plan: show it as groups, not hundreds of rows
+    const groups = []; if (big) { const m = new Map(); for (const bp of L) { const k = bp.tool + ':' + bp.prio; let g = m.get(k); if (!g) { g = { tool: bp.tool, prio: bp.prio, items: [], cost: {}, work: 0, prog: 0, w: 0 }; m.set(k, g); groups.push(g); } g.items.push(bp); for (const c in bp.cost) g.cost[c] = (g.cost[c] || 0) + bp.cost[c]; g.work += bp.work; g.prog += bp.prog; g.w += bp.w ? 1 : 0; } }
+    const rows = big ? groups.map((g, gi) => '<tr><td>' + (g.w ? '<span style="color:var(--amber)">▸</span> ' : '') + '<b>' + Build.label(g.tool) + ' ×' + g.items.length + '</b></td>' +
+      '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(g.prog / g.work * 100) + '%;background:' + (g.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(g.work - g.prog) + 's of work</small></td>' +
+      '<td><small>' + Build.costText(g.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
+      '<td style="white-space:nowrap"><button data-gp="' + gi + '" data-d="1" title="Higher priority">▲</button><button data-gp="' + gi + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (g.prio === 3 ? '#ff8a6a' : g.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[g.prio] + '</b> <button data-gx="' + gi + '" title="Cancel the lot and get unused supplies back">✕</button></td></tr>').join('') :
+      L.map(b => '<tr><td>' + (b.w ? '<span style="color:var(--amber)">▸</span> ' : '') + '<a href="#" data-go="' + b.id + '" style="color:inherit"><b>' + Build.label(b.tool) + '</b></a> <small style="color:var(--dim)">at ' + b.x + ',' + b.y + '</small></td>' +
       '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(b.prog / b.work * 100) + '%;background:' + (b.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(b.work - b.prog) + 's of work</small></td>' +
       '<td><small>' + Build.costText(b.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
       '<td style="white-space:nowrap"><button data-p="' + b.id + '" data-d="1" title="Higher priority">▲</button><button data-p="' + b.id + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (b.prio === 3 ? '#ff8a6a' : b.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[b.prio] + '</b> <button data-x="' + b.id + '" title="Cancel and get the unused supplies back">✕</button></td></tr>').join('');
@@ -6359,6 +6388,8 @@ const UI = (() => {
       (L.length ? '<table class="wk" style="width:100%">' + rows + '</table><div style="margin-top:8px"><button id="jbClear">Cancel everything (refund unused)</button></div>' : '<div style="color:var(--dim)">Nothing queued. Pick a wall or tower and click or drag on the ground to plan it.</div>');
     $('jbClose').onclick = toggleJobs;
     const find = id => (G.blue || []).find(b => b.id === +id);
+    el.querySelectorAll('button[data-gp]').forEach(b => b.onclick = () => { const g = groups[+b.dataset.gp]; for (const bp of g.items) Build.setPrio(bp, bp.prio + +b.dataset.d); lastJobs = ''; renderJobs(); Snd.click(); });
+    el.querySelectorAll('button[data-gx]').forEach(b => b.onclick = () => { const g = groups[+b.dataset.gx]; for (const bp of g.items) Build.cancel(bp); lastJobs = ''; renderJobs(); });
     el.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { const bp = find(b.dataset.p); if (bp) Build.setPrio(bp, bp.prio + +b.dataset.d); lastJobs = ''; renderJobs(); Snd.click(); });
     el.querySelectorAll('button[data-x]').forEach(b => b.onclick = () => { const bp = find(b.dataset.x); if (bp) Build.cancel(bp); lastJobs = ''; renderJobs(); });
     el.querySelectorAll('a[data-go]').forEach(a => a.onclick = ev => { ev.preventDefault(); const bp = find(a.dataset.go); if (bp) { G.cam.free = true; G.cam.x = bp.x + 0.5; G.cam.y = bp.y + 0.5; } });

@@ -83,5 +83,7 @@ WASD move (Shift sprint) - hold E scavenge - click/drag build (within range of y
 `window.__game` exposes state and helpers for debugging.
 
 ## Your own guns, and walling in more ground
-- Research **Machine Pistol** (full auto, ~11 rounds/s, noisy) and **Marksman Rifle** (20 tiles, punches through 3, big headshots). **B** switches guns in Fight mode; each keeps its own clip.
-- Ground you wall in is yours however large: a closed loop of walls (any number of layers) claims everything inside. If there is a gap, the camp only holds ground near the core (the level's open-ground limit).
+- You start with a pistol. **B** switches guns in Fight mode; each keeps its own clip.
+- Military guns can only be **found**, never built: **Machine pistol** (full auto, ~11 rounds/s), **Assault rifle** (~9/s, 30-round clip, 14 tiles) and **Marksman rifle** (20 tiles, punches through 3, big headshots). They turn up in police stations, bunkers, the Tyrant's cache, supply drops, and very rarely on the dead.
+- What you can build (research) is **homemade**: the Homemade Carbine (crude, slow, hits hard) and Homemade Auto (about 6 rounds/s). They shoot, but they are not as good as the real thing.
+- Ground you wall in is yours however large: a closed loop of walls (any number of layers) claims everything inside, up to most of the town. If there is a gap, the camp only holds ground near the core (the level's open-ground limit). Big wall plans appear in the build queue (J) as groups.

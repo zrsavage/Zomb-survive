@@ -21,6 +21,9 @@ const Items = (() => {
     fuel_can: { name: 'Fuel can',      desc: 'Stash at camp for 8 fuel.', stash: { fuel: 8 }, w: 12 },
     jug:      { name: 'Water jug',     desc: 'Stash at camp for 10 water.', stash: { water: 10 }, w: 14 },
     keycard:  { name: 'Keycard',       desc: 'Opens one locked building without cutting.', special: true, w: 4 },
+    gun_smg:     { name: 'Machine pistol', desc: 'A military full-auto pistol. Sprays fast, drinks ammo. Switch guns with B.', special: true, weapon: 'smg', w: 1.2 },
+    gun_assault: { name: 'Assault rifle',  desc: 'A military rifle: fast, accurate, a long clip. Switch guns with B.', special: true, weapon: 'assault', w: 1 },
+    gun_marksman:{ name: 'Marksman rifle', desc: 'A scoped rifle: twice the reach, punches through three of the dead. Switch guns with B.', special: true, weapon: 'rifle', w: 0.8 },
     blueprint:{ name: 'Blueprint',     desc: 'Unlocks a piece of research.', special: true, w: 0 },
   };
   const PACK = { slots: 10, stack: 9, campR: 9 };
@@ -44,6 +47,9 @@ const Items = (() => {
     planks: [R('#000a', 1, 10, 10, 1), R('#8a5a2a', 1, 7, 10, 3), R('#b07a3c', 1, 7, 10, 1), R('#8a5a2a', 2, 4, 9, 3), R('#c08a4c', 2, 4, 9, 1), R('#6a4018', 1, 9, 10, 1), R('#e8e0c0', 3, 5, 1, 1), R('#e8e0c0', 9, 8, 1, 1)],
     fuel_can: null, jug: [R('#000a', 2, 10, 8, 1), R('#bfe8ff', 2, 3, 8, 7), R('#4fb0e8', 2, 5, 8, 5), R('#8fd0ff', 2, 3, 8, 1), R('#2a6aa8', 2, 9, 8, 1), R('#c8d0d8', 4, 1, 4, 2)],
     keycard: [R('#000a', 1, 10, 10, 1), R('#2a3a5a', 1, 3, 10, 6), R('#4a6a9a', 1, 3, 10, 1), R('#e8d070', 2, 4, 3, 2), R('#101820', 1, 7, 10, 1), R('#7fd0ff', 6, 5, 3, 1)],
+    gun_smg: [R('#000a', 1, 10, 10, 1), R('#1a1c20', 1, 4, 9, 3), R('#4a4f58', 1, 4, 9, 1), R('#101114', 9, 4, 2, 2), R('#2a2d33', 4, 7, 2, 3), R('#5a3a1a', 1, 7, 3, 2), R('#8a909a', 5, 3, 3, 1)],
+    gun_assault: [R('#000a', 1, 10, 10, 1), R('#3a3a34', 0, 4, 4, 4), R('#1a1c20', 3, 4, 8, 2), R('#4a4f58', 3, 4, 8, 1), R('#101114', 10, 4, 2, 1), R('#2a2d33', 5, 6, 2, 4), R('#8a909a', 6, 3, 3, 1), R('#7a8a3a', 7, 7, 1, 3)],
+    gun_marksman: [R('#000a', 1, 10, 10, 1), R('#7a5226', 0, 5, 4, 3), R('#9a7040', 0, 5, 4, 1), R('#1a1c20', 3, 5, 9, 2), R('#4a4f58', 3, 5, 9, 1), R('#2a8ad0', 5, 3, 3, 2), R('#8a909a', 9, 5, 3, 1), R('#2a2d33', 4, 7, 2, 2)],
     blueprint: [R('#000a', 1, 10, 10, 1), R('#2a5aa8', 1, 2, 10, 8), R('#5a8ad8', 1, 2, 10, 1), R('#bfe0ff', 3, 4, 6, 1), R('#bfe0ff', 3, 6, 4, 1), R('#bfe0ff', 3, 8, 6, 1), R('#bfe0ff', 3, 4, 1, 5)],
   };
   ART.fuel_can = ART.fuel;
@@ -87,7 +93,13 @@ const Items = (() => {
   }
   function roll(chanceMul) {
     const ids = Object.keys(ITEMS).filter(k => ITEMS[k].w > 0), tot = ids.reduce((a, k) => a + ITEMS[k].w, 0);
-    let r = rng() * tot; for (const k of ids) { r -= ITEMS[k].w; if (r <= 0) return k; } return ids[0];
+    let r = rng() * tot, pick = ids[0]; for (const k of ids) { r -= ITEMS[k].w; if (r <= 0) { pick = k; break; } }
+    return ITEMS[pick].weapon && P.guns && P.guns[ITEMS[pick].weapon] ? 'ammo_box' : pick;       // you only ever find a gun you do not have yet
+  }
+  // a gun you do not own yet, or null: the found-only military weapons
+  function rollGun() {
+    const left = Object.keys(ITEMS).filter(k => ITEMS[k].weapon && !(P.guns && P.guns[ITEMS[k].weapon]));
+    return left.length ? pick(left) : null;
   }
   function zombieDrop(z) {
     const p = DROP.chance * (DROP.mult[z.type] || 1) * (G.flags && G.flags.scav ? 1 : 1);
@@ -95,10 +107,11 @@ const Items = (() => {
     const id = roll();
     crates.push({ x: z.x, y: z.y, t: DROP.life, type: 'pile', items: [{ i: id, n: 1 }] });
   }
-  return { RES, ITEMS, PACK, DROP, canvas, url, img, nameOf, pack, packCount, packAdd, stashOne, stashAll, useOne, dropOne, zombieDrop, roll, atCamp };
+  return { rollGun, RES, ITEMS, PACK, DROP, canvas, url, img, nameOf, pack, packCount, packAdd, stashOne, stashAll, useOne, dropOne, zombieDrop, roll, atCamp };
 })();
 
 /* The loot window. open() is the one door every kind of looting goes through. */
+const ITEMS_W = id => !!(Items.ITEMS[id] && Items.ITEMS[id].weapon);
 const Loot = (() => {
   const L = { cur: null, cd: 0 };
   let el = null;
@@ -110,6 +123,7 @@ const Loot = (() => {
       const f = Items.RES[e.r].field, room = Math.max(0, Math.floor(storeCap() - G[f])), t = Math.min(e.n, room);
       if (t > 0) G[f] += t; return t;
     }
+    if (ITEMS_W(e.i)) { const g = Items.ITEMS[e.i].weapon; P.guns = P.guns || {}; if (P.guns[g]) return 0; P.guns[g] = 1; log('You found a ' + Items.nameOf(e.i).toLowerCase() + '. Press B in Fight mode to switch to it.'); floatText(P.px, P.py - 1.6, Items.nameOf(e.i).toUpperCase(), '#ffe27a'); Snd.upgrade && Snd.upgrade(); return e.n; }
     if (e.i === 'keycard') { G.keys++; return e.n; }
     if (e.i === 'blueprint') {
       const left = RESEARCH.filter(r => !G.res.done[r.id]);
@@ -163,8 +177,8 @@ const Loot = (() => {
   function entriesOf(c) {
     if (c.items) return c.items;
     let e = [];
-    if (c.type === 'boss') { e = [{ r: 'm', n: 150 }, { r: 'f', n: 60 }, { r: 'a', n: 80 }, { r: 'med', n: 20 }, { r: 'fuel', n: 20 }, { r: 'water', n: 30 }, { i: 'keycard', n: 1 }, { i: 'blueprint', n: 1 }]; }
-    else if (c.type === 'airdrop') { const rl = v => Math.round(v * (0.9 + rng() * 0.2) * (c.mult || 1)); for (const k in BROADCAST.drop) e.push({ r: k, n: rl(BROADCAST.drop[k]) }); }
+    if (c.type === 'boss') { e = [{ r: 'm', n: 150 }, { r: 'f', n: 60 }, { r: 'a', n: 80 }, { r: 'med', n: 20 }, { r: 'fuel', n: 20 }, { r: 'water', n: 30 }, { i: 'keycard', n: 1 }, { i: 'blueprint', n: 1 }]; const gg = Items.rollGun(); if (gg) e.push({ i: gg, n: 1 }); }
+    else if (c.type === 'airdrop') { const rl = v => Math.round(v * (0.9 + rng() * 0.2) * (c.mult || 1)); for (const k in BROADCAST.drop) e.push({ r: k, n: rl(BROADCAST.drop[k]) }); if (rng() < 0.08) { const gg = Items.rollGun(); if (gg) e.push({ i: gg, n: 1 }); } }
     else { const L2 = EVENTS.crateLoot, rl = v => Math.round(v * (0.8 + rng() * 0.5)); e = [{ r: 'm', n: rl(L2.m) }, { r: 'f', n: rl(L2.f) }, { r: 'a', n: rl(L2.a) }]; if (rng() < 0.35) e.push({ i: Items.roll(), n: 1 }); }
     return (c.items = e);
   }

@@ -42,8 +42,8 @@ const LEVELS = [   // index = camp level - 1
   { cap: 150, defs: 6,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
   { cap: 260, defs: 12, store: 700,  coreHp: 900,  up: { m: 280, f: 120 } },
   { cap: 380, defs: 20, store: 1100, coreHp: 1300, up: { m: 500, f: 200 } },
-  { cap: 540, defs: 30, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
-  { cap: 780, defs: 45, store: 2400, coreHp: 2500, up: null },
+  { cap: 540, defs: 36, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
+  { cap: 780, defs: 60, store: 2400, coreHp: 2500, up: null },
 ];
 
 const BUILDING_TYPES = {
@@ -144,8 +144,8 @@ const RESEARCH = [
   { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
-  { id: 'smg',      name: 'Machine Pistol',   desc: 'A full-auto conversion for your pistol: hold to spray about 11 rounds a second from a 24-round clip. Weaker rounds, a lot of ammo, a lot of noise. Switch guns with B.', cost: { m: 160, a: 70 }, time: 70 },
-  { id: 'marksman', name: 'Marksman Rifle',  desc: 'A scoped rifle for you: twice the range, heavy rounds that punch through three zombies, and a clean headshot on anything. Slow to cycle. Switch guns with B.', cost: { m: 220, a: 90 }, time: 90 },
+  { id: 'homemade', name: 'Homemade Carbine', desc: 'Bolt, pipe and scrap wood: a crude single-shot-at-a-time carbine for you. Longer reach and harder hitting than the pistol, but slow, rough and only 8 to a load. Switch guns with B.', cost: { m: 140, a: 40 }, time: 60 },
+  { id: 'homemade2', name: 'Homemade Auto',  desc: 'A hand-built full-auto, all pipe and rubber bands: sprays about 6 rounds a second from 16, and it will never be as good as a real one. Switch guns with B.', cost: { m: 260, a: 80 }, time: 90 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 
