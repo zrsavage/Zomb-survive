@@ -396,38 +396,41 @@ const UI = (() => {
 
   // ---- menus ---------------------------------------------------------------
   const menuOpen = () => menuMode !== null || !!(G && G.radioMsg) || Loot.isOpen() || Intro.slidesOpen();
+  let settingsBack = 'title', newBack = 'title';
+  const DIFF_NOTE = { easy: 'Smaller waves, more time to get set up.', normal: 'The intended game.', hard: 'Bigger waves, less time.' };
   function showMenu(mode) {
     menuMode = mode; $('obj').classList.remove('show'); if (mode === 'title') $('introCard').classList.remove('show');
     const c = $('card'), ov = $('overlay');
-    ov.classList.toggle('title', mode === 'title'); if (mode === 'title') { TitleFx.start($('fxc')); Save.setLive(false); } else TitleFx.stop();
+    const fx = mode === 'title' || mode === 'new' || (mode === 'settings' && settingsBack === 'title');
+    ov.classList.toggle('title', fx); if (fx) { TitleFx.start($('fxc')); Save.setLive(false); } else TitleFx.stop();
     const diff = (store.get('zomb-diff') || 'normal');
     const story = store.get('zomb-story') || 'cassandra';
     const storyBtns = '<div class="seg" id="storySeg">' + Object.keys(STORYTELLERS).map(k => '<button data-story="' + k + '" class="' + (k === story ? 'on' : '') + '">' + STORYTELLERS[k].label + '</button>').join('') + '</div>' +
       '<div id="storyDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + STORYTELLERS[story].desc + '</div>';
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
-    const vol = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
-      '<div style="margin-top:10px">Graphics quality <span style="color:var(--dim)">(Low is recommended on phones)</span></div><div class="seg" id="qualSeg">' +
-      Object.keys(QUALITY).map(k => '<button data-q="' + k + '" class="' + (k === Q.name ? 'on' : '') + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div>' +
-      '<div style="margin-top:10px"><button id="mFull" style="display:inline-flex">Toggle fullscreen (F)</button></div>';
+    const settingsHtml = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
+      '<div style="margin-top:12px">Graphics</div><div class="seg" id="qualSeg">' + Object.keys(QUALITY).map(k => '<button data-q="' + k + '" class="' + (k === Q.name ? 'on' : '') + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div>' +
+      '<div id="menuBtns"><button id="mFull" class="alt">Fullscreen (F)</button>' + (Save.exists() || G ? '<button id="mExport" class="alt">Export save (copy text)</button>' : '') + '<button id="mImport" class="alt">Import a save</button>' + (mode === 'settings' && settingsBack === 'pause' ? '<button id="mAbandon" class="alt">Abandon run (deletes the save)</button>' : '') + '<button id="mSetBack">Back</button></div>' +
+      '<div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
     let h = '';
     if (mode === 'title') {
       h = '<h1>GRAVEL &amp; ASH</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
-        '<p>You are the last one left at a ruined camp. The town is full of the dead, and they never stop coming: a steady trickle that thickens with every hour. A real horde only comes when you make enough noise, or ask for one. Every survivor is a named specialist, but people can be replaced: the camp is what matters. Lose it and the run is over.</p>' +
-        '<ul><li><b>Scavenge</b> (hold E), <b>scout</b> the fog and <b>send crews</b> for supplies. Some buildings hide survivors.</li>' +
-        '<li><b>Fortify</b> with walls, towers, gates and traps. Zombies never break walls: they pile up and climb, so kill them as they climb.</li>' +
-        '<li><b>Build lookouts</b> to see what is coming. <b>Noise</b> (generators, floodlights, workshops, breaching, decoys) fills a meter that draws a horde, so choose what you run.</li>' +
-        '<li><b>Recruit</b> survivors with roles: fighters, snipers, medics, builders, scavengers.</li>' +
-        '<li><b>Research</b> upgrades, <b>trade</b>, and weather events. Grow food and mine materials, make your own ammo on clean power, keep the walls whole and manned: when a town can look after itself it is <b>secured</b>. Secure ' + WIN_TOWNS + ' towns to win. A <b>radio tower</b> calls in supply drops when you need a push.</li></ul>' +
-        '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + vol +
-        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mImport" class="alt">Import a save</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
+        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mSettings" class="alt">Settings</button></div>';
+    } else if (mode === 'new') {
+      h = '<h1>New game</h1><div class="sub">Choose how hard, and who is watching.</div>' +
+        '<div style="margin-top:6px">Difficulty</div>' + diffBtns + '<div id="diffDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + DIFF_NOTE[diff] + '</div>' +
+        '<div style="margin-top:12px">Storyteller</div>' + storyBtns +
+        '<div id="menuBtns"><button id="mStart">Begin</button><button id="mNewBack" class="alt">Back</button></div>';
+    } else if (mode === 'settings') {
+      h = '<h1>Settings</h1>' + settingsHtml;
     } else if (mode === 'pause') {
-      h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' + vol +
-        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save now</button><button id="mExport" class="alt">Export save (copy text)</button><button id="mImport" class="alt">Import a save</button><button id="mQuit" class="alt">Save and quit to title</button><button id="mAbandon" class="alt">Abandon run (deletes the save)</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + ' The game also saves by itself every 30 seconds.</div>';
+      h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' +
+        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save now</button><button id="mSettings" class="alt">Settings</button><button id="mQuit" class="alt">Save and quit to title</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">The game also saves by itself every 30 seconds.</div>';
     } else {
       h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'Your towns stand on their own. The dead no longer decide anything.' : 'The dead take the town.') + '</div>' +
-        '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
+        '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies and reached camp level <b>' + G.level + '</b>.</p>' +
         '<h4 style="margin-top:12px">The fallen</h4><div style="max-height:30vh;overflow:auto">' + memorialHtml(8) + '</div>' +
-        '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + '<div id="menuBtns"><button id="mNew">New game</button></div>';
+        '<div id="menuBtns"><button id="mNew">New game</button></div>';
     }
     c.innerHTML = h; ov.classList.remove('hidden');
     const on = (id, fn) => { const e = $(id); if (e) e.addEventListener('click', () => { Snd.resume(); Snd.click(); fn(); }); };
@@ -435,7 +438,7 @@ const UI = (() => {
       setQuality(b.dataset.q); resize(); document.querySelectorAll('[data-q]').forEach(x => x.classList.toggle('on', x === b));
     }));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
-      store.set('zomb-diff', b.dataset.diff);
+      store.set('zomb-diff', b.dataset.diff); const dd = $('diffDesc'); if (dd) dd.textContent = DIFF_NOTE[b.dataset.diff];
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
     }));
     const v = $('volume'); if (v) v.addEventListener('input', () => { Snd.resume(); Snd.setVolume(v.value / 100); });
@@ -443,7 +446,11 @@ const UI = (() => {
       store.set('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
       document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
     }));
-    on('mNew', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mNew', () => { newBack = mode; showMenu('new'); });
+    on('mStart', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mNewBack', () => showMenu(newBack === 'new' ? 'title' : newBack));
+    on('mSettings', () => { settingsBack = mode; showMenu('settings'); });
+    on('mSetBack', () => showMenu(settingsBack));
     on('mContinue', () => { if (Save.load()) { Save.setLive(true); hideMenu(); } else toast('Could not load the save'); });
     on('mExport', async () => { if (!Save.save()) toast('Nothing to export yet'); showTransfer('export'); });
     on('mImport', () => showTransfer('import', mode));
@@ -669,7 +676,7 @@ const UI = (() => {
       const k = e.key.toLowerCase();
       if (Intro.onKey(k)) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
-      if (k === 'escape') { if (!G) return; if (menuMode === 'pause') hideMenu(); else if (!menuMode) showMenu('pause'); return; }
+      if (k === 'escape') { if (!G) return; if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
       if (menuMode) return;
       keys[k] = true; if (e.shiftKey) keys.shift = true;
       if (!G) return;
