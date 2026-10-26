@@ -6,7 +6,7 @@ const Save = (() => {
   const b64 = arr => { let s = ''; const u = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength); for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(s); };
   const unb64 = (str, Type) => { const s = atob(str), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Type(u.buffer); };
   const r2 = v => Math.round(v * 100) / 100;
-  const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'born', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue', 'storm', 'eventT', 'trader',
+  const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'born', 'hordeN', 'hordesBeaten', 'nextHorde', 'rush', 'hordeId', 'rescue', 'storm', 'eventT', 'trader',
     'refugeeT', 'sel', 'seed', 'morale', 'deaths', 'rules', 'ruleCd', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'heat', 'pressAcc', 'dropT', 'supCd', 'secured', 'safeT', 'coreHurtAt', 'nests', 'nestT',
     'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'mstock', 'blue', 'blueId', 'intro', 'introHold', 'fireLit', 'ruins'];
 

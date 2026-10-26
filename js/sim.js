@@ -288,11 +288,11 @@ function startHorde(opts = {}) {
   const minor = !!opts.minor, D = DIFFICULTY[G.diff];
   const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
   const mins = townMins(G);
-  const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1)));
+  const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1) * (G.rush ? 0.6 : 1)));
   hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 9 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
   if (minor) return;
   G.recentDeaths = 0;
-  G.nextHorde = 1e9;                                       // hordes only come when drawn
+  G.nextHorde = G.rush ? 50 + rng() * 25 : 1e9;            // hordes only come when drawn (quick play: a fresh one every minute or so)
 }
 
 // ---- the siege: a constant trickle of the dead, and the noise that can draw a real horde ---------------------------------------------------
@@ -504,7 +504,7 @@ function updateZombies(dt) {
       pileNow[ni]++;
       if (elec[ni] && G.power.ratio > 0) { z.hp -= POWER.zap * G.power.ratio * dt; if (rng() < dt * 8) addBurst(tcx, tcy - 0.5, '#7fd0ff', 1); }
       z.st = 2; z.lift = Math.min(15, 1 + p * 0.55 + (z.v & 3));
-      wallHp[ni] -= zt.dmg * WALL_CLAW * (1 + p * 0.12) * dt * TIER.press[wallTier[ni]] * (elec[ni] && G.power.ratio > 0 ? 0.4 : 1);
+      wallHp[ni] -= zt.dmg * WALL_CLAW * clamp(0.15 + townMins(G) / 20, 0.15, 1) * (1 + p * 0.12) * dt * TIER.press[wallTier[ni]] * (elec[ni] && G.power.ratio > 0 ? 0.4 : 1);
       if (wallHp[ni] <= 0) {                                   // the section gives way
         wall[ni] = 0; wallHp[ni] = 0; wallTier[ni] = 0; elec[ni] = 0; G.fieldDirty = true; G.visT = 0; Snd.demolish();
         addBurst(tcx, tcy - 0.4, '#8a7a60', 10, { spread: 3 }); shake(1.5);

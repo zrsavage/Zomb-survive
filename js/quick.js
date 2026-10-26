@@ -4,7 +4,7 @@ const Quick = (() => {
   const free = (x, y) => inb(x, y) && bld[y * W + x] < 0 && !wall[y * W + x] && !isCoreTile(x, y) && !facAt[y * W + x] && !trapAt[y * W + x];
   function setup() {
     G.level = 3; G.coreHp = LEVELS[2].coreHp;
-    G.ammo = 150; G.mat = 200; G.food = 100; G.water = 70; G.med = 8; G.fuel = 8; G.morale = G.moraleTarget = 70;
+    G.ammo = 300; G.mat = 200; G.food = 100; G.water = 70; G.med = 8; G.fuel = 8; G.morale = G.moraleTarget = 70;
     for (const r of ['walls', 'spears']) if (RESEARCH.some(x => x.id === r)) G.res.done[r] = true;
     P.mag = 12; P.inv = P.inv || [];
     const cx = CORE.x, cy = CORE.y;
@@ -20,7 +20,7 @@ const Quick = (() => {
     }
     for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = maxHp(wall[i], i);
     // a working camp inside
-    const want = ['garden', 'garden', 'garden', 'well', 'rain', 'latrine', 'clinic', 'yard', 'solar', 'solar', 'workshop', 'mine', 'floodlight'], spots = [];
+    const want = ['garden', 'garden', 'garden', 'well', 'rain', 'latrine', 'clinic', 'yard', 'solar', 'solar', 'solar', 'workshop', 'workshop', 'mine', 'mine', 'floodlight'], spots = [];
     for (let y = cy - R + 2; y <= cy + R - 2; y++) for (let x = cx - R + 2; x <= cx + R - 2; x++) { const d = Math.hypot(x - cx, y - cy); if (d >= 3 && d <= 7.5 && free(x, y)) spots.push([x, y, d]); }
     for (const t of want) { if (!spots.length) break; const k = (rng() * spots.length) | 0, [x, y] = spots.splice(k, 1)[0]; const f = { type: t, x, y, t: 0, on: false }; facilities.push(f); facAt[key(x, y)] = f; for (let j = spots.length - 1; j >= 0; j--) if (Math.abs(spots[j][0] - x) < 2 && Math.abs(spots[j][1] - y) < 2) spots.splice(j, 1); }
     // people
@@ -29,10 +29,10 @@ const Quick = (() => {
     for (let y = cy - 22; y <= cy + 22; y++) for (let x = cx - 28; x <= cx + 28; x++) if (inb(x, y)) explored[key(x, y)] = 1;
     // the neighbourhood has been thinned out: nothing within a couple of screens, and a lighter crowd beyond
     zombies = zombies.filter(z => Math.hypot(z.x - cx, z.y - cy) > 26 && rng() < 0.6);
-    G.nextHorde = 240; G.eventT = 600; G.refugeeT = 240;
+    G.rush = true; G.nextHorde = 150; G.eventT = 600; G.refugeeT = 240;
     G.fieldDirty = true; G.visT = 0;
     Art.rebakeTerrain(); computeBaseField(); computePlayerField(); computeTerritory(); Survival.refreshIncome(); updateVision();
-    log('Quick play: the walls are up and the crew is posted. Expect the first horde within a few minutes.');
+    log('Quick play: the walls are up and the crew is posted. The dead will not stop coming: a new horde roughly every minute.');
   }
   return { setup };
 })();
