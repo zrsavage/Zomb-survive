@@ -105,3 +105,5 @@ WASD move (Shift sprint) - hold E scavenge - click/drag build (within range of y
 - Fixed: reinforced walls were being "repaired" forever (their max hp is fractional), quietly draining materials.
 - **Sight:** you see 17 tiles (lookouts 20), the camp core 12, and posted defenders see exactly as far as their gun reaches (+2). Survivors only shoot what is visible, so fog and storms blind them too. The world is much brighter by default; storms and fog still close it in.
 - **Chores:** survivors with nothing else to do tend the gardens (small food), tidy up (hygiene) or rest by the fire (morale). Statuses show in the Crew panel.
+- **Horde calls:** when a horde is first sighted (by a lookout or any guard who can see it), the nearest guards shout it out in speech bubbles ("HORDE!!", "There's a lot of them coming!").
+- **Joining:** nobody joins on their own any more. Refugees, strangers, people found in buildings, parties' finds and convoys appear as a card at the top (Let them in `Y` / Turn away `N`); they leave after two minutes if ignored. Story events that already ask you still decide directly.

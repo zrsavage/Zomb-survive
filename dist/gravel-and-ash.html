@@ -123,6 +123,9 @@
   #hint{display:none;left:50%;bottom:64px;transform:translateX(-50%);width:min(460px,92vw);z-index:5;border-color:#6a5a2a}#hint.show{display:block}
   #hint .hh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.14em;margin-bottom:2px}#hint .hh a{color:var(--dim);letter-spacing:0}
   #hint b{font-size:14px}#hint .ht{margin-top:3px;line-height:1.45;font-size:13px}
+  #appl{display:none;left:50%;transform:translateX(-50%);top:58px;width:min(340px,86vw);z-index:6;padding:7px 10px;text-align:center;border-color:var(--amber)}#appl.show{display:block}
+  #appl .at{color:var(--amber);font-size:10px;letter-spacing:.12em}#appl .an{font-size:13px;margin:2px 0}#appl .as{color:var(--dim);font-size:11px;line-height:1.35;margin-bottom:5px}
+  #appl button{margin:0 3px;padding:3px 12px;font-size:12px}
   #obj{display:none;left:12px;top:60px;width:min(250px,60vw);z-index:5;padding:6px 9px}#obj.show{display:block}
   #obj .oh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.12em;margin-bottom:1px}#obj .oh a{color:var(--dim);letter-spacing:0}
   #obj b{font-size:13px}#obj .ot{color:var(--txt);margin-top:2px;line-height:1.35;font-size:12px}#obj kbd{background:#0007;border:1px solid #fff3;border-radius:3px;padding:0 4px;margin:0 1px;color:#ffe9b0}
@@ -275,6 +278,7 @@
 <div id="research" class="panel modal"></div>
 <div id="loot" class="panel modal" style="z-index:9"></div>
 <div id="obj" class="panel"></div>
+<div id="appl" class="panel"></div>
 <div id="hint" class="panel"></div>
 <div id="introCard"></div>
 <div id="jobs" class="panel modal" style="width:min(600px,96vw)"></div>
@@ -2523,6 +2527,7 @@ function updateDefenders(dt) {
   for (let k = defenders.length - 1; k >= 0; k--) {
     const d = defenders[k];
     if (d.hurt) d.hurt -= dt;
+    if (d.say) { if (d.say.delay > 0) d.say.delay -= dt; else if ((d.say.t -= dt) <= 0) d.say = null; }
     if (d.act > 0) d.act -= dt;
     const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
     const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
@@ -2541,6 +2546,13 @@ function updateDefenders(dt) {
       if (healed) { addXp(d.s, 'med', 2 * dt); G.med = Math.max(0, G.med - 0.015 * dt); }
     }
   }
+}
+// the guards on the side the horde is coming from call it out in speech bubbles
+const SHOUTS = ['HORDE!!', "There's a lot of them coming!", 'Here they come!', 'Get ready, get ready!', 'So many... hold the line!', 'HORDE INCOMING!'];
+function shoutHorde(h) {
+  const hx = h.alive ? h.cx / h.alive : CORE.x, hy = h.alive ? h.cy / h.alive : CORE.y;
+  const near = defenders.slice().sort((a, b) => Math.hypot(a.px - hx, a.py - hy) - Math.hypot(b.px - hx, b.py - hy)).slice(0, 4);
+  near.forEach((d, k) => { d.say = { str: k === 0 ? (h.total >= 100 ? 'HORDE!!' : pick(SHOUTS)) : pick(SHOUTS), t: 4.5 + k * 0.4, delay: k * 0.45 }; });
 }
 function removeDefender(d) { defAt[d.y * W + d.x] = null; defenders.splice(defenders.indexOf(d), 1); }
 function addDefender(x, y, s) {
@@ -2697,7 +2709,7 @@ function updatePlayer(dt) {
     const c = crates[i]; c.t -= dt;
     if (c.type === 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 1.6) {
       crates.splice(i, 1);
-      const s = recruit('was found alive and follows you home'); if (!s) log('You found someone, but there is no room in the camp');
+      Apps.add(newSurvivor(), 'was found alive and asks to come with you');
       if (rng() < 0.5) { for (let k = 0; k < 8; k++) zombies.push(Object.assign(makeZombie(c.x + (rng() - 0.5) * 6, c.y + (rng() - 0.5) * 6, 1, 0), { mode: 1 })); log('The noise drew company!'); }
       Snd.pickup(); continue;
     }
@@ -2727,7 +2739,7 @@ function scavenge(b) {
   { const gp = { police: 0.2, bunker: 0.5, warehouse: 0.03, garage: 0.03, house: 0.012 }[b.type] || 0; if (gp && rng() < gp) { const gg = Items.rollGun(); if (gg) ent.push({ i: gg, n: 1 }); } }
   Loot.open('Searched the ' + t.label.toLowerCase(), ent, { x: b.x + b.w / 2, y: b.y + b.h + 0.6 });
   let msg = t.label + ': ' + lootText(got);
-  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + intro(s) + ' was hiding inside and follows you back!'; }
+  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { Apps.add(newSurvivor(), 'was hiding inside and asks to follow you back'); msg += ' - someone was hiding inside!'; }
   log(msg);
 }
 
@@ -2814,7 +2826,7 @@ function updateEconomy(dt) {
   // a sealed, fed camp draws refugees
   if (G.sealed && G.territory >= 20 && G.food >= 20 && G.morale >= MORALE.noRefugeesBelow && roomForPerson()) {
     G.refugeeT -= dt * (1 + Math.min(G.territory, 450) / 150) * ruleMul('refugee');
-    if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; addRecruit(newSurvivor(), 'saw your walls and joined the camp'); moraleGain('refugee'); Snd.pickup(); }
+    if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; Apps.add(newSurvivor(), 'saw your walls and asks to join the camp'); }
   }
 }
 
@@ -2845,6 +2857,7 @@ function updateHordes(dt) {
     h.alive++; h.cx += z.x; h.cy += z.y;
     const d = Math.hypot(z.x - CORE.x, z.y - CORE.y);
     if (d < h.near) h.near = d;
+    if (!h.seen && h.n && vis[(z.y | 0) * W + (z.x | 0)] && !h.minor) h.seen = true;       // anyone on the wall who can see them counts
     if (!h.seen) for (const l of G.lookouts) { const dx = z.x - l.x, dy = z.y - l.y; if (dx * dx + dy * dy < R2) { h.seen = true; break; } }
   }
   let msg = null, rumble = 0;
@@ -2860,7 +2873,7 @@ function updateHordes(dt) {
     // the ground shakes before they arrive: a faint warning even without lookouts
     if (h.alive) rumble = Math.max(rumble, clamp(1 - h.near / 30, 0, 1) * h.alive / (h.alive + 40));
     if (!h.heard && h.near < 13) { h.heard = true; if (!h.seen) log('You hear groaning... a horde is at the walls!'); }
-    if (h.seen && !h.announced) { h.announced = true; log('Lookout: horde sighted to the ' + compass(h.cx - CORE.x, h.cy - CORE.y) + '!'); Snd.horn(); }
+    if (h.seen && !h.announced) { h.announced = true; log('Lookout: horde sighted to the ' + compass(h.cx - CORE.x, h.cy - CORE.y) + '!'); Snd.horn(); if (!h.minor) shoutHorde(h); }
     if (h.alive === 0) continue;
     const eta = Math.ceil(Math.max(0, h.near - 3));
     const dir = compass(h.cx - CORE.x, h.cy - CORE.y);
@@ -2889,7 +2902,7 @@ function fireEvent() {
   const kind = Director.pickEvent();
   if (!kind) return;
   if (kind === 'fog') { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; }
-  if (kind === 'stranger') { const s = newSurvivor(); addRecruit(s, 'wandered in and asked to stay'); moraleGain('refugee'); Snd.pickup(); return; }
+  if (kind === 'stranger') { Apps.add(newSurvivor(), 'wandered in and asks to stay'); return; }
   if (kind === 'stragglers') { if (!defenders.length) { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; } startHorde({ minor: true, mult: 0.3 }); return; }          // no warning: a few dozen drift in
   if (kind === 'drop') {
     for (let t = 0; t < 40; t++) {
@@ -2968,8 +2981,8 @@ function updateRescue(dt) {
   if (G.rescue <= 0) {
     G.rescue = null; G.supCd = BROADCAST.cooldown;
     if (G.rescueKind === 'convoy') {
-      let n = 0; for (let k = 0; k < 4 && roomForPerson(); k++) { G.idle.push(newSurvivor()); n++; }
-      airdrop(1.4); log('The convoy arrives: ' + n + ' survivors join you and they leave a supply drop.'); moraleGain('refugee');
+      let n = 0; for (let k = 0; k < 4; k++) { Apps.add(newSurvivor(), 'arrived with the convoy and asks to join'); n++; }
+      airdrop(1.4); log('The convoy arrives with ' + n + ' survivors asking to join, and they leave a supply drop.');
     } else log('The broadcast ends. Call again once the radio has cooled (' + fmtTime(BROADCAST.cooldown) + ').');
   }
 }
@@ -3124,6 +3137,7 @@ function simulate(dt) {
   G.armT = (G.armT || 0) - dt; if (G.armT <= 0) { G.armT = 5; autoArm(); }
   Build.update(dt);
   if (G.intro) Intro.update(dt);
+  Apps.tick(dt);
   Hints.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
@@ -4757,7 +4771,7 @@ const Units = (() => {
           G.crews.splice(i, 1);
           for (const s of c.members) G.idle.push(s);
           let msg = 'Party back from the ' + t.label + ': ' + (lootText(c.got) || 'nothing');
-          if (rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + intro(s); }
+          if (rng() < 0.15 && roomForPerson()) { Apps.add(newSurvivor(), 'was found by the party and asks to join'); msg += ' - they found someone'; }
           log(msg); continue;
         }
       }
@@ -6172,6 +6186,47 @@ const Quick = (() => {
   return { setup };
 })();
 
+/* js/apps.js */
+// People who want to join the camp wait here until the player says yes (or no).
+const Apps = (() => {
+  const A = {}, WAIT = 120, MAX = 8;
+  let el = null, shown = '';
+  const list = () => G.apps || (G.apps = []);
+  A.add = function (s, why) {
+    if (typeof AI !== 'undefined' && AI.on) { if (roomForPerson()) { G.idle.push(s); log(intro(s) + ' ' + why.replace(/ asks? .*/, ' and joined')); moraleGain('refugee'); } return; }
+    const L = list(); if (L.length >= MAX) L.shift();
+    L.push({ s, why, t: WAIT }); Snd.pickup(); toast(who(s) + ' ' + why + '. Accept? (Y / N)');
+  };
+  function accept() {
+    const a = list()[0]; if (!a) return;
+    if (!roomForPerson()) { warn('No room in the camp: build housing or wall in more ground first'); return; }
+    list().shift(); G.idle.push(a.s); log(intro(a.s) + ' joined the camp.'); moraleGain('refugee'); Snd.upgrade && Snd.upgrade();
+  }
+  function decline() { const a = list().shift(); if (a) log(who(a.s) + ' was turned away.'); }
+  A.accept = accept; A.decline = decline;
+  A.onKey = (k, building) => {
+    if (!G || !list().length || G.paused || G.over) return false;
+    if (k === 'y') { accept(); return true; }
+    if (k === 'n' && !building) { decline(); return true; }
+    return false;
+  };
+  A.tick = function (dt) {
+    const L = list();
+    for (let i = L.length - 1; i >= 0; i--) if ((L[i].t -= dt) <= 0) { log(who(L[i].s) + ' gave up waiting and moved on.'); L.splice(i, 1); }
+    el = el || document.getElementById('appl'); if (!el) return;
+    const a = L[0], key = a ? a.s.id + ':' + L.length + ':' + roomForPerson() : '';
+    if (key === shown) return; shown = key;
+    if (!a) { el.classList.remove('show'); return; }
+    const s = a.s;
+    el.innerHTML = '<div class="at">SOMEONE AT THE GATE' + (L.length > 1 ? ' (+' + (L.length - 1) + ' more)' : '') + '</div><div class="an">' + intro(s) + '</div><div class="as">' + (s.story || '') + ' · ' + (ROLES[s.role] ? ROLES[s.role].desc : '') + '<br>' + (roomForPerson() ? '' : 'No room right now: build housing first. ') + 'Camp holds ' + people() + ' / ' + popCap() + '.</div>' +
+      '<button id="apY">Let them in (Y)</button><button id="apN" class="alt">Turn away (N)</button>';
+    el.classList.add('show');
+    document.getElementById('apY').onclick = () => { Snd.click(); accept(); };
+    document.getElementById('apN').onclick = () => { Snd.click(); decline(); };
+  };
+  return A;
+})();
+
 /* js/titlefx.js */
 'use strict';
 /* titlefx.js - the title-screen scene: a burning skyline at dusk, drifting fog and embers, and a slow horde on the road.
@@ -6512,6 +6567,14 @@ function drawWorld(cam, cw, ch, z) {
   }
   ctx.globalAlpha = 1;
   ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center';
+  for (const d of defenders) {                                   // speech bubbles
+    const sy = d.say; if (!sy || sy.delay > 0) continue;
+    const w = ctx.measureText(sy.str).width + 8, bx = d.px * T - w / 2, by = d.py * T - 44;
+    ctx.globalAlpha = clamp(sy.t * 2, 0, 1);
+    ctx.fillStyle = '#f4efe2'; ctx.fillRect(bx, by, w, 11); ctx.fillRect(d.px * T - 2, by + 11, 4, 3);
+    ctx.fillStyle = '#1a1612'; ctx.fillText(sy.str, d.px * T, by + 8);
+  }
+  ctx.globalAlpha = 1;
   for (const tx of texts) {
     ctx.globalAlpha = clamp(tx.life, 0, 1);
     ctx.fillStyle = '#000'; ctx.fillText(tx.str, tx.x * T + 0.7, tx.y * T + 0.7);
@@ -7654,6 +7717,7 @@ const UI = (() => {
       Snd.resume();
       const k = e.key.toLowerCase();
       if (Intro.onKey(k)) { e.preventDefault(); return; }
+      if (!menuMode && Apps.onKey(k, inBuild())) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
       if (k === 'escape') { if (!G) return; if (!menuMode && (document.body.classList.contains('side-open') || document.body.classList.contains('more-open'))) { document.body.classList.remove('side-open', 'more-open'); return; }
       if (!menuMode && inBuild()) { G.tool = 'combat'; Snd.click(); return; } if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }

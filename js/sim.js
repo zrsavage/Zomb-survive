@@ -708,6 +708,7 @@ function updateDefenders(dt) {
   for (let k = defenders.length - 1; k >= 0; k--) {
     const d = defenders[k];
     if (d.hurt) d.hurt -= dt;
+    if (d.say) { if (d.say.delay > 0) d.say.delay -= dt; else if ((d.say.t -= dt) <= 0) d.say = null; }
     if (d.act > 0) d.act -= dt;
     const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
     const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
@@ -726,6 +727,13 @@ function updateDefenders(dt) {
       if (healed) { addXp(d.s, 'med', 2 * dt); G.med = Math.max(0, G.med - 0.015 * dt); }
     }
   }
+}
+// the guards on the side the horde is coming from call it out in speech bubbles
+const SHOUTS = ['HORDE!!', "There's a lot of them coming!", 'Here they come!', 'Get ready, get ready!', 'So many... hold the line!', 'HORDE INCOMING!'];
+function shoutHorde(h) {
+  const hx = h.alive ? h.cx / h.alive : CORE.x, hy = h.alive ? h.cy / h.alive : CORE.y;
+  const near = defenders.slice().sort((a, b) => Math.hypot(a.px - hx, a.py - hy) - Math.hypot(b.px - hx, b.py - hy)).slice(0, 4);
+  near.forEach((d, k) => { d.say = { str: k === 0 ? (h.total >= 100 ? 'HORDE!!' : pick(SHOUTS)) : pick(SHOUTS), t: 4.5 + k * 0.4, delay: k * 0.45 }; });
 }
 function removeDefender(d) { defAt[d.y * W + d.x] = null; defenders.splice(defenders.indexOf(d), 1); }
 function addDefender(x, y, s) {
@@ -882,7 +890,7 @@ function updatePlayer(dt) {
     const c = crates[i]; c.t -= dt;
     if (c.type === 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 1.6) {
       crates.splice(i, 1);
-      const s = recruit('was found alive and follows you home'); if (!s) log('You found someone, but there is no room in the camp');
+      Apps.add(newSurvivor(), 'was found alive and asks to come with you');
       if (rng() < 0.5) { for (let k = 0; k < 8; k++) zombies.push(Object.assign(makeZombie(c.x + (rng() - 0.5) * 6, c.y + (rng() - 0.5) * 6, 1, 0), { mode: 1 })); log('The noise drew company!'); }
       Snd.pickup(); continue;
     }
@@ -912,7 +920,7 @@ function scavenge(b) {
   { const gp = { police: 0.2, bunker: 0.5, warehouse: 0.03, garage: 0.03, house: 0.012 }[b.type] || 0; if (gp && rng() < gp) { const gg = Items.rollGun(); if (gg) ent.push({ i: gg, n: 1 }); } }
   Loot.open('Searched the ' + t.label.toLowerCase(), ent, { x: b.x + b.w / 2, y: b.y + b.h + 0.6 });
   let msg = t.label + ': ' + lootText(got);
-  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + intro(s) + ' was hiding inside and follows you back!'; }
+  if (rng() < SURVIVOR_CHANCE && roomForPerson()) { Apps.add(newSurvivor(), 'was hiding inside and asks to follow you back'); msg += ' - someone was hiding inside!'; }
   log(msg);
 }
 
@@ -999,7 +1007,7 @@ function updateEconomy(dt) {
   // a sealed, fed camp draws refugees
   if (G.sealed && G.territory >= 20 && G.food >= 20 && G.morale >= MORALE.noRefugeesBelow && roomForPerson()) {
     G.refugeeT -= dt * (1 + Math.min(G.territory, 450) / 150) * ruleMul('refugee');
-    if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; addRecruit(newSurvivor(), 'saw your walls and joined the camp'); moraleGain('refugee'); Snd.pickup(); }
+    if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; Apps.add(newSurvivor(), 'saw your walls and asks to join the camp'); }
   }
 }
 
@@ -1030,6 +1038,7 @@ function updateHordes(dt) {
     h.alive++; h.cx += z.x; h.cy += z.y;
     const d = Math.hypot(z.x - CORE.x, z.y - CORE.y);
     if (d < h.near) h.near = d;
+    if (!h.seen && h.n && vis[(z.y | 0) * W + (z.x | 0)] && !h.minor) h.seen = true;       // anyone on the wall who can see them counts
     if (!h.seen) for (const l of G.lookouts) { const dx = z.x - l.x, dy = z.y - l.y; if (dx * dx + dy * dy < R2) { h.seen = true; break; } }
   }
   let msg = null, rumble = 0;
@@ -1045,7 +1054,7 @@ function updateHordes(dt) {
     // the ground shakes before they arrive: a faint warning even without lookouts
     if (h.alive) rumble = Math.max(rumble, clamp(1 - h.near / 30, 0, 1) * h.alive / (h.alive + 40));
     if (!h.heard && h.near < 13) { h.heard = true; if (!h.seen) log('You hear groaning... a horde is at the walls!'); }
-    if (h.seen && !h.announced) { h.announced = true; log('Lookout: horde sighted to the ' + compass(h.cx - CORE.x, h.cy - CORE.y) + '!'); Snd.horn(); }
+    if (h.seen && !h.announced) { h.announced = true; log('Lookout: horde sighted to the ' + compass(h.cx - CORE.x, h.cy - CORE.y) + '!'); Snd.horn(); if (!h.minor) shoutHorde(h); }
     if (h.alive === 0) continue;
     const eta = Math.ceil(Math.max(0, h.near - 3));
     const dir = compass(h.cx - CORE.x, h.cy - CORE.y);
@@ -1074,7 +1083,7 @@ function fireEvent() {
   const kind = Director.pickEvent();
   if (!kind) return;
   if (kind === 'fog') { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; }
-  if (kind === 'stranger') { const s = newSurvivor(); addRecruit(s, 'wandered in and asked to stay'); moraleGain('refugee'); Snd.pickup(); return; }
+  if (kind === 'stranger') { Apps.add(newSurvivor(), 'wandered in and asks to stay'); return; }
   if (kind === 'stragglers') { if (!defenders.length) { G.fog = FOG.time; log('A thick fog rolls in. You cannot see far, and neither can they.'); return; } startHorde({ minor: true, mult: 0.3 }); return; }          // no warning: a few dozen drift in
   if (kind === 'drop') {
     for (let t = 0; t < 40; t++) {
@@ -1153,8 +1162,8 @@ function updateRescue(dt) {
   if (G.rescue <= 0) {
     G.rescue = null; G.supCd = BROADCAST.cooldown;
     if (G.rescueKind === 'convoy') {
-      let n = 0; for (let k = 0; k < 4 && roomForPerson(); k++) { G.idle.push(newSurvivor()); n++; }
-      airdrop(1.4); log('The convoy arrives: ' + n + ' survivors join you and they leave a supply drop.'); moraleGain('refugee');
+      let n = 0; for (let k = 0; k < 4; k++) { Apps.add(newSurvivor(), 'arrived with the convoy and asks to join'); n++; }
+      airdrop(1.4); log('The convoy arrives with ' + n + ' survivors asking to join, and they leave a supply drop.');
     } else log('The broadcast ends. Call again once the radio has cooled (' + fmtTime(BROADCAST.cooldown) + ').');
   }
 }
@@ -1309,6 +1318,7 @@ function simulate(dt) {
   G.armT = (G.armT || 0) - dt; if (G.armT <= 0) { G.armT = 5; autoArm(); }
   Build.update(dt);
   if (G.intro) Intro.update(dt);
+  Apps.tick(dt);
   Hints.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);

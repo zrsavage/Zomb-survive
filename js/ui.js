@@ -770,6 +770,7 @@ const UI = (() => {
       Snd.resume();
       const k = e.key.toLowerCase();
       if (Intro.onKey(k)) { e.preventDefault(); return; }
+      if (!menuMode && Apps.onKey(k, inBuild())) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
       if (k === 'escape') { if (!G) return; if (!menuMode && (document.body.classList.contains('side-open') || document.body.classList.contains('more-open'))) { document.body.classList.remove('side-open', 'more-open'); return; }
       if (!menuMode && inBuild()) { G.tool = 'combat'; Snd.click(); return; } if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }

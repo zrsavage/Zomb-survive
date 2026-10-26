@@ -389,7 +389,7 @@ const Units = (() => {
           G.crews.splice(i, 1);
           for (const s of c.members) G.idle.push(s);
           let msg = 'Party back from the ' + t.label + ': ' + (lootText(c.got) || 'nothing');
-          if (rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + intro(s); }
+          if (rng() < 0.15 && roomForPerson()) { Apps.add(newSurvivor(), 'was found by the party and asks to join'); msg += ' - they found someone'; }
           log(msg); continue;
         }
       }

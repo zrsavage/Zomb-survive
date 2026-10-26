@@ -250,6 +250,14 @@ function drawWorld(cam, cw, ch, z) {
   }
   ctx.globalAlpha = 1;
   ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center';
+  for (const d of defenders) {                                   // speech bubbles
+    const sy = d.say; if (!sy || sy.delay > 0) continue;
+    const w = ctx.measureText(sy.str).width + 8, bx = d.px * T - w / 2, by = d.py * T - 44;
+    ctx.globalAlpha = clamp(sy.t * 2, 0, 1);
+    ctx.fillStyle = '#f4efe2'; ctx.fillRect(bx, by, w, 11); ctx.fillRect(d.px * T - 2, by + 11, 4, 3);
+    ctx.fillStyle = '#1a1612'; ctx.fillText(sy.str, d.px * T, by + 8);
+  }
+  ctx.globalAlpha = 1;
   for (const tx of texts) {
     ctx.globalAlpha = clamp(tx.life, 0, 1);
     ctx.fillStyle = '#000'; ctx.fillText(tx.str, tx.x * T + 0.7, tx.y * T + 0.7);
