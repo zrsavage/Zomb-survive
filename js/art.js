@@ -12,6 +12,64 @@ const Art = { sprites: {}, terrain: null, decals: null, claim: null, mini: null,
 
 function cell(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); return { c, g }; }
 
+// ---- master palette -----------------------------------------------------------------------
+// Built from hue-shifted ramps (shadows drift cool/violet, highlights drift warm) the way hand-made pixel art is.
+// Every colour the art code draws with goes through pq(), so the whole game shares one limited palette.
+const PALETTE = (() => {
+  const hsl = (h, s, l) => { h = ((h % 360) + 360) % 360; s /= 100; l /= 100; const a = s * Math.min(l, 1 - l), f = n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }; return [f(0), f(8), f(4)].map(v => Math.round(v * 255)); };
+  // [hue, saturation, [lightness steps dark..light]], hue shifts by +/-14 across the ramp
+  const ramps = [
+    [220, 12, [7, 13, 20, 28, 37, 48, 60, 72, 86, 95]],    // cool stone / asphalt / steel
+    [40, 14, [10, 18, 26, 35, 45, 56, 68, 80]],            // warm concrete / sand
+    [105, 38, [10, 16, 23, 31, 40, 50, 62]],               // grass
+    [135, 34, [8, 14, 21, 29, 38, 48]],                    // foliage
+    [30, 42, [9, 15, 22, 30, 39, 49, 60, 72]],             // wood / dirt
+    [8, 56, [11, 18, 27, 37, 48, 60, 72]],                 // brick / blood / rust
+    [22, 62, [14, 24, 34, 46, 58, 70, 82]],                // orange / skin warm
+    [48, 66, [20, 32, 46, 58, 70, 82, 92]],                // yellow / fire / brass
+    [84, 36, [12, 20, 30, 40, 52, 64, 76]],                // sickly zombie green
+    [195, 42, [12, 20, 30, 41, 52, 64, 76, 88]],           // glass / water / cloth blue
+    [225, 46, [10, 17, 26, 37, 48, 60]],                   // deep blue
+    [285, 28, [12, 20, 30, 42, 54, 66]],                   // violet cloth
+    [335, 40, [24, 36, 48, 62, 76]],                       // pink / flowers
+  ];
+  const out = [];
+  for (const [h, s, ls] of ramps) ls.forEach((l, i) => { const t = i / (ls.length - 1); out.push(hsl(h + (t - 0.5) * -28, s * (0.7 + 0.5 * Math.sin(t * Math.PI)), l)); });
+  out.push([255, 255, 255], [0, 0, 0]);
+  return out;
+})();
+const pqCache = new Map();
+const lumW = [0.30, 0.59, 0.11];
+function nearestPal(r, g, b) {
+  let best = 0, bd = 1e9;
+  for (let i = 0; i < PALETTE.length; i++) {
+    const p = PALETTE[i], dr = r - p[0], dg = g - p[1], db = b - p[2];
+    const d = lumW[0] * dr * dr + lumW[1] * dg * dg + lumW[2] * db * db + 0.25 * ((dr - dg) * (dr - dg) + (dg - db) * (dg - db));
+    if (d < bd) { bd = d; best = i; }
+  }
+  return PALETTE[best];
+}
+function pq(c) {                                              // colour string -> nearest palette colour (alpha kept)
+  if (typeof c !== 'string' || c[0] !== '#') return c;
+  let v = pqCache.get(c); if (v) return v;
+  let hex = c.slice(1), a = '';
+  if (hex.length === 3 || hex.length === 4) hex = hex.split('').map(x => x + x).join('');
+  if (hex.length === 8) { a = hex.slice(6); hex = hex.slice(0, 6); }
+  const p = nearestPal(parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16));
+  v = '#' + p.map(x => x.toString(16).padStart(2, '0')).join('') + a;
+  pqCache.set(c, v); return v;
+}
+function quantizeCanvas(cv) {                                 // snap every pixel of a canvas to the palette
+  const g = cv.getContext('2d'), im = g.getImageData(0, 0, cv.width, cv.height), d = im.data, cache = new Map();
+  for (let i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    const key = (d[i] >> 2) << 12 | (d[i + 1] >> 2) << 6 | (d[i + 2] >> 2);
+    let p = cache.get(key); if (!p) { p = nearestPal(d[i], d[i + 1], d[i + 2]); cache.set(key, p); }
+    d[i] = p[0]; d[i + 1] = p[1]; d[i + 2] = p[2];
+  }
+  g.putImageData(im, 0, 0); return cv;
+}
+
 // ---- sprite construction ---------------------------------------------------------------
 const DIMS = {
   human: { cw: 16, ch: 20, tw: 8,  th: 7,  hw: 6, hh: 6, legW: 2, legH: 5, armW: 2, armLen: 6 },
@@ -25,7 +83,7 @@ function figure(g, d, p, pal, o) {
   const cx = d.cw >> 1, feet = d.ch - 1;
   const legTop = feet - d.legH + 1, bob = p.bob || 0, lean = p.lean || 0;
   const tx = cx - (d.tw >> 1) + lean, ty = legTop - d.th + 1 + bob;
-  const rect = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x | 0, y | 0, w, h); };
+  const rect = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x | 0, y | 0, w, h); };
 
   // far arm (behind the torso)
   const farC = shade(pal.shirt, 0.7);
@@ -87,12 +145,31 @@ function figure(g, d, p, pal, o) {
 }
 
 function outlined(src, col) {
-  const w = src.width + 2, h = src.height + 2;
-  const out = cell(w, h), t = cell(w, h);
-  for (const [dx, dy] of [[0, 1], [2, 1], [1, 0], [1, 2]]) t.g.drawImage(src, dx, dy);
-  t.g.globalCompositeOperation = 'source-in'; t.g.fillStyle = col || '#0a0c10'; t.g.fillRect(0, 0, w, h);
-  out.g.drawImage(t.c, 0, 0); out.g.drawImage(src, 1, 1);
-  return out.c;
+  // rim light from the top-left, contact shade on the bottom/right, and a coloured (not black) outline
+  const w = src.width, h = src.height, W2 = w + 2, H2 = h + 2;
+  const sd = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const out = cell(W2, H2), im = out.g.createImageData(W2, H2), od = im.data;
+  const A = (x, y) => (x < 0 || y < 0 || x >= w || y >= h) ? 0 : sd[(y * w + x) * 4 + 3];
+  const put = (x, y, r, g, b) => { const k = (y * W2 + x) * 4; od[k] = r; od[k + 1] = g; od[k + 2] = b; od[k + 3] = 255; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const k = (y * w + x) * 4; if (!sd[k + 3]) continue;
+    let r = sd[k], g = sd[k + 1], b = sd[k + 2];
+    const up = !A(x, y - 1), left = !A(x - 1, y), down = !A(x, y + 1), right = !A(x + 1, y);
+    if (up) { r = r * 1.22 + 14; g = g * 1.2 + 10; b = b * 1.1; }                 // warm rim
+    else if (left) { r = r * 1.1 + 6; g = g * 1.08 + 4; }
+    if (down) { r *= 0.74; g *= 0.74; b = b * 0.8 + 6; }                            // cool shade
+    else if (right) { r *= 0.86; g *= 0.86; b = b * 0.9 + 3; }
+    put(x + 1, y + 1, Math.min(255, r), Math.min(255, g), Math.min(255, b));
+  }
+  for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+    if (od[(y * W2 + x) * 4 + 3]) continue;
+    let k = -1;                                                                      // the opaque source pixel next to this one
+    for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) { const sx = x - 1 + dx, sy = y - 1 + dy; if (A(sx, sy)) { k = (sy * w + sx) * 4; break; } }
+    if (k < 0) continue;
+    put(x, y, sd[k] * 0.22 + 6, sd[k + 1] * 0.22 + 8, sd[k + 2] * 0.26 + 16);
+  }
+  out.g.putImageData(im, 0, 0);
+  return quantizeCanvas(out.c);
 }
 function makeSet(dim, pal, o, moves) {
   const set = { walk: [], attack: [], climb: [], idle: [], ax: 0, ay: 0 };
@@ -169,13 +246,16 @@ function noiseTex() {
 
 Art.renderTerrain = function () {
   const k = cell(W * T, H * T), g = k.g, r = mulberry32(1234);
-  const R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  const R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const t = ground[y * W + x], px = x * T, py = y * T;
-    const pal = t === 1 ? ['#34383d', '#383c41', '#303439', '#3a3e43'] : t === 2 ? ['#3a6334', '#3f6c39', '#365d30', '#44743e'] :
-      t === 3 ? ['#6d706c', '#72756f', '#686b67'] : ['#475a38', '#4b5f3b', '#425535', '#4f633f'];
-    R(pal[r() * pal.length | 0], px, py, T, T);
-    for (let i = 0; i < 9; i++) R(pal[r() * pal.length | 0], px + (r() * T | 0), py + (r() * T | 0), 1 + (r() * 3 | 0), 1);
+    const pal = t === 1 ? ['#2a2e36', '#30343c', '#363a42', '#3c4048', '#42464e'] : t === 2 ? ['#2f5a2e', '#376a33', '#3f7a38', '#4a8a3c', '#589a44'] :
+      t === 3 ? ['#6a6e72', '#72767a', '#7a7e80', '#82857f'] : ['#3c5232', '#445c34', '#4d6a38', '#587a3e', '#648640'];
+    // broad light/dark drifts across the map so big areas are not one flat tone, then per-pixel speckle
+    const macro = Math.sin(x * 0.37 + Math.sin(y * 0.21) * 2) * 0.5 + Math.sin(y * 0.29 - x * 0.11) * 0.5;
+    const pick = () => pal[clamp(Math.floor((macro * 0.12 + 0.5 + (r() - 0.5) * 0.55) * pal.length), 0, pal.length - 1)];
+    R(pick(), px, py, T, T);
+    for (let i = 0; i < 16; i++) R(pick(), px + (r() * T | 0), py + (r() * T | 0), 1 + (r() * 3 | 0), 1);
     if (t === 0 || t === 2) {                                        // grass tufts and dirt
       for (let i = 0; i < 5; i++) { const gx = px + (r() * 15 | 0), gy = py + (r() * 13 | 0); R(r() < 0.5 ? '#2f4024' : '#6a8348', gx, gy, 1, 2 + (r() * 2 | 0)); }
       if (r() < 0.12) R('#5a4a34', px + (r() * 10 | 0), py + (r() * 10 | 0), 4, 2);
@@ -239,7 +319,7 @@ Art.renderTerrain = function () {
 
 function drawBuilding(g, b) {
   const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, FH = 9;
-  const r = mulberry32(b.seed), R = (c, a, bb, cc, d) => { g.fillStyle = c; g.fillRect(a, bb, cc, d); };
+  const r = mulberry32(b.seed), R = (c, a, bb, cc, d) => { g.fillStyle = pq(c); g.fillRect(a, bb, cc, d); };
   const rh = h - FH, roof = b.roof;
   g.globalAlpha = 0.38; R('#000', x + 3, y + 3, w, h); g.globalAlpha = 1;
   // facade
@@ -348,7 +428,7 @@ Art.drawWall = function (g, x, y, k, f, press, t, gateOpen, tier, el, pw) {
   const px = x * T, py = y * T, i = y * W + x;
   const below = wallAt(x, y + 1) && wallAt(x, y + 1) !== K.LOOKOUT && k !== K.LOOKOUT;
   const topH = below ? T : 10;
-  const R = (c, a, b, w, h) => { g.fillStyle = c; g.fillRect(a, b, w, h); };
+  const R = (c, a, b, w, h) => { g.fillStyle = pq(c); g.fillRect(a, b, w, h); };
   g.globalAlpha = 0.38; R('#000', px + 2, py + 4, T, T); g.globalAlpha = 1;
   if (k === K.WALL) {
     if (!below) { R('#4a3320', px, py + 10, T, 6); R('#5c4328', px + 1, py + 10, 3, 6); R('#5c4328', px + 7, py + 10, 3, 6); R('#3a2816', px, py + 15, T, 1); }
@@ -403,7 +483,7 @@ Art.drawWall = function (g, x, y, k, f, press, t, gateOpen, tier, el, pw) {
 
 // ---- camp ---------------------------------------------------------------
 Art.drawCamp = function (g, t, level, hpFrac, fallen) {
-  const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T, R = (c, a, b, w, h) => { g.fillStyle = c; g.fillRect(a, b, w, h); };
+  const cx = (CORE.x - 1) * T, cy = (CORE.y - 1) * T, R = (c, a, b, w, h) => { g.fillStyle = pq(c); g.fillRect(a, b, w, h); };
   // ground cloth / mats
   R('#3d4a52', cx + 2, cy + 6, T * 3 - 4, T * 3 - 8); R('#4a5a64', cx + 2, cy + 6, T * 3 - 4, 1);
   // tents
@@ -443,7 +523,7 @@ Art.drawCamp = function (g, t, level, hpFrac, fallen) {
 
 // ---- facilities ---------------------------------------------------------------
 Art.drawFacility = function (g, f, t) {
-  const px = f.x * T, py = f.y * T, R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  const px = f.x * T, py = f.y * T, R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
   g.globalAlpha = 0.3; R('#000', px + 3, py + 12, 11, 4); g.globalAlpha = 1;
   if (f.type === 'garden') {
     R('#4a3622', px + 1, py + 3, 14, 12); R('#5a4228', px + 1, py + 3, 14, 1);
@@ -468,7 +548,7 @@ Art.drawFacility = function (g, f, t) {
 };
 
 Art.drawFacility2 = function (g, f, t) {
-  const px = f.x * T, py = f.y * T, R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  const px = f.x * T, py = f.y * T, R = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x, y, w, h); };
   g.globalAlpha = 0.3; R('#000', px + 3, py + 12, 11, 4); g.globalAlpha = 1;
   if (f.type === 'well') {
     R('#7a7a74', px + 2, py + 5, 12, 9); R('#9a9a92', px + 2, py + 5, 12, 2); R('#2a5a8a', px + 4, py + 7, 8, 5); R('#5aa0d8', px + 4, py + 7, 8, 1);
