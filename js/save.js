@@ -8,7 +8,7 @@ const Save = (() => {
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'born', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue', 'storm', 'eventT', 'trader',
     'refugeeT', 'sel', 'seed', 'morale', 'deaths', 'rules', 'ruleCd', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'heat', 'pressAcc', 'dropT', 'supCd', 'secured', 'safeT', 'coreHurtAt', 'nests', 'nestT',
-    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'blue', 'blueId'];
+    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'blue', 'blueId', 'intro', 'introHold', 'fireLit', 'ruins'];
 
   // a town's data, whether it is the live one (globals) or a stored record
   function viewOf(t) {

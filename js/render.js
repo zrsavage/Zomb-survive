@@ -69,6 +69,7 @@ function drawWorld(cam, cw, ch, z) {
     }
   }
 
+  Intro.drawGround(ctx);
   // crates (with a beacon so they can be found)
   for (const c of crates) {
     const px = c.x * T, py = c.y * T, pulse = 0.5 + 0.5 * Math.sin(t * 4);
@@ -258,7 +259,7 @@ function drawWorld(cam, cw, ch, z) {
   ctx.drawImage(fogCanvas, 0, 0, W * T, H * T);
   ctx.imageSmoothingEnabled = false;
 
-  drawCursor(); Build.draw(ctx); Combat.draw(ctx); Loot.draw(ctx);
+  drawCursor(); Build.draw(ctx); Combat.draw(ctx); Loot.draw(ctx); Intro.draw(ctx);
 }
 function drawCursor() {
   if (G.hover && !G.over) {
@@ -302,7 +303,8 @@ function drawCursor() {
 function collectLights(cam) {
   const L = [], t = G.time;
   const fl = 1 + Math.sin(t * 13) * 0.06 + Math.sin(t * 7.1) * 0.05;
-  L.push({ x: CORE.x + 0.5, y: CORE.y + 1.6, r: (9 + G.level * 0.5) * fl, a: 0.95, c: [255, 160, 70], glow: 0.22 });
+  if (G.fireLit === false) L.push({ x: CORE.x + 0.5, y: CORE.y + 1.6, r: 2.6, a: 0.35, c: [200, 90, 40], glow: 0.04 });         // a dead fire: a few embers
+  else L.push({ x: CORE.x + 0.5, y: CORE.y + 1.6, r: (9 + G.level * 0.5) * fl, a: 0.95, c: [255, 160, 70], glow: 0.22 });
   if (P.dead <= 0) L.push({ x: P.px, y: P.py - 0.4, r: 5.6, a: 0.8, c: [255, 235, 190], glow: 0.05 });
   for (const l of lamps) {
     if (!l.on || !explored[(l.y | 0) * W + (l.x | 0)]) continue;
@@ -424,7 +426,7 @@ function updateFx(dt) {
   for (const d of defenders) if (d.stab > 0) d.stab -= dt;
   // camp fire smoke and embers
   G.smokeT = (G.smokeT || 0) - dt;
-  if (G.smokeT <= 0) {
+  if (G.smokeT <= 0 && G.fireLit !== false) {
     G.smokeT = 0.09;
     parts.push({ x: CORE.x + 0.5 + (rng() - 0.5) * 0.3, y: CORE.y + 1.4, vx: 0.15 + rng() * 0.3, vy: -0.9 - rng() * 0.5, life: 1.6, max: 1.6, color: '#8a8a90', size: 2 + (rng() * 2 | 0), grav: 0 });
     if (rng() < 0.4) parts.push({ x: CORE.x + 0.5 + (rng() - 0.5) * 0.4, y: CORE.y + 1.5, vx: (rng() - 0.5) * 0.6, vy: -1.6 - rng(), life: 0.8, max: 0.8, color: '#ffb040', size: 1, grav: 0 });

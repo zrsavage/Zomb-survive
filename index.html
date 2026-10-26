@@ -92,6 +92,16 @@
   #pack .bar{height:5px;background:#0008;border-radius:3px;overflow:hidden;margin-top:2px}#pack .bar i{display:block;height:100%}
   .res img{width:14px;height:14px;image-rendering:pixelated;vertical-align:-3px;margin-right:4px}
   #packChip{cursor:pointer}
+  #obj{display:none;left:50%;top:92px;transform:translateX(-50%);width:min(440px,92vw);z-index:5}#obj.show{display:block}
+  #obj .oh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.12em;margin-bottom:3px}#obj .oh a{color:var(--dim);letter-spacing:0}
+  #obj b{font-size:15px}#obj .ot{color:var(--txt);margin-top:3px;line-height:1.45;font-size:13px}#obj kbd{background:#0007;border:1px solid #fff3;border-radius:3px;padding:0 5px;margin:0 2px;color:#ffe9b0}
+  #obj .obar{height:4px;background:#0008;border-radius:3px;margin-top:6px;overflow:hidden}#obj .obar i{display:block;height:100%;background:var(--amber)}
+  #introCard{position:fixed;inset:0;z-index:30;background:#030201;display:none;align-items:center;justify-content:center;cursor:pointer}#introCard.show{display:flex}
+  #introCard .ic{max-width:640px;padding:0 24px;text-align:center;font-family:Georgia,'Times New Roman',serif}
+  #introCard .ik{font-size:13px;letter-spacing:.5em;text-transform:uppercase;color:#c4521e;margin-bottom:26px;animation:icf 1.2s both}
+  #introCard p{font-size:24px;line-height:1.5;color:#e8dcc8;margin:6px 0;opacity:0;animation:icf 1.6s forwards}
+  #introCard .ih{margin-top:40px;font:12px/1 monospace;color:#6a6258;opacity:0;animation:icf 1s 3.2s forwards}#introCard .ih a{color:#8a7a68}
+  @keyframes icf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   #jobs td{vertical-align:middle;padding:3px 6px}#jobs td button{display:inline-flex;padding:1px 6px}
   .modal h3{margin:0 0 8px;font-size:16px}
   #radio{border-color:var(--acc);z-index:7} #radio .txt{margin:6px 0 10px;color:#cfe0ee;font-style:italic} #radio button{width:100%;margin-top:5px}
@@ -233,6 +243,8 @@
 <div id="trade" class="panel"></div>
 <div id="research" class="panel modal"></div>
 <div id="loot" class="panel modal" style="z-index:9"></div>
+<div id="obj" class="panel"></div>
+<div id="introCard"></div>
 <div id="jobs" class="panel modal" style="width:min(600px,96vw)"></div>
 <div id="pack" class="panel modal" style="width:min(560px,96vw)"></div>
 <div id="memorial" class="panel modal"></div>
@@ -276,6 +288,7 @@
 <script src="js/combat.js"></script>
 <script src="js/items.js"></script>
 <script src="js/build.js"></script>
+<script src="js/intro.js"></script>
 <script src="js/titlefx.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>

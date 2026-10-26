@@ -252,6 +252,7 @@ function seedAmbient(mult, safe) {
   }
 }
 function spawnAmbient() {          // trickle in zombies out of sight so the town never empties
+  if (G.introHold) return;
   for (let t = 0; t < 10; t++) {
     const x = rng() * W | 0, y = rng() * H | 0, i = y * W + x;
     if (bld[i] >= 0 || wall[i] || dist[i] === Infinity || vis[i] || claimed[i]) continue;
@@ -938,7 +939,8 @@ function updateEconomy(dt) {
 
 // ---- hordes: schedule, detection, warnings ---------------------------------------------------------------
 function updateHordes(dt) {
-  updatePressure(dt);
+  if (G.introHold) { G.nextHorde = Math.max(G.nextHorde, 400); G.heat = 0; }
+  else updatePressure(dt);
   G.nextHorde -= dt;
   if (G.nextHorde <= 0) startHorde();
   for (const h of hordes) {
@@ -1233,6 +1235,7 @@ function simulate(dt) {
   updateDefenders(dt);
   Units.update(dt);
   Build.update(dt);
+  if (G.intro) Intro.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
   Director.tick(dt); Radio.update(dt); G.ruleCd = Math.max(0, G.ruleCd - dt); G.nfT -= dt;

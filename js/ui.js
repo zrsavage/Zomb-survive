@@ -40,7 +40,7 @@ const UI = (() => {
   // ---- build the static parts -------------------------------------------------------------
   const RESROW = [['a', 'rAmmo'], ['m', 'rMat'], ['f', 'rFood'], ['water', 'rWater'], ['fuel', 'rFuel'], ['med', 'rMed']];
   function init() {
-    Loot.init();
+    Loot.init(); $('introCard').addEventListener('click', () => Intro.onClick());
     for (const [k, id] of RESROW) { const b = $(id).parentElement.querySelector('b'); if (b) b.outerHTML = '<img src="' + Items.url(k) + '" alt="">'; }
     $('packChip').addEventListener('click', () => togglePack()); $('jobChip').addEventListener('click', () => toggleJobs());
     const list = $('toolList');
@@ -395,9 +395,9 @@ const UI = (() => {
   }
 
   // ---- menus ---------------------------------------------------------------
-  const menuOpen = () => menuMode !== null || !!(G && G.radioMsg) || Loot.isOpen();
+  const menuOpen = () => menuMode !== null || !!(G && G.radioMsg) || Loot.isOpen() || Intro.slidesOpen();
   function showMenu(mode) {
-    menuMode = mode;
+    menuMode = mode; $('obj').classList.remove('show'); if (mode === 'title') $('introCard').classList.remove('show');
     const c = $('card'), ov = $('overlay');
     ov.classList.toggle('title', mode === 'title'); if (mode === 'title') { TitleFx.start($('fxc')); Save.setLive(false); } else TitleFx.stop();
     const diff = (store.get('zomb-diff') || 'normal');
@@ -667,6 +667,7 @@ const UI = (() => {
     addEventListener('keydown', e => {
       Snd.resume();
       const k = e.key.toLowerCase();
+      if (Intro.onKey(k)) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
       if (k === 'escape') { if (!G) return; if (menuMode === 'pause') hideMenu(); else if (!menuMode) showMenu('pause'); return; }
       if (menuMode) return;
