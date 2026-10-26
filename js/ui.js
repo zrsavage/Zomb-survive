@@ -38,7 +38,11 @@ const UI = (() => {
   let menuMode = null, lastPeople = '', lastRes = '', lastCrews = null, lastLog = '';
 
   // ---- build the static parts -------------------------------------------------------------
+  const RESROW = [['a', 'rAmmo'], ['m', 'rMat'], ['f', 'rFood'], ['water', 'rWater'], ['fuel', 'rFuel'], ['med', 'rMed']];
   function init() {
+    Loot.init();
+    for (const [k, id] of RESROW) { const b = $(id).parentElement.querySelector('b'); if (b) b.outerHTML = '<img src="' + Items.url(k) + '" alt="">'; }
+    $('packChip').addEventListener('click', () => togglePack());
     const list = $('toolList');
     let lastCat = '';
     for (const t of TOOLS) {
@@ -71,6 +75,9 @@ const UI = (() => {
   // ---- HUD ---------------------------------------------------------------
   function update() {
     const L = LEVELS[G.level - 1];
+    for (const [k, id] of RESROW) { const r = Items.RES[k], v = G[r.field] | 0, w = $(id).parentElement; w.title = r.name + ': ' + v + ' of ' + storeCap() + ' storable. ' + r.use + '.'; }
+    $('rPack').textContent = Items.packCount(); $('rPack').style.color = Items.packCount() >= Items.PACK.slots * Items.PACK.stack ? 'var(--bad)' : '';
+    if ($('pack').classList.contains('show')) renderPack();
     $('rAmmo').textContent = G.ammo | 0; $('dAmmo').textContent = fmtRate(G.net.a);
     $('rMat').textContent = G.mat | 0; $('dMat').textContent = fmtRate(G.net.m);
     $('rFood').textContent = G.food | 0; $('dFood').textContent = fmtRate(G.net.f);
@@ -273,6 +280,34 @@ const UI = (() => {
   }
 
   // ---- camp rules ---------------------------------------------------------------
+  let lastPack = '';
+  function togglePack() {
+    const el = $('pack'); el.classList.toggle('show'); lastPack = '';
+    if (el.classList.contains('show')) renderPack();
+    Snd.click();
+  }
+  function renderPack() {
+    const inv = Items.pack(), cap = storeCap(), camp = Items.atCamp();
+    const key = RESROW.map(([k]) => G[Items.RES[k].field] | 0).join() + '|' + inv.map(s => s.id + s.n).join() + '|' + camp + '|' + (P.mag | 0) + '|' + (P.hp | 0);
+    if (key === lastPack) return; lastPack = key;
+    const el = $('pack');
+    const stock = RESROW.map(([k]) => { const r = Items.RES[k], v = G[r.field] | 0, low = (k === 'a' && v < 30) || (k === 'f' && v < 20) || (k === 'water' && v < 20) || (k === 'm' && v < 40);
+      return '<div class="lootrow">' + Items.img(k, 22) + '<span class="ln"><b>' + r.name + '</b> <span class="lq" style="color:' + (low ? 'var(--bad)' : '') + '">' + v + '</span> / ' + cap + '<div class="bar"><i style="width:' + Math.min(100, v / cap * 100) + '%;background:' + (low ? 'var(--bad)' : 'var(--acc)') + '"></i></div><small>' + r.use + '</small></span></div>'; }).join('');
+    const pk = inv.length ? inv.map(s => { const d = Items.ITEMS[s.id];
+      return '<div class="lootrow">' + Items.img(s.id, 24) + '<span class="ln"><b>' + d.name + '</b> <span class="lq">x' + s.n + '</span><br><small>' + d.desc + '</small></span>' +
+        (d.use ? '<button data-u="' + s.id + '">Use</button>' : '') + (d.stash ? '<button data-s="' + s.id + '"' + (camp ? '' : ' disabled title="Walk back to camp to stash"') + '>Stash</button>' : '') + '<button data-d="' + s.id + '">Drop</button></div>'; }).join('')
+      : '<div style="color:var(--dim)">Empty. The dead sometimes carry something worth taking; ruins hide more.</div>';
+    el.innerHTML = '<div class="row"><h3>Pack &amp; stockpile</h3><button id="pkClose" style="padding:2px 8px">Close (I)</button></div>' +
+      '<div class="sec">Weapon</div><div>' + Items.img('a', 18) + ' Pistol: <b>' + (P.mag | 0) + '</b> in the magazine, <b>' + (G.ammo | 0) + '</b> in reserve. Health <b>' + Math.max(0, P.hp | 0) + '</b>.</div>' +
+      '<div class="sec">Camp stockpile</div>' + stock +
+      '<div class="sec">Your pack (' + Items.packCount() + ' items, ' + inv.length + '/' + Items.PACK.slots + ' slots)</div>' + pk +
+      (inv.some(s => Items.ITEMS[s.id].stash) ? '<div style="margin-top:8px"><button id="pkStash"' + (camp ? '' : ' disabled') + '>Stash everything useful at camp</button> ' + (camp ? '' : '<small style="color:var(--dim)">(walk back to the fire first)</small>') + '</div>' : '');
+    el.querySelector('#pkClose').onclick = togglePack;
+    el.querySelectorAll('button[data-u]').forEach(b => b.onclick = () => { Items.useOne(b.dataset.u); lastPack = ''; renderPack(); });
+    el.querySelectorAll('button[data-s]').forEach(b => b.onclick = () => { Items.stashOne(b.dataset.s); lastPack = ''; renderPack(); });
+    el.querySelectorAll('button[data-d]').forEach(b => b.onclick = () => { Items.dropOne(b.dataset.d); lastPack = ''; renderPack(); });
+    const st = el.querySelector('#pkStash'); if (st) st.onclick = () => { Items.stashAll(); lastPack = ''; renderPack(); };
+  }
   function toggleRules() {
     const el = $('rules'); el.classList.toggle('show'); lastRules = '';
     if (el.classList.contains('show')) renderRules();
@@ -337,7 +372,7 @@ const UI = (() => {
   }
 
   // ---- menus ---------------------------------------------------------------
-  const menuOpen = () => menuMode !== null || !!(G && G.radioMsg);
+  const menuOpen = () => menuMode !== null || !!(G && G.radioMsg) || Loot.isOpen();
   function showMenu(mode) {
     menuMode = mode;
     const c = $('card'), ov = $('overlay');
@@ -609,6 +644,7 @@ const UI = (() => {
     addEventListener('keydown', e => {
       Snd.resume();
       const k = e.key.toLowerCase();
+      if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
       if (k === 'escape') { if (!G) return; if (menuMode === 'pause') hideMenu(); else if (!menuMode) showMenu('pause'); return; }
       if (menuMode) return;
       keys[k] = true; if (e.shiftKey) keys.shift = true;
@@ -618,6 +654,7 @@ const UI = (() => {
       else if (k === 'x') { Units.standDownSelected(); lastPeople = ''; }
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
+      else if (k === 'i') togglePack();
       else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();
       else if (k === 'p') toggleRules();

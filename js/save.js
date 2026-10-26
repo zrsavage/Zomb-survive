@@ -34,7 +34,7 @@ const Save = (() => {
     Towns.snapshot(Campaign.active);                       // refresh the live town's record (also writes back the id counter)
     const c = Campaign;
     return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
-      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp) }, towns: c.towns.map(serializeTown) };
+      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })) }, towns: c.towns.map(serializeTown) };
   }
   // where the save lives: the browser's storage, a copy in memory for this visit, and the private cloud copy
   let mem = null;
@@ -105,7 +105,7 @@ const Save = (() => {
     Campaign.nextId = c.nextId || (Math.max(...Campaign.towns.map(t => t.id)) + 1);
     activeT = activeT || Campaign.towns[0];
     Towns.load(activeT); Campaign.active = activeT;
-    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0;
+    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || [];
     computePlayerField(); updateVision();
     log('Game loaded');
     return true;

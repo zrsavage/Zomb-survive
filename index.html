@@ -86,6 +86,12 @@
 
   .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,94vw);display:none;z-index:6;max-height:80vh;overflow:auto}
   .modal.show{display:block}
+  .lootrow{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid #ffffff12}.lootrow .ln{flex:1}.lootrow .lq{color:var(--amber)}.lootrow small{color:var(--dim)}
+  .lootrow button,#pack button{padding:3px 9px}
+  #pack .sec{margin:10px 0 3px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+  #pack .bar{height:5px;background:#0008;border-radius:3px;overflow:hidden;margin-top:2px}#pack .bar i{display:block;height:100%}
+  .res img{width:14px;height:14px;image-rendering:pixelated;vertical-align:-3px;margin-right:4px}
+  #packChip{cursor:pointer}
   .modal h3{margin:0 0 8px;font-size:16px}
   #radio{border-color:var(--acc);z-index:7} #radio .txt{margin:6px 0 10px;color:#cfe0ee;font-style:italic} #radio button{width:100%;margin-top:5px}
   .tech{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -165,6 +171,7 @@
   <div class="res" title="Water: everyone drinks. Wells and rain collectors make more."><b style="background:#4fb0e8"></b><span id="rWater">0</span></div>
   <div class="res" title="Fuel (generators, Molotovs)"><b style="background:#e8884a"></b><span id="rFuel">0</span></div>
   <div class="res" title="Medicine (treating the sick, medics)"><b style="background:#e86a9a"></b><span id="rMed">0</span></div>
+  <div class="res" id="packChip" title="Your pack and the camp stockpile (I)">Pack <span id="rPack">0</span>/10 <kbd>I</kbd></div>
   <div class="res" id="morWrap" title="Camp morale">Morale <span id="mor">70</span></div>
   <div class="res">Health <span id="pHp">100</span></div>
   <div class="res">In sight <span id="zCount">0</span></div>
@@ -223,13 +230,15 @@
 
 <div id="trade" class="panel"></div>
 <div id="research" class="panel modal"></div>
+<div id="loot" class="panel modal" style="z-index:9"></div>
+<div id="pack" class="panel modal" style="width:min(560px,96vw)"></div>
 <div id="memorial" class="panel modal"></div>
 <div id="map" class="panel modal" style="width:min(720px,96vw)"></div>
 <div id="rules" class="panel modal"></div>
 <div id="radio" class="panel modal"></div>
 
 <canvas id="mini" width="528" height="396"></canvas>
-<div id="help" class="panel">C command mode: click or drag to select survivors, right-click to order (move / man a wall / scavenge), X stand down · K work toggles · WASD drives the founder · wheel zoom · right-drag look · R research · H hold fire · M mute · Space pause · Esc menu</div>
+<div id="help" class="panel">Click to fire, R reload, right-click or F swing · E pick up / search / open · I pack &amp; stockpile · C command mode: click or drag to select survivors, right-click to order (move / man a wall / scavenge), X stand down · K work toggles · WASD drives the founder · wheel zoom · right-drag look · R research · H hold fire · M mute · Space pause · Esc menu</div>
 <div id="cmdbar" class="panel"></div>
 <div id="selbox"></div>
 <div id="work" class="panel modal"></div>
@@ -262,6 +271,7 @@
 <script src="js/ai.js"></script>
 <script src="js/units.js"></script>
 <script src="js/combat.js"></script>
+<script src="js/items.js"></script>
 <script src="js/titlefx.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>

@@ -513,6 +513,7 @@ function killZombie(k) {
   const z = zombies[k];
   G.kills++;
   if (z.by) z.by.kills++;
+  Items.zombieDrop(z);
   if (z.rev) log(z.rev.name + ' has been put to rest');
   if (z.type === 'tyrant') { crates.push({ x: z.x, y: z.y, t: 300, type: 'boss' }); log('The Tyrant is down. It dropped something - go and take it.'); shake(3); Snd.boom(z.x, z.y); }
   // salvage: the dead carry scrap and the odd round, so a big fight pays for itself (bigger zombies carry more)
@@ -796,7 +797,7 @@ function updatePlayer(dt) {
 
   // scavenging: hold E beside a building
   const b = nearBuilding();
-  if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving) {
+  if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving && !Loot.near && !Loot.isOpen()) {
     const bi = buildings.indexOf(b);
     let need = { t: lootTime() };                                         // locked buildings need a keycard or a cutting torch (fuel)
     if (b.locked) need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
@@ -809,7 +810,8 @@ function updatePlayer(dt) {
     }
   } else { P.loot = 0; P.lootB = -1; }
 
-  // supply crates
+  // supply crates and things on the ground: you stand beside them and press E
+  Loot.update(dt);
   for (let i = crates.length - 1; i >= 0; i--) {
     const c = crates[i]; c.t -= dt;
     if (c.type === 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 1.6) {
@@ -818,30 +820,15 @@ function updatePlayer(dt) {
       if (rng() < 0.5) { for (let k = 0; k < 8; k++) zombies.push(Object.assign(makeZombie(c.x + (rng() - 0.5) * 6, c.y + (rng() - 0.5) * 6, 1, 0), { mode: 1 })); log('The noise drew company!'); }
       Snd.pickup(); continue;
     }
-    if (c.type === 'boss' && Math.hypot(c.x - P.px, c.y - P.py) < 1.4) {
-      crates.splice(i, 1);
-      addRes({ m: 150, f: 60, a: 80, med: 20, fuel: 20, water: 30 }); G.keys++; moraleGain('horde');
-      const left = RESEARCH.filter(r => !G.res.done[r.id]);
-      let bp = ''; if (left.length) { const r = pick(left); G.res.done[r.id] = true; if (G.res.active && G.res.active.id === r.id) G.res.active = null; bp = ' and a blueprint for ' + r.name; }
-      floatText(c.x, c.y - 1, 'TYRANT LOOT', '#ffd27a'); Snd.pickup(); log('Tyrant loot: 150m 60f 80a 20 med 20 fuel, a keycard' + bp);
-      continue;
-    }
-    if (c.type === 'airdrop' && ((Math.hypot(c.x - P.px, c.y - P.py) < 1.4 && P.dead <= 0) || Units.near(c.x, c.y, 1.4))) {
+    if (c.type === 'airdrop' && Units.near(c.x, c.y, 1.4)) {          // a worker reaches it first: they haul it in without ceremony
       crates.splice(i, 1);
       const roll = v => Math.round(v * (0.9 + rng() * 0.2) * c.mult), got = {};
       for (const k in BROADCAST.drop) got[k] = roll(BROADCAST.drop[k]);
       addRes(got); moraleGain('crate'); Snd.pickup();
-      floatText(c.x, c.y - 1, 'SUPPLY DROP', '#ffd27a'); log('Supply drop collected: ' + lootText(got));
+      floatText(c.x, c.y - 1, 'SUPPLY DROP', '#ffd27a'); log('Supply drop hauled in: ' + lootText(got));
       continue;
     }
-    if (c.type !== 'survivor' && c.type !== 'boss' && c.type !== 'airdrop' && Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
-      const L = EVENTS.crateLoot, roll = v => Math.round(v * (0.8 + rng() * 0.5));
-      const m = roll(L.m), f = roll(L.f), a = roll(L.a);
-      G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
-      floatText(c.x, c.y - 1, '+' + m + 'm +' + f + 'f +' + a + 'a', '#ffe27a'); Snd.pickup();
-      log('Supply crate recovered: +' + m + ' materials, +' + f + ' food, +' + a + ' ammo');
-      crates.splice(i, 1); moraleGain('crate');
-    } else if (c.t <= 0) crates.splice(i, 1);
+    if (c.t <= 0) crates.splice(i, 1);
   }
 
   const tile = wall[(P.py | 0) * W + (P.px | 0)];
@@ -852,11 +839,11 @@ function updatePlayer(dt) {
 function scavenge(b) {
   b.looted = true;
   const t = BUILDING_TYPES[b.type];
-  const got = takeLoot(b, has('scav') ? 1.35 : 1);
-  addRes(got);
-  if (b.type === 'house' && rng() < KEYS.houseChance) { G.keys++; floatText(b.x + b.w / 2, b.y - 1, '+keycard', '#7fd0ff'); }
-  Snd.loot();
-  floatText(b.x + b.w / 2, b.y - 0.2, lootText(got, true), '#ffe27a');
+  const got = takeLoot(b, has('scav') ? 1.35 : 1), ent = [];
+  for (const [k] of LOOT_KEYS) if (got[k]) ent.push({ r: k, n: got[k] });
+  if (b.type === 'house' && rng() < KEYS.houseChance) ent.push({ i: 'keycard', n: 1 });
+  if (rng() < 0.08) ent.push({ i: Items.roll(), n: 1 });
+  Loot.open('Searched the ' + t.label.toLowerCase(), ent, { x: b.x + b.w / 2, y: b.y + b.h + 0.6 });
   let msg = t.label + ': ' + lootText(got);
   if (rng() < SURVIVOR_CHANCE && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - ' + intro(s) + ' was hiding inside and follows you back!'; }
   log(msg);
