@@ -288,7 +288,8 @@ function startHorde(opts = {}) {
   const minor = !!opts.minor, D = DIFFICULTY[G.diff];
   const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
   const mins = townMins(G);
-  const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1) * (G.rush ? 0.6 : 1)));
+  let size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1) * (G.rush ? 0.6 : 1)));
+  if (G.rush && !minor) size = Math.min(600, Math.round((140 + 18 * (n - 1)) * (0.9 + rng() * 0.2) * D.size));      // quick play: hundreds at the walls, every time
   hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 9 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
   if (minor) return;
   G.recentDeaths = 0;
