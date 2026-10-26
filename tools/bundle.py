@@ -13,7 +13,7 @@ for f in scripts:
         code = re.sub(r"if \('serviceWorker' in navigator[^\n]*\n", '', code)       # no service workers inside an artifact
     assert '</script' not in code, f
     js += '/* ' + f + ' */\n' + code + '\n'
-out = ('<title>Holdfast</title>\n<style>\n:root{color-scheme:dark}\n' + css + '\n</style>\n' + body + '<script>\n' + js + '</script>\n')
-dst = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, 'dist', 'holdfast.html')
+out = ('<title>Gravel &amp; Ash</title>\n<style>\n:root{color-scheme:dark}\n' + css + '\n</style>\n' + body + '<script>\n' + js + '</script>\n')
+dst = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, 'dist', 'gravel-and-ash.html')
 open(dst, 'w').write(out)
 print(dst, len(out) // 1024, 'KB')
