@@ -502,7 +502,7 @@ const UI = (() => {
     let h = '';
     if (mode === 'title') {
       h = '<h1>GRAVEL &amp; ASH</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
-        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mSettings" class="alt">Settings</button></div>';
+        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mQuick" class="' + (Save.exists() ? 'alt' : '') + '">Quick play</button><button id="mNew" class="alt">New game</button><button id="mSettings" class="alt">Settings</button></div>';
     } else if (mode === 'new') {
       h = '<h1>New game</h1><div class="sub">Choose how hard, and how the dead behave.</div>' +
         '<div style="margin-top:6px">Difficulty</div>' + diffBtns + '<div id="diffDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + DIFF_NOTE[diff] + '</div>' +
@@ -536,6 +536,7 @@ const UI = (() => {
     }));
     on('mNew', () => { newBack = mode; showMenu('new'); });
     on('mStart', () => { Hints.reset(); newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mQuick', () => { Hints.reset(); newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Quick.setup(); Save.setLive(true); hideMenu(); toast('Quick play: a walled camp and a crew. Press B to build, Q to swap guns.'); });
     on('mNewBack', () => showMenu(newBack === 'new' ? 'title' : newBack));
     on('mSettings', () => { settingsBack = mode; showMenu('settings'); });
     on('mSetBack', () => showMenu(settingsBack));

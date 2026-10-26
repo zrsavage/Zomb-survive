@@ -346,7 +346,7 @@ const BUILD_RANGE = 11;          // tiles from the survivor
 const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
 // Zombies queue at a wall, claw at it and climb the heap. Weak wall sections give way, so the garrison has to thin them out.
-const PILE_SPEEDUP = 0.08, PILE_MAX_SPEEDUP = 3.5, PILE_PRESSURE = 0.02, WALL_CLAW = 0.5, CLIMB_SLOW = 1.8;
+const PILE_SPEEDUP = 0.08, PILE_MAX_SPEEDUP = 3.5, PILE_PRESSURE = 0.02, WALL_CLAW = 0.35, CLIMB_SLOW = 1.8;
 
 const LEVELS = [   // index = camp level - 1
   { cap: 150, defs: 8,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
@@ -2239,7 +2239,7 @@ function updateZombies(dt) {
       if (G.ransack >= 1) {
         G.ransack -= 1; const r = rng(), take = 1 + (G.level > 2 ? 1 : 0);
         if (r < 0.3) G.food = Math.max(0, G.food - take * 2); else if (r < 0.55) G.mat = Math.max(0, G.mat - take * 3); else if (r < 0.75) G.ammo = Math.max(0, G.ammo - take); else if (r < 0.9) G.water = Math.max(0, G.water - take * 2); else G.med = Math.max(0, G.med - 1);
-        G.coreHp -= zt.dmg * 0.8; G.coreHurtAt = G.elapsed; addBurst(z.x, z.y - 0.4, '#c9a24a', 3, { spread: 2 });
+        G.coreHp -= zt.dmg * 0.3; G.coreHurtAt = G.elapsed; addBurst(z.x, z.y - 0.4, '#c9a24a', 3, { spread: 2 });
         if (G.coreHp <= 0 && !G.over) Campaign.campFell();
       }
       if (!G.intrudeT || G.elapsed - G.intrudeT > 20) { G.intrudeT = G.elapsed; log('The dead are inside the camp! They are tearing through the stores.'); if (G.morale !== undefined) G.morale = clamp(G.morale - 2, 0, 100); }
@@ -2800,7 +2800,7 @@ function updateEconomy(dt) {
     for (let i = 0; i < W * H && left > 0 && G.mat >= 1; i++) {
       if (!wall[i]) continue;
       const m = maxHp(wall[i], i);
-      if (wallHp[i] < m) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; repaired++; }
+      if (wallHp[i] < m - 1) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; repaired++; }
     }
     if (repaired) for (const s of bl) addXp(s, 'build', repaired * 0.5);
     const L = LEVELS[G.level - 1];
@@ -6096,6 +6096,46 @@ const Intro = (() => {
   return I;
 })();
 
+/* js/quick.js */
+// Quick play: skip the ruined-camp opening and start inside a walled base with a crew, ready for the first horde.
+const Quick = (() => {
+  const R = 10, ROLES_Q = ['fighter', 'fighter', 'fighter', 'sniper', 'sniper', 'medic', 'builder', 'builder', 'fighter', 'sniper', 'scavenger', 'builder'];
+  const free = (x, y) => inb(x, y) && bld[y * W + x] < 0 && !wall[y * W + x] && !isCoreTile(x, y) && !facAt[y * W + x] && !trapAt[y * W + x];
+  function setup() {
+    G.level = 3; G.coreHp = LEVELS[2].coreHp;
+    G.ammo = 150; G.mat = 200; G.food = 100; G.water = 70; G.med = 8; G.fuel = 8; G.morale = G.moraleTarget = 70;
+    for (const r of ['walls', 'spears']) if (RESEARCH.some(x => x.id === r)) G.res.done[r] = true;
+    P.mag = 12; P.inv = P.inv || [];
+    const cx = CORE.x, cy = CORE.y;
+    // the wall: one ring with two gates, towers at the corners and flanking each gate
+    const towers = new Set(), gates = new Set();
+    const key = (x, y) => y * W + x;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) towers.add(key(cx + sx * R, cy + sy * R));
+    towers.add(key(cx - R, cy)); towers.add(key(cx + R, cy));
+    for (const sy of [-1, 1]) { gates.add(key(cx, cy + sy * R)); towers.add(key(cx - 3, cy + sy * R)); towers.add(key(cx + 3, cy + sy * R)); }
+    for (let d = -R; d <= R; d++) for (const [x, y] of [[cx + d, cy - R], [cx + d, cy + R], [cx - R, cy + d], [cx + R, cy + d]]) {
+      if (!inb(x, y) || bld[key(x, y)] >= 0) continue;
+      const i = key(x, y); wall[i] = gates.has(i) ? K.GATE : towers.has(i) ? K.TOWER : K.WALL; wallTier[i] = 1;
+    }
+    for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = maxHp(wall[i], i);
+    // a working camp inside
+    const want = ['garden', 'garden', 'garden', 'well', 'rain', 'latrine', 'clinic', 'yard', 'solar', 'solar', 'workshop', 'mine', 'floodlight'], spots = [];
+    for (let y = cy - R + 2; y <= cy + R - 2; y++) for (let x = cx - R + 2; x <= cx + R - 2; x++) { const d = Math.hypot(x - cx, y - cy); if (d >= 3 && d <= 7.5 && free(x, y)) spots.push([x, y, d]); }
+    for (const t of want) { if (!spots.length) break; const k = (rng() * spots.length) | 0, [x, y] = spots.splice(k, 1)[0]; const f = { type: t, x, y, t: 0, on: false }; facilities.push(f); facAt[key(x, y)] = f; for (let j = spots.length - 1; j >= 0; j--) if (Math.abs(spots[j][0] - x) < 2 && Math.abs(spots[j][1] - y) < 2) spots.splice(j, 1); }
+    // people
+    const crew = ROLES_Q.map(r => newSurvivor(r)), posts = [...towers].filter(i => wall[i] === K.TOWER);
+    for (const s of crew) { const p = posts.shift(); if (p !== undefined && addDefender(p % W, (p / W) | 0, s)) continue; G.idle.push(s); }
+    for (let y = cy - 22; y <= cy + 22; y++) for (let x = cx - 28; x <= cx + 28; x++) if (inb(x, y)) explored[key(x, y)] = 1;
+    // the neighbourhood has been thinned out: nothing within a couple of screens, and a lighter crowd beyond
+    zombies = zombies.filter(z => Math.hypot(z.x - cx, z.y - cy) > 26 && rng() < 0.6);
+    G.nextHorde = 240; G.eventT = 600; G.refugeeT = 240;
+    G.fieldDirty = true; G.visT = 0;
+    Art.rebakeTerrain(); computeBaseField(); computePlayerField(); computeTerritory(); Survival.refreshIncome(); updateVision();
+    log('Quick play: the walls are up and the crew is posted. Expect the first horde within a few minutes.');
+  }
+  return { setup };
+})();
+
 /* js/titlefx.js */
 'use strict';
 /* titlefx.js - the title-screen scene: a burning skyline at dusk, drifting fog and embers, and a slow horde on the road.
@@ -7310,7 +7350,7 @@ const UI = (() => {
     let h = '';
     if (mode === 'title') {
       h = '<h1>GRAVEL &amp; ASH</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
-        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mSettings" class="alt">Settings</button></div>';
+        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mQuick" class="' + (Save.exists() ? 'alt' : '') + '">Quick play</button><button id="mNew" class="alt">New game</button><button id="mSettings" class="alt">Settings</button></div>';
     } else if (mode === 'new') {
       h = '<h1>New game</h1><div class="sub">Choose how hard, and how the dead behave.</div>' +
         '<div style="margin-top:6px">Difficulty</div>' + diffBtns + '<div id="diffDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + DIFF_NOTE[diff] + '</div>' +
@@ -7344,6 +7384,7 @@ const UI = (() => {
     }));
     on('mNew', () => { newBack = mode; showMenu('new'); });
     on('mStart', () => { Hints.reset(); newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mQuick', () => { Hints.reset(); newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Quick.setup(); Save.setLive(true); hideMenu(); toast('Quick play: a walled camp and a crew. Press B to build, Q to swap guns.'); });
     on('mNewBack', () => showMenu(newBack === 'new' ? 'title' : newBack));
     on('mSettings', () => { settingsBack = mode; showMenu('settings'); });
     on('mSetBack', () => showMenu(settingsBack));

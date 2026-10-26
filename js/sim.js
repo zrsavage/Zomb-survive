@@ -426,7 +426,7 @@ function updateZombies(dt) {
       if (G.ransack >= 1) {
         G.ransack -= 1; const r = rng(), take = 1 + (G.level > 2 ? 1 : 0);
         if (r < 0.3) G.food = Math.max(0, G.food - take * 2); else if (r < 0.55) G.mat = Math.max(0, G.mat - take * 3); else if (r < 0.75) G.ammo = Math.max(0, G.ammo - take); else if (r < 0.9) G.water = Math.max(0, G.water - take * 2); else G.med = Math.max(0, G.med - 1);
-        G.coreHp -= zt.dmg * 0.8; G.coreHurtAt = G.elapsed; addBurst(z.x, z.y - 0.4, '#c9a24a', 3, { spread: 2 });
+        G.coreHp -= zt.dmg * 0.3; G.coreHurtAt = G.elapsed; addBurst(z.x, z.y - 0.4, '#c9a24a', 3, { spread: 2 });
         if (G.coreHp <= 0 && !G.over) Campaign.campFell();
       }
       if (!G.intrudeT || G.elapsed - G.intrudeT > 20) { G.intrudeT = G.elapsed; log('The dead are inside the camp! They are tearing through the stores.'); if (G.morale !== undefined) G.morale = clamp(G.morale - 2, 0, 100); }
@@ -987,7 +987,7 @@ function updateEconomy(dt) {
     for (let i = 0; i < W * H && left > 0 && G.mat >= 1; i++) {
       if (!wall[i]) continue;
       const m = maxHp(wall[i], i);
-      if (wallHp[i] < m) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; repaired++; }
+      if (wallHp[i] < m - 1) { wallHp[i] = Math.min(m, wallHp[i] + gain); G.mat -= cost; left--; repaired++; }
     }
     if (repaired) for (const s of bl) addXp(s, 'build', repaired * 0.5);
     const L = LEVELS[G.level - 1];
