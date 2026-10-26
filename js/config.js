@@ -62,19 +62,18 @@ const LOOT_TIME = 3, SURVIVOR_CHANCE = 0.12;
 
 // ---- zombies ---------------------------------------------------------------
 const ZTYPES = {
-  walker:   { hp: 20,  speed: 1.0,  dmg: 6,  climb: 1.8,  label: 'Walker' },
-  runner:   { hp: 16,  speed: 2.3,  dmg: 5,  climb: 1.0,  label: 'Runner' },
-  brute:    { hp: 140, speed: 0.75, dmg: 16, climb: 3.0,  label: 'Brute' },
+  walker:   { hp: 26,  speed: 0.9,  dmg: 6,  climb: 1.8,  label: 'Walker' },      // slow, tireless: it is the numbers and the refusal to stop that kill you
+  runner:   { hp: 20,  speed: 1.35, dmg: 5,  climb: 1.0,  label: 'Runner' },
+  brute:    { hp: 160, speed: 0.7, dmg: 16, climb: 3.0,  label: 'Brute' },
   screamer: { hp: 14,  speed: 1.2,  dmg: 3,  climb: 1.6,  label: 'Screamer' },   // wakes the dead, enrages the horde
-  leaper:   { hp: 12,  speed: 1.7,  dmg: 5,  climb: 0.35, label: 'Leaper' },     // vaults walls almost instantly
+  leaper:   { hp: 16,  speed: 1.2,  dmg: 5,  climb: 0.35, label: 'Leaper' },     // vaults walls almost instantly
   bloater:  { hp: 60,  speed: 0.7,  dmg: 8,  climb: 2.4,  label: 'Bloater' },    // bursts when killed
   tyrant:   { hp: 700, speed: 0.85, dmg: 32, climb: 5.0,  label: 'Tyrant', armor: 0.35, boss: true },   // a boss that walks with every fifth horde
   spitter:  { hp: 25,  speed: 1.1,  dmg: 3,  climb: 2.0,  label: 'Spitter' },    // sprays acid from range
-  armored:  { hp: 70,  speed: 0.9,  dmg: 9,  climb: 2.6,  label: 'Riot zombie', armor: 0.5 },   // bullets bounce, blades do not
-  dog:      { hp: 12,  speed: 3.2,  dmg: 7,  climb: Infinity, label: 'Infected dog', noClimb: true },   // fast, cannot climb: needs a gap
+  armored:  { hp: 80,  speed: 0.85,  dmg: 9,  climb: 2.6,  label: 'Riot zombie', armor: 0.5 },   // bullets bounce, blades do not
 };
 const MAX_ZOMBIES = 6000;
-const AMBIENT = { start: 320, keep: 260, notice: 7, noise: 12, forget: 17 };
+const AMBIENT = { start: 320, keep: 260, notice: 7, noise: 12, forget: 24, lose: 14 };      // once they have your scent they follow for a long time
 // first appearance wave, max share of a horde, per special type
 const HORDE_MIX = [
   { type: 'runner',   from: 3, base: 0.06, perWave: 0.025, max: 0.26 },
@@ -82,11 +81,10 @@ const HORDE_MIX = [
   { type: 'screamer', from: 4, base: 0.0,  perWave: 0.006, max: 0.04 },
   { type: 'leaper',   from: 6, base: 0.0,  perWave: 0.015, max: 0.11 },
   { type: 'bloater',  from: 7, base: 0.0,  perWave: 0.01,  max: 0.06 },
-  { type: 'dog',      from: 3, base: 0.03, perWave: 0.015, max: 0.12 },
   { type: 'spitter',  from: 5, base: 0.0,  perWave: 0.012, max: 0.07 },
   { type: 'armored',  from: 6, base: 0.0,  perWave: 0.012, max: 0.08 },
 ];
-const SCREAM = { gap: 5, radius: 18, rageRadius: 10, rageTime: 4, rageSpeed: 1.35 };
+const SCREAM = { gap: 5, radius: 18, rageRadius: 10, rageTime: 4, rageSpeed: 1.15 };
 const BLOAT = { radius: 1.9, defDmg: 28, playerDmg: 22, zombieDmg: 12 };
 
 // Hordes: first arrives after DIFFICULTY.first seconds (long enough to scavenge, wall in and recruit), then at random intervals, growing 1.4x each time.
@@ -96,6 +94,10 @@ const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 12 };
 // ---- combat ---------------------------------------------------------------
 const GUN = { dmg: 24, range: 8, cd: 0.8, towerRange: 11, towerCd: 0.55 };
 const MELEE = { dmg: 20, range: 1.6, cd: 0.35 };
+// Melee is stamina-bound: every swing tires the defender, resting recovers it. Skill makes swings cheaper.
+// A spear (the Pikes research; fighters always carry one) reaches through the fence and skewers two at once.
+const STAMINA = { max: 100, swing: 2.6, spearSwing: 1.8, fightRegen: 2.4, restRegen: 9, recover: 30, tiredCd: 2.2, tiredDmg: 0.55 };
+const SPEAR = { reach: 2.7, pierce: 2, dmg: 0.85 };
 const TRAP = {
   spikeUses: 40, spikeDps: 26, spikeWear: 0.12,
   barrelTrigger: 5, barrelRadius: 2.3, barrelDps: 55, barrelBurn: 2.6,
@@ -125,6 +127,7 @@ const RESEARCH = [
   { id: 'walls',   name: 'Reinforced Walls', desc: 'Walls, towers and gates have 35% more health.',     cost: { m: 150 },         time: 40 },
   { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster.',                         cost: { m: 90, a: 80 },   time: 45 },
   { id: 'ap',      name: 'AP Rounds',        desc: 'Bullets deal 30% more damage.',                      cost: { m: 120, a: 120 }, time: 50 },
+  { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less.', cost: { m: 60 }, time: 25 },
   { id: 'hands',   name: 'Fast Hands',       desc: 'Stabbing is 35% harder and 15% faster.',             cost: { m: 100 },         time: 40 },
   { id: 'watch',   name: 'Watch Network',    desc: 'Lookouts see 50% farther and reveal more map.',      cost: { m: 130 },         time: 45 },
   { id: 'scav',    name: 'Scavenging Kit',   desc: 'Loot yields +35% and takes 30% less time.',          cost: { m: 90, f: 40 },   time: 35 },

@@ -217,7 +217,7 @@ function makeZombie(x, y, mode, h, forceType) {
   const tough = mode === 2 ? 1 + HP_SCALE.per * Math.max(0, G.hordeN - HP_SCALE.from + 1) : 1;      // later hordes are tougher
   return {
     burn: 0, hd: null, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
-    speed: zt.speed * (0.85 + rng() * 0.3), climb: 0, lift: 0, anim: rng() * 6, face: 1, st: 0, v: rng() * 6 | 0,
+    speed: zt.speed * (0.92 + rng() * 0.16), climb: 0, lift: 0, anim: rng() * 6, face: 1, st: 0, v: rng() * 6 | 0,
   };
 }
 function seedAmbient(mult, safe) {
@@ -386,10 +386,9 @@ function updateZombies(dt) {
       continue;
     }
     let D = dist, N = nextTile;
-    if (zt.noClimb && z.mode === 2) { D = ddist; N = dnext; }      // raiding dogs cannot climb: they need a gap
     if (z.mode === 1) {
       D = pdist; N = pnext;
-      if (pdx * pdx + pdy * pdy > AMBIENT.forget * AMBIENT.forget) { z.lose += dt; if (z.lose > 5) { z.mode = 0; continue; } } else z.lose = 0;
+      if (pdx * pdx + pdy * pdy > AMBIENT.forget * AMBIENT.forget) { z.lose += dt; if (z.lose > AMBIENT.lose) { z.mode = 0; continue; } } else z.lose = 0;
     } else if (z.mode === 4) {                                  // part of a roaming herd, following its waypoint
       if (pdx * pdx + pdy * pdy < G.noticeR * G.noticeR) { z.mode = 1; z.hd = null; z.lose = 0; continue; }
       if (!z.hd || !herds.includes(z.hd) || z.hd.D[ti] === Infinity) { z.mode = 0; z.hd = null; continue; }
@@ -400,7 +399,7 @@ function updateZombies(dt) {
       if (D[ti] === Infinity) { z.mode = z.prev === 2 ? 2 : 0; continue; }
       if (D[ti] < 1.6 || N[ti] < 0) { z.st = 3; z.look += dt; if (z.look > NOISE.look) { z.mode = z.prev === 2 ? 2 : 0; z.look = 0; } continue; }
     }
-    if (D[ti] === Infinity) { if (zt.noClimb) { z.mode = 0; z.h = 0; } else if (z.mode === 1 || z.mode === 3) z.mode = 0; else { zombies[k] = zombies[zombies.length - 1]; zombies.pop(); } continue; }
+    if (D[ti] === Infinity) { if (z.mode === 1 || z.mode === 3) z.mode = 0; else { zombies[k] = zombies[zombies.length - 1]; zombies.pop(); } continue; }
 
     let tcx, tcy, ni = -1;
     if (N[ti] < 0) { tcx = P.px; tcy = P.py; }                // standing on the target tile
@@ -408,7 +407,6 @@ function updateZombies(dt) {
     const dx = tcx - z.x, dy = tcy - z.y, dd = Math.hypot(dx, dy) || 1;
     const onWall = wall[ti] > 0;
 
-    if (zt.noClimb && ni >= 0 && wall[ni] && !onWall) { z.st = 3; continue; }       // a chasing dog stops at the wall instead of climbing
     if (ni >= 0 && wall[ni] && !onWall && Math.max(Math.abs(dx), Math.abs(dy)) <= 0.9) {
       // queue at the wall and climb over the pile
       const p = pile[ni];
@@ -523,21 +521,38 @@ function fight(e, dt, o) {
   e.cd -= dt; e.mcd -= dt; e.shot -= dt; e.noiseT -= dt;
   e.st = 'idle';
   if (!zombies.length) return;
-  let near = null, nd = MELEE.range * MELEE.range;
+  const spear = !!o.spear, reach = (spear ? SPEAR.reach : MELEE.range), hasSta = e.sta !== undefined;
+  let near = null, second = null, nd = reach * reach, sd = nd;
   for (let j = 0; j < zombies.length; j++) {
     const z = zombies[j], dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
-    if (z.hp > 0 && q < nd) { nd = q; near = z; }
+    if (z.hp <= 0 || q >= sd) continue;
+    if (q < nd) { second = near; sd = near ? nd : sd; nd = q; near = z; }
+    else { second = z; sd = q; }
   }
-  if (near && !o.noMelee) {
+  const melee = near && !o.noMelee && !(e.tired && G.ammo >= 1);       // a spent defender backs off the stabbing and shoots while there is ammo
+  if (hasSta) {                                                    // stamina: swinging drains it, standing easy refills it
+    if (!melee) e.sta = Math.min(STAMINA.max, e.sta + STAMINA.restRegen * dt * (G.food > 0 ? 1 : 0.5));
+    if (e.sta <= 0 && !e.tired) e.tired = true;
+    else if (e.tired && e.sta >= STAMINA.recover) e.tired = false;
+  }
+  if (melee) {
+    if (hasSta && e.sta < STAMINA.max) e.sta = Math.min(STAMINA.max, e.sta + STAMINA.fightRegen * (1 + 0.12 * (e.s ? skillLv(e.s, 'melee') : 0)) * dt);
     e.face = near.x >= e.px ? 1 : -1; e.st = 'stab';
     if (e.mcd <= 0) {
-      e.mcd = MELEE.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1);
+      e.mcd = MELEE.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1) * (e.tired ? STAMINA.tiredCd : 1);
       let bl = 1; if (e.blade && e.blade.dur > 0) { bl = BLADE.dmg; if (--e.blade.dur <= 0) { e.blade = null; if (e.s) log(who(e.s) + '\'s blade snapped'); } }
-      near.hp -= MELEE.dmg * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * bl; e.stab = 0.18; near.by = e.s || null;
-      addBurst(near.x, near.y - 0.3, '#9ad06a', 2);
-      tracers.push({ x1: near.x - 0.25, y1: near.y - 0.5, x2: near.x + 0.25, y2: near.y - 0.1, life: 0.12, slash: true });
+      const dm = MELEE.dmg * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * bl * (spear ? SPEAR.dmg : 1) * (e.tired ? STAMINA.tiredDmg : 1);
+      if (hasSta) e.sta = Math.max(0, e.sta - (spear ? STAMINA.spearSwing : STAMINA.swing) / (o.meleeMul > 0 ? Math.max(0.6, o.meleeMul) : 1));
+      const hit = spear && second ? [near, second] : [near];
+      for (const t of hit) {
+        t.hp -= dm; t.by = e.s || null;
+        addBurst(t.x, t.y - 0.3, '#9ad06a', 2);
+        if (t.mode === 0) { t.mode = o.noiseMode === 3 ? 2 : o.noiseMode; t.lose = 0; }
+      }
+      e.stab = 0.18;
+      if (spear) tracers.push({ x1: e.px, y1: e.py - 0.4, x2: near.x, y2: near.y - 0.4, life: 0.1, spear: true });
+      else tracers.push({ x1: near.x - 0.25, y1: near.y - 0.5, x2: near.x + 0.25, y2: near.y - 0.1, life: 0.12, slash: true });
       Snd.stab(near.x, near.y);
-      if (near.mode === 0) { near.mode = o.noiseMode === 3 ? 2 : o.noiseMode; near.lose = 0; }
       if (e.s) addXp(e.s, 'melee', 1.2);
     }
     return;
@@ -588,7 +603,7 @@ function updateDefenders(dt) {
       starving, noiseMode: 3, range: tower ? GUN.towerRange : GUN.range, cd: tower ? GUN.towerCd : GUN.cd,
       rangeMul: (sn ? SNIPER.range : 1) * tmul(d.s, 'range'), dmgMul: (sn ? SNIPER.dmg : 1) * tmul(d.s, 'dmg') * skillMul(d.s, 'shoot') * rel.dmg,
       cdMul: (sn ? SNIPER.cd : 1) * tmul(d.s, 'cd') * moraleCd() * (d.s.grief > 0 ? 1.25 : 1) * (1 - 0.03 * skillLv(d.s, 'shoot')) * ruleMul('fire') * rel.cd * Base.floodMul(d),
-      meleeMul: tmul(d.s, 'melee') * skillMul(d.s, 'melee'), ammoCost: tmul(d.s, 'ammo'), sniper: sn,
+      meleeMul: tmul(d.s, 'melee') * skillMul(d.s, 'melee'), spear: has('spears') || d.s.role === 'fighter', ammoCost: tmul(d.s, 'ammo'), sniper: sn,
     });
     if (d.s.role === 'medic') {                // medics patch up the people around them
       const r2 = MEDIC.radius ** 2, heal = MEDIC.heal * (has('medicine') ? 2 : 1) * (1 + 0.15 * skillLv(d.s, 'med')) * (G.med > 0 ? 1 : 0.5) * dt;
@@ -604,7 +619,7 @@ function addDefender(x, y, s) {
   const k = wall[i];
   if ((k !== K.WALL && k !== K.TOWER && k !== K.LOOKOUT && k !== K.OUTPOST) || defAt[i]) return false;
   const maxHp = Math.round(60 * tmul(s, 'hp'));
-  const d = { x, y, px: x + 0.5, py: y + 0.5, hp: maxHp, maxHp, cd: 0, mcd: 0, face: 1, shot: 0, noiseT: 0, s, st: 'idle', anim: rng() * 6 };
+  const d = { x, y, px: x + 0.5, py: y + 0.5, hp: maxHp, maxHp, sta: STAMINA.max, tired: false, cd: 0, mcd: 0, face: 1, shot: 0, noiseT: 0, s, st: 'idle', anim: rng() * 6 };
   defAt[i] = d; defenders.push(d); return true;
 }
 

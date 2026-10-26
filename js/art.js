@@ -110,22 +110,6 @@ function makeSet(dim, pal, o, moves) {
   return set;
 }
 
-function makeDogSet() {                              // quadruped, drawn by hand (the figure() body is humanoid)
-  const frame = (leg, lunge, sit) => {
-    const k = cell(22, 17), g = k.g, R = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
-    const by = sit ? 6 : 5;
-    R('#3a3228', 1, by - 2 + (leg % 2), 4, 2); R('#3a3228', 0, by - 3, 2, 2);                                    // tail
-    R('#5a4a3a', 4, by, 11, 5); R('#6e5a46', 4, by, 11, 1); R('#4a3c2e', 4, by + 4, 11, 1);                        // body
-    R('#4a3c2e', 5 + leg, by + 5, 2, 5 - (leg > 0 ? 1 : 0)); R('#4a3c2e', 12 - leg, by + 5, 2, 5 - (leg < 0 ? 1 : 0));   // legs
-    R('#3a3025', 7 - leg, by + 5, 2, 5); R('#3a3025', 10 + leg, by + 5, 2, 5);
-    R('#6e5a46', 14 + lunge, by - 2, 5, 5); R('#5a4a3a', 18 + lunge, by, 3, 3); R('#1c1814', 20 + lunge, by, 1, 1); // head + snout
-    R('#3a3025', 14 + lunge, by - 3, 2, 2); R('#e84a3a', 17 + lunge, by - 1, 1, 1);                                // ear + eye
-    if (lunge) R('#e8e0d0', 19 + lunge, by + 3, 1, 1);                                                             // teeth
-    return outlined(k.c);
-  };
-  const walk = [frame(2, 0), frame(0, 0), frame(-2, 0), frame(0, 0)];
-  return { walk, attack: [frame(0, 2), frame(0, 0)], climb: walk, idle: [frame(0, 0, true)], ax: 12, ay: 17 };
-}
 function buildSprites() {
   const S = Art.sprites;
   const zWalk = { walkArm: 'fwd', swing: 1, attack: [{ arm: 'up', bob: 0 }, { arm: 'fwd', bob: 1, lean: 1 }], climb: [{ arm: 'up', bob: -2, swing: 1 }, { arm: 'up', bob: -3, swing: -1 }] };
@@ -160,7 +144,6 @@ function buildSprites() {
     { walkArm: 'fwd', swing: 1, attack: [{ arm: 'fwd' }, { arm: 'up' }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
   S.z_armored = makeSet(DIMS.human, { skin: '#8a9a7a', shirt: '#26324a', pants: '#1c2230', eye: '#ff4a3a', hat: '#2a3a5a' }, { hat: 'helmet', straps: true, bigEye: true },
     { walkArm: 'fwd', swing: 1, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_dog = makeDogSet();
   S.z_tyrant = makeSet(DIMS.brute, { skin: '#7a4a3a', shirt: '#2a1a1a', pants: '#1a1212', eye: '#ff2a2a', hat: '#3a1a1a' }, { hat: 'helmet', straps: true, blood: 3, bigEye: true },
     { walkArm: 'fwd', swing: 2, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
   // pre-mirrored copies so facing left costs nothing at draw time

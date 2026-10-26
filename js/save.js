@@ -62,7 +62,7 @@ const Save = (() => {
     for (const x of td.defenders) { addDefender(x.x, x.y, x.s); const dd = defAt[x.y * W + x.x]; if (dd) { dd.hp = x.hp; dd.blade = x.blade || null; } }
     traps = td.traps; trapAt = new Array(W * H).fill(null); for (const t of traps) trapAt[t.y * W + t.x] = t;
     crates = td.crates; hordes = td.hordes;
-    zombies = td.zombies.map(a => { const z = makeZombie(a[0], a[1], a[4], a[5]); z.type = a[2]; z.hp = a[3]; z.v = a[6]; z.speed = ZTYPES[z.type].speed * (0.85 + rng() * 0.3); return z; });
+    zombies = td.zombies.map(a => { const z = makeZombie(a[0], a[1], a[4], a[5]); z.type = ZTYPES[a[2]] ? a[2] : 'walker'; z.hp = a[3]; z.v = a[6]; z.speed = ZTYPES[z.type].speed * (0.92 + rng() * 0.16); return z; });
     G.fieldDirty = true; G.visT = 0; G.fieldTimer = 0;
     computeBaseField(); computeTerritory(); Survival.refreshIncome();
   }

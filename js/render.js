@@ -162,6 +162,7 @@ function drawWorld(cam, cw, ch, z) {
       drawUnit(o, o.px, o.py + 0.1, o.face, o.stab > 0 && o !== P ? -1 : 0);
       const mhp = o === P ? PLAYER.hp : (o.maxHp || 60);
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
+      if (o.sta !== undefined && o.sta < STAMINA.max - 1) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12, 2); ctx.fillStyle = o.tired ? '#c9a23a' : '#6fb0e8'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12 * o.sta / STAMINA.max, 2); }
       if (o === P) {
         ctx.fillStyle = '#ffd27a'; ctx.fillRect(o.px * T - 1, o.py * T - 29, 3, 2); ctx.fillRect(o.px * T, o.py * T - 27, 1, 1);
         if (P.loot > 0) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 8, o.py * T - 33, 16, 3); ctx.fillStyle = '#7fcf6a'; ctx.fillRect(o.px * T - 8, o.py * T - 33, 16 * Math.min(1, P.loot / (P.lootNeed || lootTime())), 3); }
@@ -194,7 +195,7 @@ function drawWorld(cam, cw, ch, z) {
   for (let i = tracers.length - 1; i >= 0; i--) {
     const tr = tracers[i];
     if (tr.life <= 0) { tracers.splice(i, 1); continue; }
-    ctx.strokeStyle = tr.slash ? '#ffffff' : tr.acid ? '#9ad04a' : tr.fire || tr.inc ? '#ff8a22' : tr.ap ? '#8fd0ff' : '#ffe9a0'; ctx.lineWidth = tr.slash ? 1.4 : tr.fire ? 1.6 : 0.9; ctx.globalAlpha = Math.min(1, tr.life * 12);
+    ctx.strokeStyle = tr.slash ? '#ffffff' : tr.spear ? '#d8c8a0' : tr.acid ? '#9ad04a' : tr.fire || tr.inc ? '#ff8a22' : tr.ap ? '#8fd0ff' : '#ffe9a0'; ctx.lineWidth = tr.spear ? 1.8 : tr.slash ? 1.4 : tr.fire ? 1.6 : 0.9; ctx.globalAlpha = Math.min(1, tr.life * 12);
     ctx.beginPath(); ctx.moveTo(tr.x1 * T, tr.y1 * T); ctx.lineTo(tr.x2 * T, tr.y2 * T); ctx.stroke(); ctx.globalAlpha = 1;
   }
   for (const f of fires) {                                           // ground fire from Molotovs

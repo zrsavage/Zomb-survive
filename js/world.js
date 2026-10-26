@@ -8,7 +8,6 @@ const wall = new Uint8Array(W * H);            // 0 none, else K.* kind
 const wallHp = new Float32Array(W * H);
 const wallTier = new Uint8Array(W * H);         // 0 timber, 1 reinforced, 2 concrete
 const elec = new Uint8Array(W * H);             // 1 = electrified wall
-const ddist = new Float64Array(W * H), dnext = new Int32Array(W * H);       // flow field for things that cannot climb
 const claimed = new Uint8Array(W * H);
 const explored = new Uint8Array(W * H);
 const vis = new Uint8Array(W * H);             // currently in sight
@@ -172,7 +171,6 @@ function computeBaseField() {
   const src = [];
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) src.push((CORE.y + dy) * W + CORE.x + dx);
   computeField(src, dist, nextTile);
-  computeField(src, ddist, dnext, true);                           // dogs cannot climb: walls are solid for them
 }
 function computePlayerField() {
   const tx = clamp(P.px | 0, 0, W - 1), ty = clamp(P.py | 0, 0, H - 1);
