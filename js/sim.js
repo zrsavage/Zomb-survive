@@ -421,7 +421,7 @@ function updateZombies(dt) {
       continue;
     }
     // anything that gets inside ransacks the camp: stores spoil, gear is wrecked, people panic
-    if (claimed[ti] && !(wall[ti] > 0) && !G.ruins) {
+    if (G.sealed && claimed[ti] && !(wall[ti] > 0) && !G.ruins) {
       G.ransack = (G.ransack || 0) + dt * 0.6;
       if (G.ransack >= 1) {
         G.ransack -= 1; const r = rng(), take = 1 + (G.level > 2 ? 1 : 0);
