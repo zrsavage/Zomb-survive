@@ -31,6 +31,7 @@ Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the ho
 - **Base facilities** (inside territory): Garden (food), Workshop (materials to ammo), Generator, Floodlight, Clinic (medicine, cures sickness), Depot (+300 storage). The **power grid** burns fuel and generators are loud: they draw the dead. **Electrify** walls to zap climbers (needs power). **Reinforce** walls from Timber to Reinforced to Concrete (research).
 
 ## A finite town, and a second one
+- **Big towns:** each town is 88x66 tiles with about 60 buildings: 12 hand-made lot layouts make one district, and the town is four mirrored copies of it (each town mirrors them differently). Old saves from before this cannot be loaded.
 - **Finite supplies:** every building holds a limited stock. Scavenging and passive income (buildings in your territory, garrisoned outposts) both draw it down, and the side panel shows how much of the town is left. When it runs dry you have to move on. Gardens, wells and rain collectors are renewable; ammo, materials, fuel and medicine are not.
 - **Truck:** build a Garage bay, then a Truck (Tab / side panel). Crews are faster with it, and it is needed to travel between towns.
 - **Second town:** research *Expedition Planning*, then found a town from the **World map (Tab)** with a founding party and supplies. It starts as a ruined camp in a richer, more infested town. You can hold up to three.

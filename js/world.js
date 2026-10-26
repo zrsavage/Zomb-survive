@@ -27,6 +27,27 @@ let G = null;                                  // game state
 const solidForWalker = i => bld[i] >= 0;
 
 // ---- town generation (deterministic from a seed so saves stay small) -----------------------
+// ---- the town's building layouts (12 unique lots; the town is four mirrored copies of one district) ------------------------------
+const LAYOUTS = {
+  houses2:    [['house', 0, 1, 4, 3], ['house', 5, 4, 4, 4]],
+  cottages3:  [['house', 0, 0, 3, 3], ['house', 4, 0, 4, 3], ['house', 1, 5, 5, 3]],
+  house_big:  [['house', 1, 1, 7, 6]],
+  yard:       [['house', 2, 2, 5, 5]],
+  supermarket:[['store', 1, 1, 7, 5]],
+  shop_row:   [['store', 0, 1, 4, 4], ['store', 5, 1, 4, 4]],
+  corner_lot: [['store', 0, 0, 4, 3], ['garage', 5, 3, 4, 5]],
+  garage:     [['garage', 1, 2, 6, 5]],
+  workshop2:  [['garage', 0, 0, 5, 4], ['warehouse', 4, 5, 5, 4]],
+  warehouse:  [['warehouse', 0, 1, 8, 6]],
+  park:       [],
+  orchard:    [],
+};
+const DISTRICT = [
+  ['houses2',   'supermarket', 'park',    'garage'],
+  ['cottages3', 'warehouse',   'shop_row', 'house_big'],
+  ['workshop2', 'yard',        'orchard', 'corner_lot'],
+];
+
 function genTown(seed, wealth) {
   wealth = wealth || 1;
   const wr = mulberry32(seed);
@@ -34,32 +55,27 @@ function genTown(seed, wealth) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
     if (x % PITCH < 2 || y % PITCH < 2) ground[y * W + x] = 1;
 
-  const blockXs = [2, 13, 24, 35, 46, 57], blockYs = [2, 13, 24, 35];
-  const typeBag = [];
-  for (const k in BUILDING_TYPES) for (let i = 0; i < BUILDING_TYPES[k].w; i++) typeBag.push(k);
-
-  for (const by of blockYs) for (const bx of blockXs) {
-    const bw = Math.min(9, W - bx), bh = Math.min(9, H - by);
-    const nearCore = bx <= CORE.x + 5 && bx + bw >= CORE.x - 5 && by <= CORE.y + 5 && by + bh >= CORE.y - 5;
-    if (!nearCore && wr() < 0.13) {            // park block
-      for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) ground[y * W + x] = 2;
-      continue;
-    }
-    const placed = [];
-    for (let t = 0; t < 16; t++) {
-      const w = 3 + (wr() * 4 | 0), h = 3 + (wr() * 3 | 0);
-      if (w > bw - 2 || h > bh - 2) continue;
-      const x = bx + 1 + (wr() * (bw - 1 - w) | 0), y = by + 1 + (wr() * (bh - 1 - h) | 0);
-      if (x + w > CORE.x - 6 && x < CORE.x + 7 && y + h > CORE.y - 6 && y < CORE.y + 7) continue;
-      if (placed.some(p => x < p.x + p.w + 1 && x + w + 1 > p.x && y < p.y + p.h + 1 && y + h + 1 > p.y)) continue;
-      placed.push({ x, y, w, h });
-    }
-    for (const p of placed) {
-      const type = typeBag[wr() * typeBag.length | 0];
-      const roofs = BUILDING_TYPES[type].roof;
-      const b = { ...p, type, roof: roofs[wr() * roofs.length | 0], seed: wr() * 1e9 | 0, claimed: false, looted: false, crew: false };
-      const id = buildings.push(b) - 1;
-      for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) bld[y * W + x] = id;
+  // The town is four copies of one district (mirrored so they do not look identical). A district is 4 x 3 city blocks,
+  // each block holding one of 12 hand-made lot layouts: [type, x, y, w, h] inside the 9 x 9 block.
+  const blockXs = [], blockYs = [];
+  for (let x = 2; x + 9 <= W; x += PITCH) blockXs.push(x);
+  for (let y = 2; y + 9 <= H; y += PITCH) blockYs.push(y);
+  const DW = blockXs.length >> 1, DH = blockYs.length >> 1;                       // blocks per district (4 x 3)
+  const mx = wr() < 0.5, my = wr() < 0.5;                                          // each town mirrors the template differently
+  for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+    const flipX = (dx === 1) !== mx, flipY = (dy === 1) !== my;
+    for (let r = 0; r < DH; r++) for (let c = 0; c < DW; c++) {
+      const lay = LAYOUTS[DISTRICT[r][c]];
+      const bx = blockXs[dx * DW + (flipX ? DW - 1 - c : c)], by = blockYs[dy * DH + (flipY ? DH - 1 - r : r)];
+      if (!lay.length) { for (let y = by; y < by + 9; y++) for (let x = bx; x < bx + 9; x++) ground[y * W + x] = 2; continue; }
+      for (const [type, lx, ly, w, h] of lay) {
+        const x = bx + (flipX ? 9 - lx - w : lx), y = by + (flipY ? 9 - ly - h : ly);
+        if (x + w > CORE.x - 6 && x < CORE.x + 7 && y + h > CORE.y - 6 && y < CORE.y + 7) continue;     // keep the camp clear
+        const roofs = BUILDING_TYPES[type].roof;
+        const b = { x, y, w, h, type, roof: roofs[wr() * roofs.length | 0], seed: wr() * 1e9 | 0, claimed: false, looted: false, crew: false };
+        const id = buildings.push(b) - 1;
+        for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) bld[yy * W + xx] = id;
+      }
     }
   }
   // points of interest: convert some big, distant buildings

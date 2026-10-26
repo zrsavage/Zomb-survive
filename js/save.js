@@ -33,7 +33,7 @@ const Save = (() => {
   function snapshot() {
     Towns.snapshot(Campaign.active);                       // refresh the live town's record (also writes back the id counter)
     const c = Campaign;
-    return { v: 2, campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
+    return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
       P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp) }, towns: c.towns.map(serializeTown) };
   }
   function save() {
@@ -79,6 +79,8 @@ const Save = (() => {
     if (!d) return false;
     if (d.v === 1) d = upgradeV1(d);
     if (d.v !== 2) return false;
+    if (d.dims && (d.dims[0] !== W || d.dims[1] !== H)) return false;
+    if (!d.dims) return false;                             // saves from before the larger towns cannot be loaded
     const c = d.campaign;
     rng = mulberry32((Math.random() * 2 ** 31) | 0);
     Object.assign(Campaign, { towns: [], active: null, t: c.t || 0, bgAcc: 0, nextId: c.nextId || 2, res: c.res || { done: {}, active: null }, memorial: c.memorial || [], flags: c.flags || {}, sid: c.sid || 1,

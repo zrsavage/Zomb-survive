@@ -4,9 +4,9 @@
    ====================================================================== */
 
 const T = 16;                    // world pixels per tile
-const W = 64, H = 44;            // map size in tiles
+const W = 88, H = 66;            // map size in tiles: 8 x 6 city blocks
 const PITCH = 11;                // road grid spacing
-const CORE = { x: 34, y: 23 };   // centre tile of the 3x3 camp core
+const CORE = { x: 45, y: 34 };   // centre tile of the 3x3 camp core
 const SAVE_KEY = 'zomb-survive-save-v1';
 
 const DIFFICULTY = {
@@ -57,7 +57,7 @@ Object.assign(BUILDING_TYPES, {
   bunker:    { label: 'Bunker',         w: 0, poi: true, locked: true, rate: { a: 1.2, m: 0.8, med: 0.04, fuel: 0.04 }, loot: { m: 80, f: 40, a: 80, med: 24, fuel: 24, water: 20 }, roof: ['#3a3e42', '#34383c'] },
   farmstead: { label: 'Farmstead',      w: 0, poi: true, rate: { f: 1.7 },             loot: { m: 6,  f: 60, a: 2,  med: 2 },        roof: ['#7a8a3a', '#6e8038'] },
 });
-const POI_ORDER = ['pharmacy', 'gas', 'police', 'junkyard', 'farmstead', 'bunker', 'pharmacy', 'gas'];   // order they are assigned
+const POI_ORDER = ['pharmacy', 'gas', 'police', 'junkyard', 'farmstead', 'bunker', 'pharmacy', 'gas', 'farmstead', 'junkyard'];   // order they are assigned
 const LOOT_TIME = 3, SURVIVOR_CHANCE = 0.12;
 
 // ---- zombies ---------------------------------------------------------------
@@ -73,7 +73,7 @@ const ZTYPES = {
   armored:  { hp: 80,  speed: 0.85,  dmg: 9,  climb: 2.6,  label: 'Riot zombie', armor: 0.5 },   // bullets bounce, blades do not
 };
 const MAX_ZOMBIES = 6000;
-const AMBIENT = { start: 170, keep: 140, notice: 5.5, noise: 12, forget: 19, lose: 9 };      // once they have your scent they follow for a long time
+const AMBIENT = { start: 360, keep: 300, notice: 5.5, noise: 12, forget: 19, lose: 9 };      // once they have your scent they follow for a long time
 // first appearance wave, max share of a horde, per special type
 const HORDE_MIX = [
   { type: 'runner',   from: 3, base: 0.06, perWave: 0.025, max: 0.26 },
@@ -274,7 +274,7 @@ const RECIPES = {
 };
 const BLADE = { dur: 160, dmg: 1.5 };
 const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
-const SEWER = { count: 4, minD: 8, maxD: 20, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
+const SEWER = { count: 6, minD: 10, maxD: 30, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
 const HERD = { gapMin: 110, gapMax: 190, min: 20, max: 50, cap: 2, attackR: 14 };
 const OUTPOST = { range: 7.5, yield: 0.7, buildRange: 7 };
 const TRUCK = { cost: { m: 150, fuel: 20 }, time: 60, crewTime: 0.65, crewLoot: 1.25 };

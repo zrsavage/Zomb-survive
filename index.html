@@ -65,7 +65,7 @@
   #log div:first-child{color:var(--txt)}
   .bar{height:4px;background:#2a332d;border-radius:2px;margin-top:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
 
-  #mini{position:fixed;right:8px;bottom:8px;width:256px;height:176px;image-rendering:pixelated;border:1px solid var(--line);border-radius:7px;background:#05080a;box-shadow:0 4px 18px #0009}
+  #mini{position:fixed;right:8px;bottom:8px;width:264px;height:198px;image-rendering:pixelated;border:1px solid var(--line);border-radius:7px;background:#05080a;box-shadow:0 4px 18px #0009}
   #toast{position:fixed;top:128px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;background:#000c;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:14px;max-width:min(90vw,720px);text-align:center;z-index:4}
   #toast.show{opacity:1}
   #prompt{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000b;border:1px solid var(--line);display:none}
@@ -113,7 +113,7 @@
   body.compact #tools button .nm{gap:0}
   body.compact #side{display:flex;top:calc(40px + var(--sat));right:0;bottom:70px;width:min(310px,82vw);max-height:none;border-radius:8px 0 0 8px;transform:translateX(105%);transition:transform .2s;z-index:3;touch-action:pan-y;overflow-y:auto}
   body.compact.drawer #side{transform:none}
-  body.compact #mini{top:calc(40px + var(--sat));right:calc(8px + var(--sar));bottom:auto;width:132px;height:91px}
+  body.compact #mini{top:calc(40px + var(--sat));right:calc(8px + var(--sar));bottom:auto;width:132px;height:99px}
   body.compact.drawer #mini{display:none}
   body.compact #toast{top:calc(64px + var(--sat));font-size:12px;padding:6px 12px;max-width:92vw}
   body.compact #prompt{bottom:150px}
@@ -206,7 +206,7 @@
 <div id="rules" class="panel modal"></div>
 <div id="radio" class="panel modal"></div>
 
-<canvas id="mini" width="64" height="44"></canvas>
+<canvas id="mini" width="88" height="66"></canvas>
 <div id="help" class="panel">WASD move (Shift sprint) · hold E scavenge · click/drag build · wheel zoom · right-drag look · R research · H hold fire (quiet) · M mute · Space pause · Esc menu</div>
 <div id="prompt"></div>
 <button id="btnMenu" class="panel" aria-label="Menu">&#9776;</button>

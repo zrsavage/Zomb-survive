@@ -1,5 +1,5 @@
 /* Offline cache: the whole game is static files. */
-const CACHE = 'zomb-survive-v7';
+const CACHE = 'zomb-survive-v8';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png',
   'js/config.js', 'js/util.js', 'js/world.js', 'js/art.js', 'js/audio.js', 'js/sim.js', 'js/story.js', 'js/outside.js', 'js/base.js', 'js/survival.js', 'js/campaign.js', 'js/ai.js', 'js/render.js', 'js/save.js', 'js/ui.js', 'js/debug.js', 'js/main.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
