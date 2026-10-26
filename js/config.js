@@ -73,7 +73,7 @@ const ZTYPES = {
   armored:  { hp: 80,  speed: 0.85,  dmg: 9,  climb: 2.6,  label: 'Riot zombie', armor: 0.5 },   // bullets bounce, blades do not
 };
 const MAX_ZOMBIES = 6000;
-const AMBIENT = { start: 320, keep: 260, notice: 7, noise: 12, forget: 24, lose: 14 };      // once they have your scent they follow for a long time
+const AMBIENT = { start: 170, keep: 140, notice: 5.5, noise: 12, forget: 19, lose: 9 };      // once they have your scent they follow for a long time
 // first appearance wave, max share of a horde, per special type
 const HORDE_MIX = [
   { type: 'runner',   from: 3, base: 0.06, perWave: 0.025, max: 0.26 },
@@ -93,6 +93,7 @@ const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 12 };
 
 // ---- combat ---------------------------------------------------------------
 const GUN = { dmg: 24, range: 8, cd: 0.8, towerRange: 11, towerCd: 0.55 };
+const SALVAGE = { m: 0.7, a: 0.22 };       // expected scrap / ammo per ordinary zombie killed
 const MELEE = { dmg: 20, range: 1.6, cd: 0.35 };
 // Melee is stamina-bound: every swing tires the defender, resting recovers it. Skill makes swings cheaper.
 // A spear (the Pikes research; fighters always carry one) reaches through the fence and skewers two at once.

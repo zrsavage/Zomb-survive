@@ -499,6 +499,7 @@ const UI = (() => {
       else if (k === 'tab') { toggleMap(); e.preventDefault(); }
       else if (k === 'm') toast(Snd.toggleMute() ? 'Sound off' : 'Sound on');
       else if (k === 'f') toggleFullscreen();
+      else if (k === 'h') { G.holdFire = !G.holdFire; toast(G.holdFire ? 'Hold fire: the survivor stabs quietly instead of shooting' : 'Weapons free'); }
       else if (k === ' ') { G.paused = !G.paused; e.preventDefault(); }
       if (k.startsWith('arrow')) e.preventDefault();
     });

@@ -7,6 +7,7 @@ const Debug = (() => {
       ['+500 of everything', () => { G.mat += 500; G.food += 300; G.ammo += 500; G.fuel += 100; G.med += 40; G.water += 200; }],
       ['+6 survivors (all roles)', () => { for (const r of ['fighter', 'sniper', 'medic', 'builder', 'scavenger', 'fighter']) if (roomForPerson()) G.idle.push(newSurvivor(r)); }],
       ['Camp level +1', () => { if (G.level < LEVELS.length) { G.level++; G.coreHp = LEVELS[G.level - 1].coreHp; G.fieldDirty = true; } }],
+      ['Toggle autopilot (AI plays)', () => AI.toggle()],
       ['Reveal whole map', () => { explored.fill(1); G.visT = 0; }],
       ['Drain town to 10%', () => { for (const b of buildings) for (const k in b.stock) b.stock[k] = Math.floor(b.stock[k] * 0.1); G.incT = 0; }],
     ]],

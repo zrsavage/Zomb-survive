@@ -216,7 +216,7 @@ function makeZombie(x, y, mode, h, forceType) {
   const zt = ZTYPES[type];
   const tough = mode === 2 ? 1 + HP_SCALE.per * Math.max(0, G.hordeN - HP_SCALE.from + 1) : 1;      // later hordes are tougher
   return {
-    burn: 0, hd: null, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
+    hx: x, hy: y, burn: 0, hd: null, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
     speed: zt.speed * (0.92 + rng() * 0.16), climb: 0, lift: 0, anim: rng() * 6, face: 1, st: 0, v: rng() * 6 | 0,
   };
 }
@@ -379,7 +379,8 @@ function updateZombies(dt) {
       z.st = 3;
       if (pdx * pdx + pdy * pdy < G.noticeR * G.noticeR) { z.mode = 1; z.lose = 0; continue; }
       z.wt -= dt;
-      if (z.wt <= 0) { z.wt = 1.5 + rng() * 3; const a = rng() * 6.283; z.wx = Math.cos(a); z.wy = Math.sin(a); if (rng() < 0.4) { z.wx = 0; z.wy = 0; } }
+      if (z.wt <= 0) { z.wt = 1.5 + rng() * 3; let a = rng() * 6.283; const hx = z.hx - z.x, hy = z.hy - z.y; if (hx * hx + hy * hy > 16 && rng() < 0.75) a = Math.atan2(hy, hx) + (rng() - 0.5) * 0.8;      // drift back toward where they were standing
+        z.wx = Math.cos(a); z.wy = Math.sin(a); if (rng() < 0.4) { z.wx = 0; z.wy = 0; } }
       if (z.wx || z.wy) z.st = 0;
       stepMove(z, z.wx * 0.35 * dt, z.wy * 0.35 * dt, false);
       if (z.wx) z.face = z.wx > 0 ? 1 : -1;
@@ -395,7 +396,7 @@ function updateZombies(dt) {
       D = z.hd.D; N = z.hd.N;
       if (D[ti] < 2 || N[ti] < 0) { stepMove(z, (rng() - 0.5) * 0.7 * dt, (rng() - 0.5) * 0.7 * dt, false); z.st = 3; continue; }
     } else if (z.mode === 3) {                                  // investigating a noise
-      D = ndist; N = nnext;
+      if (z.nf) { D = z.nf.D; N = z.nf.N; } else { D = ndist; N = nnext; }
       if (D[ti] === Infinity) { z.mode = z.prev === 2 ? 2 : 0; continue; }
       if (D[ti] < 1.6 || N[ti] < 0) { z.st = 3; z.look += dt; if (z.look > NOISE.look) { z.mode = z.prev === 2 ? 2 : 0; z.look = 0; } continue; }
     }
@@ -461,7 +462,11 @@ function killZombie(k) {
   if (z.by) z.by.kills++;
   if (z.rev) log(z.rev.name + ' has been put to rest');
   if (z.type === 'tyrant') { crates.push({ x: z.x, y: z.y, t: 300, type: 'boss' }); log('The Tyrant is down. It dropped something - go and take it.'); shake(3); Snd.boom(z.x, z.y); }
-  if (rng() < 0.1) G.mat = Math.min(storeCap(), G.mat + 1);
+  // salvage: the dead carry scrap and the odd round, so a big fight pays for itself (bigger zombies carry more)
+  const sv = Math.min(6, ZTYPES[z.type].hp / 26);
+  G.salvM = (G.salvM || 0) + SALVAGE.m * sv; G.salvA = (G.salvA || 0) + SALVAGE.a * sv;
+  if (G.salvM >= 1) { const n = G.salvM | 0; G.salvM -= n; G.mat = Math.min(storeCap(), G.mat + n); }
+  if (G.salvA >= 1) { const n = G.salvA | 0; G.salvA -= n; G.ammo = Math.min(storeCap(), G.ammo + n); }
   if (rng() < 0.03) G.food = Math.min(storeCap(), G.food + 1);
   const g = Art.decals.getContext('2d');
   g.fillStyle = rng() < 0.5 ? '#6a1c1c' : '#4a2a1a'; g.globalAlpha = 0.7;
@@ -490,13 +495,24 @@ function killDefender(d) {
 }
 const gunRadius = sn => (sn ? NOISE.sniper : NOISE.gun) * (has('silencers') ? NOISE.silencer : 1);
 function investigate(x, y, r, horde) {            // draw idle zombies (and, for decoys, part of a horde) toward a point
-  const r2 = r * r; let any = false;
+  const r2 = r * r, hit = [];
   for (const z of zombies) {
     if (!(z.mode === 0 || (horde && z.mode === 2 && z.h && rng() < 0.6))) continue;
     const dx = z.x - x, dy = z.y - y;
-    if (dx * dx + dy * dy < r2) { z.prev = z.mode; z.mode = 3; z.look = 0; any = true; }
+    if (dx * dx + dy * dy < r2) { z.prev = z.mode; z.mode = 3; z.look = 0; hit.push(z); }
   }
-  if (any) computeNoiseField(x, y);
+  if (hit.length) { const f = noiseField(x, y); for (const z of hit) z.nf = f; }
+}
+// each noise has its own flow field (a few are kept), so a zombie walks to the sound that woke it, not to the latest one
+const noiseFields = [];
+function noiseField(x, y) {
+  let f = noiseFields.find(o => (o.x - x) ** 2 + (o.y - y) ** 2 < 6);
+  if (!f) {
+    if (noiseFields.length < 8) { f = { x, y, D: new Float64Array(W * H), N: new Int32Array(W * H), t: 0 }; noiseFields.push(f); }
+    else { f = noiseFields.reduce((m, o) => o.t < m.t ? o : m); f.x = x; f.y = y; }
+    computeField([clamp(y | 0, 0, H - 1) * W + clamp(x | 0, 0, W - 1)], f.D, f.N);
+  }
+  f.t = G.elapsed; return f;
 }
 function updateDecoys(dt) {
   for (let i = decoys.length - 1; i >= 0; i--) {
@@ -507,13 +523,13 @@ function updateDecoys(dt) {
 }
 function alertNoise(x, y, r, mode) {           // gunfire draws idle zombies in
   const r2 = r * r;
-  let any = false;
+  const hit = [];
   for (const z of zombies) {
     if (z.mode !== 0) continue;
     const dx = z.x - x, dy = z.y - y;
-    if (dx * dx + dy * dy < r2) { z.mode = mode; z.lose = 0; z.look = 0; z.prev = 0; any = true; }
+    if (dx * dx + dy * dy < r2) { z.mode = mode; z.lose = 0; z.look = 0; z.prev = 0; hit.push(z); }
   }
-  if (any && mode === 3) computeNoiseField(x, y);
+  if (hit.length && mode === 3) { const f = noiseField(x, y); for (const z of hit) z.nf = f; }
 }
 
 // ---- fighting (shared by defenders and the survivor) ---------------------------------------------------------------
@@ -557,14 +573,14 @@ function fight(e, dt, o) {
     }
     return;
   }
-  if (e.cd > 0 || (G.ammo < 1 && G.ap < 1 && G.inc < 1)) return;
+  if (e.cd > 0 || (G.ammo < 1 && G.ap < 1 && G.inc < 1) || (G.holdFire && e === P)) return;
   const range = o.range * (o.rangeMul || 1);
   let best = null, bd = range * range;
   for (let j = 0; j < zombies.length; j++) {
     const z = zombies[j]; if (z.hp <= 0) continue;
     const dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
     if (o.noiseMode === 1 && z.mode !== 1 && q > 9) continue;      // the survivor does not waste rounds on idle dead that haven't noticed them
-    if (o.noiseMode !== 1 && G.ammo < 30 && (z.mode === 0 || z.mode === 3) && q > 6) continue;      // low on ammo: defenders hold fire on dawdlers that are not at the wall
+    if (o.noiseMode !== 1 && G.ammo < 30 && (z.mode === 0 || z.mode === 3) && q > 6) continue;
     if (q < bd) { bd = q; best = z; }
   }
   if (best) {
@@ -586,7 +602,7 @@ function fight(e, dt, o) {
     addBurst(best.x, best.y - 0.4, '#a02020', 2, { grav: 3 });
     Snd.shot(e.px, e.py, !!o.sniper);
     if (e.s) addXp(e.s, 'shoot', 1);
-    if (e.noiseT <= 0) { e.noiseT = 0.6; const gr = gunRadius(o.sniper); alertNoise(e.px, e.py, gr, o.noiseMode); if (rings.length < 24) rings.push({ x: e.px, y: e.py, r: gr, t: 0, max: NOISE.ring }); }
+    if (e.noiseT <= 0) { e.noiseT = 0.6; const gr = gunRadius(o.sniper); alertNoise(e.px, e.py, gr, o.noiseMode === 1 ? 3 : o.noiseMode); /* gunfire makes the dead come and look, it does not lock them onto the shooter */ if (rings.length < 24) rings.push({ x: e.px, y: e.py, r: gr, t: 0, max: NOISE.ring }); }
   }
 }
 function updateDefenders(dt) {
@@ -852,16 +868,16 @@ function updateEconomy(dt) {
   const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0) * ruleMul('upkeep') * season().upkeep;
   const base = 1 + 0.3 * (G.level - 1);
   const im = ruleMul('income');
-  const ra = 0.1 * base, rm = 0.1 * base, rf = 0.08 * base - upkeep;                       // the camp's own trickle; buildings are handled by extract()
+  const ra = 0.1 * base, rm = 0.18 * base, rf = 0.08 * base - upkeep;                       // the camp's own trickle; buildings are handled by extract()
   G.net = { a: ra + G.income.a * im, m: rm + G.income.m * im, f: rf + G.income.f * im, med: G.income.med * im, fuel: G.income.fuel * im - G.power.burn, water: G.income.water * im };
   const cap = storeCap();
   Survival.extract(dt);
   G.ammo = clamp(G.ammo + ra * dt, 0, cap);
   G.mat = clamp(G.mat + rm * dt, 0, cap);
   G.food = clamp(G.food + rf * dt, 0, cap);
-  if (G.ammo < 30 && G.mat > 30) {                                  // before a workshop exists, someone hand-loads rounds from scrap so the camp never runs completely dry
+  if (G.ammo < 60 && G.mat > 20) {                                  // before a workshop exists, someone hand-loads rounds from scrap so the camp never runs completely dry
     G.handT = (G.handT || 0) + dt;
-    if (G.handT >= 4) { G.handT = 0; G.mat -= 3; G.ammo += 1; }
+    if (G.handT >= (G.mat > 150 ? 2 : 4)) { G.handT = 0; G.mat -= 2; G.ammo += 1; }
   }
 
   G.repairT -= dt;
@@ -1139,6 +1155,7 @@ function simulate(dt) {
     let idle = 0; for (const z of zombies) if (z.mode === 0) idle++;
     if (idle < AMBIENT.keep * DIFFICULTY[G.diff].ambient) for (let i = 0; i < 3; i++) spawnAmbient();
   }
+  if (AI.on) AI.update(dt);
   updatePlayer(dt);
   updateHordes(dt);
   updateZombies(dt);

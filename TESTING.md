@@ -28,3 +28,12 @@ Open `index.html` (or serve the folder over http). Press **`** (backtick) in gam
 - Balance numbers (stock sizes, horde sizes in background towns, season strength, convoy risk) are first guesses.
 - A newly founded town has no defences: fortify it immediately.
 - Background hordes are resolved by an abstract formula, not a live fight; travel there in time to fight them for real.
+
+## Autopilot and bot playthroughs
+`js/ai.js` is the Governor: it plays a camp by itself (survivor movement, walls, defenders, research, crews, trader, radio) through the same inputs a person uses.
+Toggle it from the debug panel ("Toggle autopilot"). Headless runs (needs Playwright):
+
+    node tools/playtest.js '[{"name":"a","diff":"normal","story":"cassandra","seed":101,"maxTime":1500}]' out.json 4
+    node tools/summ.js ./out.json
+
+`cheat: {ammo: 400}` or `{mat: 400}` in a config keeps a resource topped up, to see which resource limits survival.
