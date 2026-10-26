@@ -152,9 +152,10 @@ const Build = (() => {
         if (still && !u.order) { const bp = L.find(b => b.id === u.carry.plan[0].id); if (bp) { const [tx, ty] = standAt(bp); Units.moveTo(u, tx, ty); u.order.build = true; } }
         continue;
       }
-      // someone has to fetch: all of them if nothing is ready to build, otherwise about half
-      const nd = needers().length;
-      if (nd && (!builtNow || haulers < Math.ceil(free.length / 2))) {
+      // carrying is the work of whoever has no other duty: the survivors who are not training and are not the camp's builders.
+      // Builders carry only when there is nothing yet supplied for them to build.
+      const nd = needers().length, training = w.train && w.train !== 'off';
+      if (nd && !training && (s.role !== 'builder' || !builtNow)) {
         haulers++; u.hauling = true; u.bpId = 0;
         if (Math.hypot(sx0 - u.px, sy0 - u.py) <= 1.8) { load(u); if (u.carry) Snd.tick(); }
         else if (!u.order) { Units.moveTo(u, sx0, sy0); u.order.build = true; }

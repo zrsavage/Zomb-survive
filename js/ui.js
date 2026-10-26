@@ -124,7 +124,7 @@ const UI = (() => {
     $('dkFight').classList.toggle('on', G.tool === 'combat'); $('dkCmd').classList.toggle('on', G.tool === 'orders'); $('dkBuild').classList.toggle('on', b);
     $('dkCamp').classList.toggle('on', bd.classList.contains('side-open')); $('dkMore').classList.toggle('on', bd.classList.contains('more-open'));
     if (b) {
-      $('modeBanner').textContent = 'BUILD MODE: you are not shooting. Press B or Esc to get back to the fight.';
+      $('modeBanner').textContent = 'BUILD MODE';
       updateBuildMenu();
       // zombies on you? the menu gets out of the way
       if (!AI.on && !G.over) {
@@ -141,7 +141,7 @@ const UI = (() => {
       cb.dataset.k = key;
       cb.innerHTML = '<div class="bars"><div class="bar2"><i style="width:' + hp + '%;background:' + (hp < 35 ? 'var(--bad)' : '#6fcf6a') + '"></i></div><div class="bar2"><i style="width:' + sta + '%;background:' + (P.tired ? '#c9a23a' : '#6fb0e8') + '"></i></div></div>' +
         '<div class="gun"><b>' + (P.reloadT > 0 ? 'RELOADING' : P.mag + ' <span style="color:var(--dim);font-size:13px">/ ' + (G.ammo | 0) + '</span>') + '</b><small>' + w.label + (Combat.unlocked().length > 1 ? ' · Q switch' : '') + '</small></div>' +
-        '<div class="gun"><b style="font-size:13px">' + mw.label + '</b><small>melee: F or right-click</small></div>';
+        '<div class="gun"><b style="font-size:13px">' + mw.label + '</b><small>swing: F or right-click</small></div>';
     }
     const low = LOWS.filter(([, f]) => f()).map(([n]) => n); const lc = $('lowChip');
     lc.textContent = low.length ? 'Running low: ' + low.join(', ') : ''; lc.classList.toggle('show', low.length > 0 && !G.intro);
@@ -694,7 +694,7 @@ const UI = (() => {
       Combat.mouse.x = e.clientX; Combat.mouse.y = e.clientY;
       if (e.pointerType === 'mouse') {
         if (e.button === 1) { panning = true; G.cam.free = true; return; }
-        if (e.button === 2 && G.tool === 'combat' && !AI.on) { Combat.melee(); return; }
+        if (e.button === 2 && G.tool === 'combat' && !AI.on) { Combat.mdown = true; Combat.melee(); return; }
         if (e.button === 2) { rc = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }; return; }      // right-click orders, right-drag looks around
         if (e.button !== 0) return;
       } else if (pointers.size >= 2) {               // two fingers: pinch to zoom, drag to pan
@@ -733,6 +733,7 @@ const UI = (() => {
     });
     const up = e => {
       if (e.button === 0 || e.type !== 'pointerup') Combat.down = false;
+      if (e.button === 2 || e.type !== 'pointerup') Combat.mdown = false;
       if (selDrag && selDrag.id === e.pointerId) { $('selbox').style.display = 'none'; finishSelect(selDrag); selDrag = null; }
       if (rc && rc.id === e.pointerId) { if (!rc.moved) rightClick(e.clientX, e.clientY); rc = null; panning = false; }
       pointers.delete(e.pointerId);
@@ -793,7 +794,7 @@ const UI = (() => {
       if (k.startsWith('arrow')) e.preventDefault();
     });
     addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (!e.shiftKey && !$('btnRun').classList.contains('on')) keys.shift = false; });
-    addEventListener('blur', () => { Combat.down = false; for (const k in keys) keys[k] = false; if (G && !G.over && !menuMode) Save.save(); });
+    addEventListener('blur', () => { Combat.down = false; Combat.mdown = false; for (const k in keys) keys[k] = false; if (G && !G.over && !menuMode) Save.save(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.over) { Save.save(); if (!menuMode) showMenu('pause'); } });
     addEventListener('beforeunload', () => { if (G && !G.over) Save.save(); });
     addEventListener('resize', applyLayout);

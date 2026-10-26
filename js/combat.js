@@ -26,6 +26,7 @@ const Combat = (() => {
     P.mag = P.mags[P.weapon] !== undefined ? P.mags[P.weapon] : WP().mag;
     toast(WP().label + ' (' + P.mag + ' loaded)'); Snd.click && Snd.click();
   };
+  const BODY = 0.5, ZB = 0.45;                                       // guns and the dead are judged at chest height, not at the feet
   const MEL = { reach: 1.95, arc: 0.75, cd: 0.42, sta: 9, shove: 0.45 };
 
   // where the fight is happening: the street, or the inside of a building
@@ -41,9 +42,10 @@ const Combat = (() => {
     const pp = WLD().pos();
     const z = G.cam.zoom;
     C.aimX = (C.mouse.x - innerWidth / 2) / z / T + G.cam.x; C.aimY = (C.mouse.y - innerHeight / 2) / z / T + G.cam.y;
-    const dx = C.aimX - pp.x, dy = C.aimY - pp.y, d = Math.hypot(dx, dy) || 1;
+    const dx = C.aimX - pp.x, dy = C.aimY - (pp.y - BODY), d = Math.hypot(dx, dy) || 1;
     return { dx: dx / d, dy: dy / d, d };
   }
+  const mdir = () => { aim(); const pp = WLD().pos(), dx = C.aimX - pp.x, dy = C.aimY + BODY - pp.y, d = Math.hypot(dx, dy) || 1; return { dx: dx / d, dy: dy / d, d }; };
   const radiusOf = z => z.type === 'brute' || z.type === 'tyrant' ? 0.72 : z.type === 'bloater' ? 0.62 : 0.4;
 
   function startReload() {
@@ -60,15 +62,25 @@ const Combat = (() => {
     P.cd = w.cd * (has('rapid') ? 0.85 : 1); P.mag--;
     const sp = w.spread + (P.moving ? w.move : 0) + P.bloom;
     P.bloom = Math.min(w.bloomMax, P.bloom + w.bloom);
-    const ang = Math.atan2(a.dy, a.dx) + (rng() + rng() - 1) * sp, dx = Math.cos(ang), dy = Math.sin(ang);
-    const ox = pp.x + dx * 0.35, oy = pp.y + dy * 0.35;
+    let ang0 = Math.atan2(a.dy, a.dx);
+    {                                                                // a little help: a round that would pass close to a body is drawn toward it
+      const cx0 = pp.x, cy0 = pp.y - BODY; let best = 0.95, diff = null;
+      for (const z of zs) {
+        if (z.hp <= 0) continue; const rx = z.x - cx0, ry = (z.y - ZB) - cy0, t = rx * Math.cos(ang0) + ry * Math.sin(ang0);
+        if (t < 0.3 || t > w.range) continue; const perp = rx * Math.sin(ang0) - ry * Math.cos(ang0);
+        if (Math.abs(perp) < best) { best = Math.abs(perp); diff = Math.atan2(ry, rx) - ang0; }
+      }
+      if (diff !== null) { diff = Math.atan2(Math.sin(diff), Math.cos(diff)); ang0 += diff * 0.6; }
+    }
+    const ang = ang0 + (rng() + rng() - 1) * sp, dx = Math.cos(ang), dy = Math.sin(ang);
+    const ox = pp.x + dx * 0.35, oy = (pp.y - BODY) + dy * 0.35;
     // how far the round flies: stops at buildings
     let reach = w.range;
-    for (let s = 0.4; s < w.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (wd.blocked(x, y)) { reach = s; break; } }
+    for (let s = 0.4; s < w.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (wd.blocked(x, y + BODY)) { reach = s; break; } }
     const hits = [];
     for (const z of zs) {
       if (z.hp <= 0) continue;
-      const rx = z.x - ox, ry = z.y - oy, t = rx * dx + ry * dy;
+      const rx = z.x - ox, ry = (z.y - ZB) - oy, t = rx * dx + ry * dy;
       if (t < 0 || t > reach) continue;
       const perp = Math.abs(rx * dy - ry * dx);
       if (perp < radiusOf(z)) hits.push({ z, t, perp });
@@ -76,7 +88,7 @@ const Combat = (() => {
     hits.sort((p, q) => p.t - q.t);
     const n = Math.min(w.pen, hits.length), bt = n === w.pen ? hits[n - 1].t : reach;
     const ex = ox + dx * bt, ey = oy + dy * bt;
-    tracers.push({ x1: pp.x + dx * 0.5, y1: pp.y - 0.5, x2: ex, y2: ey - 0.4, life: w.sniper ? 0.16 : 0.09, ap: w.sniper });
+    tracers.push({ x1: pp.x + dx * 0.5, y1: pp.y - 0.5, x2: ex, y2: ey, life: w.sniper ? 0.16 : 0.09, ap: w.sniper });
     if (flashes.length < 40) flashes.push({ x: pp.x + dx * 0.6, y: pp.y - 0.5, life: 0.09 });
     Snd.shot(pp.x, pp.y, w.sniper); addHeat(HEAT.gun * w.heat); shake(w.sniper ? 1 : 0.5 * Math.min(1, w.heat + 0.3));
     P.face = dx >= 0 ? 1 : -1; P.st = 'shoot'; P.aimA = ang; P.aimT = 0.7; P.shot = 0.09;
@@ -96,7 +108,7 @@ const Combat = (() => {
   function melee(a) {
     const pp = WLD().pos(), zs = WLD().zs();
     if (P.mcd > 0 || P.dead > 0) return;
-    a = a || aim();
+    a = a || mdir();
     const wp = MW[P.mw && MW[P.mw] ? P.mw : 'knife'], reach = Math.max(MEL.reach, wp.reach + 0.35), cap = wp.pierce >= 2 ? 4 : 3;
     P.mcd = MEL.cd * wp.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1; P.aimA = Math.atan2(a.dy, a.dx); P.aimT = 0.4;
     P.sta = Math.max(0, P.sta - MEL.sta * wp.sta); if (P.sta <= 0) P.tired = true;
@@ -116,7 +128,7 @@ const Combat = (() => {
     Snd.stab(pp.x + a.dx, pp.y + a.dy); if (!hit) tracers.push({ x1: pp.x + a.dx * 0.5, y1: pp.y - 0.5 + a.dy * 0.3, x2: pp.x + a.dx * (wp.reach + 0.2), y2: pp.y - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
   }
   const free2 = (x, y) => !WLD().blocked(x, y);
-  C.melee = melee;
+  C.melee = function (a) { if (P.mcd > 0 || P.dead > 0) return; C.swings = (C.swings || 0) + 1; melee(a); };
 
   C.update = function (dt) {
     if (P.mag === undefined) { P.mag = WP().mag; P.reloadT = 0; P.bloom = 0; P.sta = STAMINA.max; P.tired = false; P.emptyT = 0; P.mcd = 0; }
@@ -127,7 +139,9 @@ const Combat = (() => {
     if (!manual()) return;
     const a = aim();
     if (P.stab <= 0) P.face = a.dx >= 0 ? 1 : -1;
-    C.over = null; for (const z of WLD().zs()) if (z.hp > 0 && (z.x - C.aimX) ** 2 + (z.y - C.aimY) ** 2 < 0.5) { C.over = z; break; }
+    C.over = null; for (const z of WLD().zs()) if (z.hp > 0 && (z.x - C.aimX) ** 2 + ((z.y - ZB) - C.aimY) ** 2 < 0.55) { C.over = z; break; }
+    C.near = null; { const pp = WLD().pos(); for (const z of WLD().zs()) if (z.hp > 0 && (z.x - pp.x) ** 2 + (z.y - pp.y) ** 2 < 5.8) { C.near = z; break; } }
+    if ((C.mdown || keys.f) && P.mcd <= 0 && P.dead <= 0) C.melee();
     if (C.down && P.cd <= 0 && P.reloadT <= 0) shoot(a);
   };
 
@@ -149,6 +163,11 @@ const Combat = (() => {
     else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(w.label + ' ' + P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
     if (unlocked().length > 1) { ctx.fillStyle = '#8fa890'; ctx.fillText('Q: switch gun', ax + r + 10, ay + 15); }
     if (hot) { Weapons.drawTarget(ctx, C.over); const z = C.over; ctx.fillStyle = '#ffd7d0'; ctx.fillText(ZTYPES[z.type].label + ' ' + Math.ceil(z.hp), ax + r + 10, ay + (P.mag < 1 ? 10 : 5)); }
+    if (C.near && (C.swings || 0) < 4 && P.mcd <= 0) {                                   // a dead one is close: say how to hit it
+      const t = 'RIGHT-CLICK or F: swing at it', px2 = pp.x * T, py2 = (pp.y - 1.8) * T; ctx.font = '7px monospace'; const ww = ctx.measureText(t).width + 8;
+      ctx.fillStyle = '#000d'; ctx.fillRect(px2 - ww / 2, py2 - 6, ww, 11); ctx.strokeStyle = '#ffe9b0'; ctx.lineWidth = 1; ctx.strokeRect(px2 - ww / 2 + 0.5, py2 - 5.5, ww - 1, 10);
+      ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.fillText(t, px2, py2 - 0.5); ctx.textAlign = 'left';
+    }
     ctx.restore();
   };
   return C;
