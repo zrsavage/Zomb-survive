@@ -289,7 +289,7 @@ function startHorde(opts = {}) {
   const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
   const mins = townMins(G);
   let size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1) * (G.rush ? 0.6 : 1)));
-  if (G.rush && !minor) size = Math.min(600, Math.round((140 + 18 * (n - 1)) * (0.9 + rng() * 0.2) * D.size));      // quick play: hundreds at the walls, every time
+  if (G.rush && !minor) size = Math.min(4000, Math.round((600 + 250 * (n - 1)) * (0.9 + rng() * 0.2) * D.size));      // quick play: hundreds at the walls, every time
   hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 9 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
   if (minor) return;
   G.recentDeaths = 0;
@@ -690,7 +690,7 @@ function fight(e, dt, o) {
     let dm = (o.dmgMul || 1) * (has('ap') ? 1.3 : 1);
     if (kind === 'ap') { G.ap -= 1; af = 1; dm *= 1.15; }
     else if (kind === 'inc') { G.inc -= 1; dm *= 0.7; for (const z of zombies) if ((z.x - best.x) ** 2 + (z.y - best.y) ** 2 < 1.6) z.burn = FIRE.burn; }
-    else G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1));
+    else G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1) * (G.rush ? 0.5 : 1));
     addHeat(HEAT.gun); best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot'; e.act = 0.22; e.actK = 'shoot';
     e.cd = o.cd * (o.cdMul || 1) * (has('rapid') ? 0.8 : 1) * (o.starving ? 1.8 : 1) * (0.9 + rng() * 0.2);
     e.face = best.x >= e.px ? 1 : -1; e.aimA = Math.atan2(best.y - 0.4 - (e.py - 0.5), best.x - e.px); e.aimT = 0.7;
@@ -1019,7 +1019,7 @@ function updateHordes(dt) {
   if (G.nextHorde <= 0) startHorde();
   for (const h of hordes) {
     if (h.left > 0) {
-      h.acc += dt * h.total / HORDE.spawnSecs;
+      h.acc += dt * h.total / (G.rush ? 50 : HORDE.spawnSecs);
       while (h.acc >= 1 && h.left > 0) {
         h.acc -= 1; h.left--; spawnHordeZombie(h);
         if (h.boss > 0 && h.left <= h.total * 0.5 && spawnHordeZombie(h, 'tyrant')) { h.boss--; shake(3); if (h.seen) log('Lookout: a TYRANT walks with the horde!'); else toast('The ground shakes. Something huge is coming.'); Snd.scream(CORE.x, CORE.y); }

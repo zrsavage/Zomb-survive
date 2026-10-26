@@ -29,7 +29,7 @@ const Apps = (() => {
     if (key === shown) return; shown = key;
     if (!a) { el.classList.remove('show'); return; }
     const s = a.s;
-    el.innerHTML = '<div class="at">SOMEONE AT THE GATE' + (L.length > 1 ? ' (+' + (L.length - 1) + ' more)' : '') + '</div><div class="an">' + intro(s) + '</div><div class="as">' + (s.story || '') + ' · ' + (ROLES[s.role] ? ROLES[s.role].desc : '') + '<br>' + (roomForPerson() ? '' : 'No room right now: build housing first. ') + 'Camp holds ' + people() + ' / ' + popCap() + '.</div>' +
+    el.innerHTML = '<div class="at">SOMEONE AT THE GATE' + (L.length > 1 ? ' (+' + (L.length - 1) + ' more)' : '') + '</div><div class="an">' + intro(s) + '</div><div class="as">' + (s.story || '') + ' - ' + (ROLES[s.role] ? ROLES[s.role].desc : '') + '<br>' + (roomForPerson() ? '' : 'No room right now: build housing first. ') + 'Camp holds ' + people() + ' / ' + popCap() + '.</div>' +
       '<button id="apY">Let them in (Y)</button><button id="apN" class="alt">Turn away (N)</button>';
     el.classList.add('show');
     document.getElementById('apY').onclick = () => { Snd.click(); accept(); };

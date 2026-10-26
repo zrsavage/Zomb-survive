@@ -87,7 +87,7 @@ const Base = {
           if (f.on) {
             f.t += dt * ratio;
             if (f.t >= R.time) {
-              if (canAfford(R.in)) { pay(R.in); const o = R.out; if (o.a) G.ammo = Math.min(store, G.ammo + o.a); if (o.ap) G.ap += o.ap; if (o.inc) G.inc += o.inc; if (o.mw) { const st = mwStock(); st[o.mw] = (st[o.mw] || 0) + 1; log('The workshop finished a ' + MW[o.mw].label.toLowerCase()); } f.t = 0; }
+              if (canAfford(R.in)) { pay(R.in); const o = R.out; if (o.a) G.ammo = Math.min(store, G.ammo + o.a * (G.rush ? 4 : 1)); if (o.ap) G.ap += o.ap; if (o.inc) G.inc += o.inc; if (o.mw) { const st = mwStock(); st[o.mw] = (st[o.mw] || 0) + 1; log('The workshop finished a ' + MW[o.mw].label.toLowerCase()); } f.t = 0; }
               else f.t = R.time;
             }
           }

@@ -18,6 +18,11 @@ const Quick = (() => {
       if (!inb(x, y) || bld[key(x, y)] >= 0) continue;
       const i = key(x, y); wall[i] = gates.has(i) ? K.GATE : towers.has(i) ? K.TOWER : K.WALL; wallTier[i] = 1;
     }
+    for (const sy of [-1, 1]) gates.add(key(cx, cy + sy * (R + 3)));
+    for (let d = -(R + 3); d <= R + 3; d++) for (const [x, y] of [[cx + d, cy - R - 3], [cx + d, cy + R + 3], [cx - R - 3, cy + d], [cx + R + 3, cy + d]]) {      // a second, outer layer
+      if (!inb(x, y) || bld[key(x, y)] >= 0) continue;
+      const i = key(x, y); wall[i] = gates.has(i) ? K.GATE : K.WALL; wallTier[i] = 0;
+    }
     for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = maxHp(wall[i], i);
     // a working camp inside
     const want = ['garden', 'garden', 'garden', 'well', 'rain', 'latrine', 'clinic', 'yard', 'solar', 'solar', 'solar', 'solar', 'workshop', 'workshop', 'workshop', 'mine', 'mine', 'floodlight'], spots = [];
