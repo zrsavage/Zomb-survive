@@ -20,8 +20,8 @@ function effCost(name) {
   for (const k in c) o[k] = k === 'm' && name !== 'radio' ? Math.ceil(c[k] * buildMul()) : c[k];
   return o;
 }
-const canAfford = c => (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a) && (!c.med || G.med >= c.med) && (!c.fuel || G.fuel >= c.fuel) && (!c.water || G.water >= c.water);
-function pay(c) { G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; G.med -= c.med || 0; G.fuel -= c.fuel || 0; G.water -= c.water || 0; }
+const canAfford = c => G.completing || (!c.m || G.mat >= c.m) && (!c.f || G.food >= c.f) && (!c.a || G.ammo >= c.a) && (!c.med || G.med >= c.med) && (!c.fuel || G.fuel >= c.fuel) && (!c.water || G.water >= c.water);
+function pay(c) { if (G.completing) return; G.mat -= c.m || 0; G.food -= c.f || 0; G.ammo -= c.a || 0; G.med -= c.med || 0; G.fuel -= c.fuel || 0; G.water -= c.water || 0; }
 const LOOT_KEYS = [['m', 'materials', 'mat'], ['f', 'food', 'food'], ['a', 'ammo', 'ammo'], ['med', 'medicine', 'med'], ['fuel', 'fuel', 'fuel'], ['water', 'water', 'water']];
 function rollLoot(loot, mul) { const o = {}; for (const [k] of LOOT_KEYS) o[k] = loot[k] ? Math.round(loot[k] * mul * (0.7 + rng() * 0.6)) : 0; return o; }
 function addRes(o) { const cap = storeCap(); for (const [k, , f] of LOOT_KEYS) if (o[k]) G[f] = Math.min(cap, G[f] + o[k]); }
@@ -1109,8 +1109,9 @@ function tryBuild(tx, ty) {
   if (tool === 'molotov') return Outside.throwMolotov(tx, ty);              // can be thrown at buildings (nests)
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
-  if (!inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
-  if (!explored[i]) return;
+  if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
+  if (!G.completing && !explored[i]) return;
+  if (!G.completing && tool !== 'erase' && (TOOL_KIND[tool] || FACILITIES[tool] || tool === 'electrify' || tool === 'reinforce' || tool === 'spike' || tool === 'barrel') && Build.at(tx, ty)) return warn('Already planned here. Right-click-erase it to cancel.');
   if (TOOL_KIND[tool]) {
     const kind = TOOL_KIND[tool];
     if (tool === 'radio' && wall[i] === K.RADIO) return startBroadcast(true);                // click the tower again to call again
@@ -1126,8 +1127,9 @@ function tryBuild(tx, ty) {
       if (!buildings.some(b => !b.claimed && Math.hypot(b.x + b.w / 2 - tx, b.y + b.h / 2 - ty) < OUTPOST.buildRange)) return warn('Build an outpost within ' + OUTPOST.buildRange + ' tiles of a building you want to work');
     }
     const base = effCost(tool), cost = wall[i] === K.WALL && kind === K.TOWER ? { m: Math.max(0, base.m - effCost('wall').m) } : base;
-    if (!canAfford(cost)) return warn(cost.f || cost.a ? 'Not enough supplies' : 'Not enough materials');
+    if (!canAfford(cost)) return warn(Build.shortText(cost));
     pay(cost);
+    if (Build.defer(tool, tx, ty, cost)) return;
     if (!wall[i]) { wallTier[i] = 0; elec[i] = 0; }
     wall[i] = kind; wallHp[i] = maxHp(kind, i);
     G.fieldDirty = true; G.visT = 0; Snd.build();
@@ -1139,15 +1141,15 @@ function tryBuild(tx, ty) {
     Base.place(tool, tx, ty);
   } else if (tool === 'electrify') {
     if (!wall[i] || wall[i] === K.RADIO || wall[i] === K.LOOKOUT || elec[i]) return;
-    const cost = effCost('electrify'); if (!canAfford(cost)) return warn('Not enough materials');
-    pay(cost); elec[i] = 1; Snd.build();
+    const cost = effCost('electrify'); if (!canAfford(cost)) return warn(Build.shortText(cost));
+    pay(cost); if (Build.defer(tool, tx, ty, cost)) return; elec[i] = 1; Snd.build();
     if (!facilities.some(f => f.type === 'generator')) toast('Electrified. It needs a powered generator to work.');
   } else if (tool === 'reinforce') {
     if (!wall[i] || wall[i] === K.RADIO) return;
     const t = wallTier[i]; if (t >= 2) return warn('Already concrete');
     if (t === 1 && !has('concrete')) return warn('Research Concrete Mixing first');
-    const cost = { m: Math.ceil(TIER.cost[t + 1] * buildMul()) }; if (!canAfford(cost)) return warn('Not enough materials');
-    pay(cost); wallTier[i] = t + 1; wallHp[i] = maxHp(wall[i], i); Snd.build();
+    const cost = { m: Math.ceil(TIER.cost[t + 1] * buildMul()) }; if (!canAfford(cost)) return warn(Build.shortText(cost));
+    pay(cost); if (Build.defer(tool, tx, ty, cost)) return; wallTier[i] = t + 1; wallHp[i] = maxHp(wall[i], i); Snd.build();
   } else if (false) {
   } else if (tool === 'grate') {
     if (!Survival.sealSewer(tx, ty)) warn('Click a sewer access to seal it');
@@ -1160,8 +1162,8 @@ function tryBuild(tx, ty) {
   } else if (tool === 'spike' || tool === 'barrel') {
     if (wall[i] || trapAt[i] || ground[i] === undefined) return;
     const cost = effCost(tool);
-    if (!canAfford(cost)) return warn('Not enough materials');
-    pay(cost);
+    if (!canAfford(cost)) return warn(Build.shortText(cost));
+    pay(cost); if (Build.defer(tool, tx, ty, cost)) return;
     const t = tool === 'spike' ? { type: 'spike', x: tx, y: ty, uses: TRAP.spikeUses } : { type: 'barrel', x: tx, y: ty, fire: 0 };
     traps.push(t); trapAt[i] = t; Snd.build();
   } else if (tool === 'def') {
@@ -1170,6 +1172,7 @@ function tryBuild(tx, ty) {
     if (!s) return warn('No healthy idle survivors. Scavenge for them, or seal your camp to draw refugees.');
     Units.post(s, tx, ty, false); Snd.click();
   } else if (tool === 'erase') {
+    { const bp = Build.at(tx, ty); if (bp) { Build.cancel(bp); return; } }
     if (defAt[i]) { Units.standDown(defAt[i]); return; }
     if (trapAt[i]) { const t = trapAt[i]; traps.splice(traps.indexOf(t), 1); trapAt[i] = null; G.mat += refund(t.type); Snd.demolish(); return; }
     if (facAt[i]) { Base.remove(facAt[i]); Snd.demolish(); return; }
@@ -1229,6 +1232,7 @@ function simulate(dt) {
   Outside.update(dt); Base.update(dt); Survival.update(dt);
   updateDefenders(dt);
   Units.update(dt);
+  Build.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
   Director.tick(dt); Radio.update(dt); G.ruleCd = Math.max(0, G.ruleCd - dt); G.nfT -= dt;

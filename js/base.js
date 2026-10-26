@@ -21,8 +21,8 @@ const Base = {
     if (type === 'depot' && facilities.filter(f => f.type === 'depot').length >= 2) return warn('You can only keep 2 depots');
     if (type === 'garagebay' && facilities.some(f => f.type === 'garagebay')) return warn('One garage bay is enough');
     const cost = { m: Math.ceil(def.cost.m * buildMul()) };
-    if (!canAfford(cost)) return warn('Not enough materials');
-    pay(cost);
+    if (!canAfford(cost)) return warn(Build.shortText(cost));
+    pay(cost); if (Build.defer(type, x, y, cost)) return;
     const f = { type, x, y, t: 0, on: false };
     if (type === 'turret') Object.assign(f, { px: x + 0.5, py: y + 0.5, cd: 0, mcd: 0, shot: 0, noiseT: 0, face: 1 });
     facilities.push(f); facAt[i] = f; Snd.build();

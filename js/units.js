@@ -11,7 +11,7 @@ const Units = (() => {
   const free = (x, y) => { const tx = x | 0, ty = y | 0; return inb(tx, ty) && bld[ty * W + tx] < 0 && !isCoreTile(tx, ty) && wall[ty * W + tx] !== K.RADIO; };
   const doorOf = b => [clamp((b.x + b.w / 2) | 0, 0, W - 1), clamp(b.y + b.h, 0, H - 1)];
 
-  const defaultWork = s => ({ guard: s.role === 'fighter' || s.role === 'sniper', loot: s.role === 'scavenger' });
+  const defaultWork = s => ({ guard: s.role === 'fighter' || s.role === 'sniper', loot: s.role === 'scavenger', build: s.role !== 'sniper' });
   const workOf = s => s.work || (s.work = defaultWork(s));
 
   function of(s, x, y) {
@@ -175,6 +175,7 @@ const Units = (() => {
   }
   function think(u) {
     const s = u.s, w = workOf(s);
+    if (u.bpId) return;                                  // on their way to a build job
     if (s.sick > 0 || u.manual > 0) return;
     if (alarm()) {
       if (w.guard && !G.crews.some(c => c.members.includes(s))) { const p = pickPost(); if (p) post(s, p[0], p[1], true); }
@@ -353,10 +354,11 @@ const Units = (() => {
   function statusOf(s) {
     if (defenders.some(d => d.s === s)) { const d = defenders.find(x => x.s === s); return 'on the wall' + (d.auto ? ' (self-posted)' : ''); }
     const c = G.crews.find(c => c.members.includes(s)); if (c) return { out: 'walking out', work: 'scavenging', back: 'coming home' }[c.phase || 'out'];
-    const u = U.get(s.id); if (u && u.order) return { move: 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
+    const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
+    if (u.working) return 'building';
     return 'idle';
   }
   const pendingTiles = () => pending();
   const near = (x, y, r) => all().some(u => Math.hypot(u.px - x, u.py - y) < r);
-  return { near, pendingTiles, of, get: s => U.get(s.id), busy, free: free_, post, standDown, standDownSelected, orderAt, selected, update, updateCrews, all, at, playerOrder, route, heading, workOf, statusOf, alarm, cancel };
+  return { moveTo: (u, x, y) => orderMove(u, x, y, false), cancel, near, pendingTiles, of, get: s => U.get(s.id), busy, free: free_, post, standDown, standDownSelected, orderAt, selected, update, updateCrews, all, at, playerOrder, route, heading, workOf, statusOf, alarm, cancel };
 })();

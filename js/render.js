@@ -258,7 +258,7 @@ function drawWorld(cam, cw, ch, z) {
   ctx.drawImage(fogCanvas, 0, 0, W * T, H * T);
   ctx.imageSmoothingEnabled = false;
 
-  drawCursor(); Combat.draw(ctx);
+  drawCursor(); Build.draw(ctx); Combat.draw(ctx); Loot.draw(ctx);
 }
 function drawCursor() {
   if (G.hover && !G.over) {

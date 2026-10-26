@@ -71,6 +71,7 @@ const AI = (() => {
     const cr = crates.filter(c => c.type !== 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 40).sort((a, b) => Math.hypot(a.x - P.px, a.y - P.py) - Math.hypot(b.x - P.px, b.y - P.py))[0];
     if (cr && cr.type === 'airdrop' && zNear(cr.x, cr.y, 5) < 6) return startJob('scout', { gx: cr.x, gy: cr.y });
     if (A.want) { const w = A.want; A.want = null; return startJob('build', { gx: w[0], gy: w[1] }); }
+    { const L = (G.blue || []).slice().sort((p, q) => q.prio - p.prio || Math.hypot(p.x - P.px, p.y - P.py) - Math.hypot(q.x - P.px, q.y - P.py)); if (L.length && G.mat >= 0) { const b = L[0]; return startJob('work', { gx: b.x + 0.5, gy: b.y + 0.5, bx: b.x, by: b.y }); } }
     const lowSupplies = G.mat < 260 || G.food < 90 || G.ammo < 100 || G.water < 70 || G.fuel < 15 || G.med < 6 || !G.sealed || G.idle.length < 3;
     if (lowSupplies || rng() < 0.3) {
       const b = pickLoot();
@@ -109,6 +110,9 @@ const AI = (() => {
         steer(dist > 8 && chasers === 0);
         if (j.t > 90) { A.ban.set(j.b, G.elapsed + 120); stop(); A.job = null; }
       } else { joy.x = joy.y = 0; keys.shift = false; keys.e = true; if (j.t > 140) { A.ban.set(j.b, G.elapsed + 120); stop(); A.job = null; } }
+    } else if (j.kind === 'work') {                              // stand at the blueprint and build it
+      const bp = Build.at(j.bx, j.by);
+      if (!bp || j.t > 45) { stop(); A.job = null; } else if (dist < 1.4) { joy.x = joy.y = 0; keys.shift = false; } else steer(dist > 8 && chasers === 0);
     } else if (j.kind === 'scout' || j.kind === 'build') {
       if (dist < 1.2 || j.t > 60) { stop(); A.job = null; } else steer(dist > 8);
     } else if (j.kind === 'flee') {

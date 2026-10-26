@@ -42,7 +42,7 @@ const UI = (() => {
   function init() {
     Loot.init();
     for (const [k, id] of RESROW) { const b = $(id).parentElement.querySelector('b'); if (b) b.outerHTML = '<img src="' + Items.url(k) + '" alt="">'; }
-    $('packChip').addEventListener('click', () => togglePack());
+    $('packChip').addEventListener('click', () => togglePack()); $('jobChip').addEventListener('click', () => toggleJobs());
     const list = $('toolList');
     let lastCat = '';
     for (const t of TOOLS) {
@@ -76,6 +76,8 @@ const UI = (() => {
   function update() {
     const L = LEVELS[G.level - 1];
     for (const [k, id] of RESROW) { const r = Items.RES[k], v = G[r.field] | 0, w = $(id).parentElement; w.title = r.name + ': ' + v + ' of ' + storeCap() + ' storable. ' + r.use + '.'; }
+    $('rJobs').textContent = (G.blue || []).length; $('rJobs').style.color = (G.blue || []).length > 6 ? '#e8a447' : '';
+    if ($('jobs').classList.contains('show')) renderJobs();
     $('rPack').textContent = Items.packCount(); $('rPack').style.color = Items.packCount() >= Items.PACK.slots * Items.PACK.stack ? 'var(--bad)' : '';
     if ($('pack').classList.contains('show')) renderPack();
     $('rAmmo').textContent = G.ammo | 0; $('dAmmo').textContent = fmtRate(G.net.a);
@@ -280,6 +282,27 @@ const UI = (() => {
   }
 
   // ---- camp rules ---------------------------------------------------------------
+  let lastJobs = '';
+  function toggleJobs() { const el = $('jobs'); el.classList.toggle('show'); lastJobs = ''; if (el.classList.contains('show')) renderJobs(); Snd.click(); }
+  function renderJobs() {
+    const L = (G.blue || []).slice().sort((a, b) => b.prio - a.prio || a.id - b.id);
+    const key = L.map(b => b.id + ':' + b.prio + ':' + Math.round(b.prog / b.work * 20)).join() + '|' + (Build.hands | 0) + (Build.busy | 0) + (G.mat | 0);
+    if (key === lastJobs) return; lastJobs = key;
+    const el = $('jobs'), left = Build.workLeft();
+    const rows = L.map(b => '<tr><td>' + (b.w ? '<span style="color:var(--amber)">▸</span> ' : '') + '<a href="#" data-go="' + b.id + '" style="color:inherit"><b>' + Build.label(b.tool) + '</b></a> <small style="color:var(--dim)">at ' + b.x + ',' + b.y + '</small></td>' +
+      '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(b.prog / b.work * 100) + '%;background:' + (b.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(b.work - b.prog) + 's of work</small></td>' +
+      '<td><small>' + Build.costText(b.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
+      '<td style="white-space:nowrap"><button data-p="' + b.id + '" data-d="1" title="Higher priority">▲</button><button data-p="' + b.id + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (b.prio === 3 ? '#ff8a6a' : b.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[b.prio] + '</b> <button data-x="' + b.id + '" title="Cancel and get the unused supplies back">✕</button></td></tr>').join('');
+    el.innerHTML = '<div class="row"><h3>Build queue</h3><button id="jbClose" style="padding:2px 8px">Close (J)</button></div>' +
+      '<div style="color:var(--dim);margin-bottom:6px">Supplies are set aside the moment you place something. It is built by <b>you</b> (stand next to it and hold still) and by free survivors with <b>Build</b> on (K). Urgent jobs are worked first. ' + (L.length ? 'About <b>' + Math.ceil(left) + ' hand-seconds</b> of work queued; hands available: <b>' + (Build.hands | 0) + '</b>, working now: <b>' + (Build.busy | 0) + '</b>.' : '') + '</div>' +
+      (L.length ? '<table class="wk" style="width:100%">' + rows + '</table><div style="margin-top:8px"><button id="jbClear">Cancel everything (refund unused)</button></div>' : '<div style="color:var(--dim)">Nothing queued. Pick a wall or tower and click or drag on the ground to plan it.</div>');
+    $('jbClose').onclick = toggleJobs;
+    const find = id => (G.blue || []).find(b => b.id === +id);
+    el.querySelectorAll('button[data-p]').forEach(b => b.onclick = () => { const bp = find(b.dataset.p); if (bp) Build.setPrio(bp, bp.prio + +b.dataset.d); lastJobs = ''; renderJobs(); Snd.click(); });
+    el.querySelectorAll('button[data-x]').forEach(b => b.onclick = () => { const bp = find(b.dataset.x); if (bp) Build.cancel(bp); lastJobs = ''; renderJobs(); });
+    el.querySelectorAll('a[data-go]').forEach(a => a.onclick = ev => { ev.preventDefault(); const bp = find(a.dataset.go); if (bp) { G.cam.free = true; G.cam.x = bp.x + 0.5; G.cam.y = bp.y + 0.5; } });
+    const cl = el.querySelector('#jbClear'); if (cl) cl.onclick = () => { for (const bp of (G.blue || []).slice()) Build.cancel(bp); lastJobs = ''; renderJobs(); };
+  }
   let lastPack = '';
   function togglePack() {
     const el = $('pack'); el.classList.toggle('show'); lastPack = '';
@@ -548,12 +571,12 @@ const UI = (() => {
     const key = rows.map(r => r.s.id + Units.statusOf(r.s) + JSON.stringify(Units.workOf(r.s)) + (G.sel.includes(r.s.id) ? '*' : '')).join('|');
     if (key === lastWork) return; lastWork = key;
     const el = $('work');
-    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Anyone you are not ordering decides for themselves. <b>Guard</b>: man a wall when a horde comes (and step down afterwards). <b>Scavenge</b>: go out for loot on their own when the camp is calm and has ammo to spare.</div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th></tr>';
-    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td></tr>'; });
+    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Anyone you are not ordering decides for themselves. <b>Guard</b>: man a wall when a horde comes (and step down afterwards). <b>Scavenge</b>: go out for loot on their own when the camp is calm and has ammo to spare. <b>Build</b>: work the build queue (J) when nothing else needs them.</div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th><th>Build</th></tr>';
+    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td><td><button data-w="build" data-i="' + i + '" class="' + (w.build !== false ? 'on' : '') + '">' + (w.build !== false ? 'On' : 'Off') + '</button></td></tr>'; });
     h += '</table>' + (rows.length ? '' : '<div style="color:var(--dim)">No survivors yet.</div>');
     el.innerHTML = h;
     $('wkClose').onclick = toggleWork;
-    el.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w[b.dataset.w] = !w[b.dataset.w]; lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w[b.dataset.w] = b.dataset.w === 'build' ? w.build === false : !w[b.dataset.w]; lastWork = ''; renderWork(); Snd.click(); });
     el.querySelectorAll('a[data-sel]').forEach(a => a.onclick = ev => { ev.preventDefault(); const r = rows[+a.dataset.sel]; clearSel(); G.sel.push(r.s.id); lastWork = ''; renderWork(); lastPeople = ''; });
   }
 
@@ -655,6 +678,7 @@ const UI = (() => {
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
       else if (k === 'i') togglePack();
+      else if (k === 'j') toggleJobs();
       else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();
       else if (k === 'p') toggleRules();
