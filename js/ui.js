@@ -26,6 +26,7 @@ const TOOLS = [
   { cat: 'People', id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
   { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
   { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
+  { cat: 'Camp', id: 'siren', key: '', label: 'Sound the siren', cost: () => HEAT.siren, tip: 'Deliberately draw a real horde to the camp. Click the camp core. Rare, big, and the only way besides noise to get one.' },
   { cat: 'Camp', id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for rescue. Camp level ' + RADIO_LEVEL + '. Then hold out!', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
 const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a', c.med && c.med + 'med', c.fuel && c.fuel + 'fuel'].filter(Boolean).join(' ');
@@ -99,6 +100,7 @@ const UI = (() => {
     $('rFuel').textContent = G.fuel | 0; $('rFuel').style.color = G.power.demand > 0 && G.fuel < 5 ? 'var(--bad)' : '';
     $('rMed').textContent = G.med | 0; $('rMed').style.color = G.med < 1 ? 'var(--dim)' : '';
     $('iPower').textContent = G.power.supply + '/' + G.power.demand.toFixed(1) + (G.power.burn > 0 ? ' · -' + G.power.burn.toFixed(2) + ' fuel/s' : '') + (G.power.demand > G.power.supply ? ' (brownout)' : '');
+    $('iPress').textContent = Math.round(pressureRate() * 60) + '/min · noise ' + (G.heat | 0) + '%' + (hordes.some(h => !h.minor) ? ' · HORDE' : '');
     $('iNests').textContent = G.nests.length + (G.nests.length ? ' (hordes +' + Math.round(NEST.hordeBonus * 100 * G.nests.length) + '%)' : '');
     $('pHp').textContent = Math.max(0, P.hp | 0); $('pHp').style.color = P.hp < 35 ? 'var(--bad)' : '';
     $('zCount').textContent = G.visibleZ;

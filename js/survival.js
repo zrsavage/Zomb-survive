@@ -83,5 +83,5 @@ const Survival = {
     const cost = effCost('grate'); if (!canAfford(cost)) { warn('A grate needs ' + cost.m + ' materials'); return true; }
     pay(cost); s.sealed = true; s.found = true; Snd.build(); log('Sewer sealed.'); return true;
   },
-  sewerShare() { return G.hordeN >= SEWER.from ? Math.min(SEWER.max, SEWER.base + SEWER.per * (G.hordeN - SEWER.from)) : 0; },
+  sewerShare() { const w = waveNow(); return w >= SEWER.from ? Math.min(SEWER.max, SEWER.base + SEWER.per * (w - SEWER.from)) : 0; },
 };

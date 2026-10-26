@@ -17,6 +17,7 @@ const Director = {
   hordeGap() { return G.story === 'randy' ? this.rnd(0.4, 2.2) : this.def().gap; },
   eventGap() { return G.story === 'randy' ? this.rnd(0.3, 2) : this.def().evGap; },
   breather() { return this.def().breather; },
+  pressureMul() { return G.story === 'randy' ? G.pulse : this.def().press * (1 - 0.35 * this.tension()); },
   tension() { return clamp(G.stress, 0, 1); },
   addStress(v) { G.stress = clamp(G.stress + v, 0, 1); },
   tick(dt) {                                      // tension rises with trouble, decays when things are calm
@@ -34,7 +35,7 @@ const Director = {
     const t = this.tension(), calm = 1 - t, can = {
       drop: true, trader: !G.trader, storm: G.storm <= 0, fog: G.fog <= 0,
       stranger: roomForPerson() && G.morale >= 25,
-      sick: G.idle.some(s => !s.sick), stragglers: G.elapsed > 200 && !hordes.length,
+      sick: G.idle.some(s => !s.sick), stragglers: false,
     };
     const w = {
       drop: 1.5 + 3 * t, trader: 1 + 2 * t, stranger: 0.8 + 2.2 * t, storm: (0.2 + 1.6 * calm) * season().storm, fog: 0.4 + 0.8 * calm,

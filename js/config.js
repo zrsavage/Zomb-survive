@@ -10,9 +10,9 @@ const CORE = { x: 45, y: 34 };   // centre tile of the 3x3 camp core
 const SAVE_KEY = 'zomb-survive-save-v1';
 
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   size: 0.7, gap: 1.3, first: 540, ambient: 0.7 },
-  normal: { label: 'Normal', size: 1.0, gap: 1.0, first: 420, ambient: 1.0 },
-  hard:   { label: 'Hard',   size: 1.4, gap: 0.8, first: 300, ambient: 1.3 },
+  easy:   { label: 'Easy',   size: 0.7, gap: 1.3, first: 540, ambient: 0.7, press: 0.7 },
+  normal: { label: 'Normal', size: 1.0, gap: 1.0, first: 420, ambient: 1.0, press: 1.0 },
+  hard:   { label: 'Hard',   size: 1.4, gap: 0.8, first: 300, ambient: 1.3, press: 1.4 },
 };
 
 // ---- structures ---------------------------------------------------------------
@@ -25,8 +25,8 @@ const COST = {
   spike: { m: 6 }, barrel: { m: 16 }, decoy: { m: 4, a: 8 }, radio: { m: 400, f: 120, a: 100 },
   molotov: { m: 2, fuel: 1 }, electrify: { m: 8 }, outpost: { m: 40, a: 10 }, grate: { m: 10 },
 };
-const RADIO_LEVEL = 4;           // camp level needed to build the radio tower
-const RESCUE_TIME = 240;         // seconds you must hold out after the radio goes up
+const RADIO_LEVEL = 5;           // camp level needed to build the radio tower
+const RESCUE_TIME = 300;         // seconds you must hold out after the radio goes up
 const BUILD_RANGE = 11;          // tiles from the survivor
 const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
@@ -87,8 +87,12 @@ const HORDE_MIX = [
 const SCREAM = { gap: 5, radius: 18, rageRadius: 10, rageTime: 4, rageSpeed: 1.15 };
 const BLOAT = { radius: 1.9, defDmg: 28, playerDmg: 22, zombieDmg: 12 };
 
+// The siege: a constant trickle of the dead walks toward the camp (it ramps with time, camp level and how loud you are).
+// A real horde is rare and only comes when the player draws it: noise (HEAT) fills up, or they sound the siren, or call for rescue.
+const PRESSURE = { start: 150, base: 2.0, ramp: 0.35, max: 60, levelMul: 0.15, group: 3, cap: 22, capPerLevel: 7, tierMin: 6 };   // per minute / alive-at-once / minutes per wave
+const HEAT = { max: 100, decay: 0.12, gun: 0.003, gen: 0.16, flood: 0.03, shop: 0.04, radio: 0.35, decoy: 7, breach: 12, vault: 10, siren: { m: 25, fuel: 1 }, after: 25 };
 // Hordes: first arrives after DIFFICULTY.first seconds (long enough to scavenge, wall in and recruit), then at random intervals, growing 1.4x each time.
-const HORDE = { gapMin: 90, gapMax: 160, base: 28, growth: 1.28, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
+const HORDE = { gapMin: 90, gapMax: 160, base: 45, growth: 1.12, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
 const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 12 };
 
 // ---- combat ---------------------------------------------------------------
@@ -203,9 +207,9 @@ const MORALE = {
 
 // ---- storyteller, camp rules, skills, noise -----------------------------------------------
 const STORYTELLERS = {
-  cassandra: { label: 'Cassandra', desc: 'Steady escalation. Hordes grow with your strength and ease off after heavy losses.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45 },
-  phoebe:    { label: 'Phoebe',    desc: 'Chill. Longer lulls, smaller hordes, more help arriving when you struggle.',        gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70 },
-  randy:     { label: 'Randy',     desc: 'Chaos. Gaps and sizes are random: a tiny horde, then a monster, then nothing.',     gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0 },
+  cassandra: { label: 'Cassandra', desc: 'Steady pressure that grows with time and your strength, easing off when you are in trouble.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45, press: 1 },
+  phoebe:    { label: 'Phoebe',    desc: 'Chill. A thinner trickle, smaller hordes, more help arriving when you struggle.',           gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70, press: 0.7 },
+  randy:     { label: 'Randy',     desc: 'Chaos. The trickle surges and dries up at random, and so do the rare hordes.',               gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0,  press: 1 },
 };
 const RULES = {
   ration:    { label: 'Rationing',            level: 1, desc: 'Food upkeep -40%. People grumble.',                                            morale: -6, upkeep: 0.6, excl: ['feast'] },
@@ -275,10 +279,10 @@ const RECIPES = {
 const BLADE = { dur: 160, dmg: 1.5 };
 const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
 const SEWER = { count: 6, minD: 10, maxD: 30, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
-const HERD = { gapMin: 110, gapMax: 190, min: 20, max: 50, cap: 2, attackR: 14 };
+const HERD = { gapMin: 420, gapMax: 720, min: 20, max: 50, cap: 2, attackR: 14 };
 const OUTPOST = { range: 7.5, yield: 0.7, buildRange: 7 };
 const TRUCK = { cost: { m: 150, fuel: 20 }, time: 60, crewTime: 0.65, crewLoot: 1.25 };
-const BOSS_EVERY = 5;
+const BOSS_EVERY = 3;                    // a rare horde brings a Tyrant every third time
 
 // ---- campaign: several towns at once ---------------------------------------------------------------
 const MAX_TOWNS = 3;

@@ -148,8 +148,8 @@ const Units = (() => {
 
   // ---- autonomy: what a survivor does when nobody is telling them -----------------------------------
   const alarm = () => {
-    if (hordes.length || G.nextHorde < 25) return true;
-    let n = 0; for (const z of zombies) if (z.mode === 2 && (z.x - CORE.x) ** 2 + (z.y - CORE.y) ** 2 < 225 && ++n >= 4) return true;
+    if (hordes.some(h => !h.minor)) return true;                                   // a real horde
+    let n = 0; for (const z of zombies) if (z.mode === 2 && (z.x - CORE.x) ** 2 + (z.y - CORE.y) ** 2 < 196 && ++n >= 8) return true;      // or a thick crowd at the walls
     return false;
   };
   function nearZ(x, y, r) { let n = 0; const r2 = r * r; for (const z of zombies) if ((z.x - x) ** 2 + (z.y - y) ** 2 < r2) n++; return n; }

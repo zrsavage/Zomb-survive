@@ -2,7 +2,7 @@
 
 A top-down pixel-art survival / base-defence game that runs in the browser. Open `index.html` (no build step, no dependencies, all audio is synthesised).
 
-You are the last survivor at a ruined camp. There is no day/night cycle: hordes arrive on their own schedule and you only get warning if you build lookouts. Scavenge, scout, fortify, recruit and call for rescue.
+You are the last survivor at a ruined camp. There is no day/night cycle. A constant trickle of the dead walks toward your camp and slowly thickens over the hours; real hordes are rare and only come when you draw them. Scavenge, scout, fortify, recruit and call for rescue.
 
 ## Game loop
 - **Scavenge** (hold `E` beside a building) or **send crews** (risky, pays more) for materials, food and ammo. Some buildings hide survivors.
@@ -11,12 +11,13 @@ You are the last survivor at a ruined camp. There is no day/night cycle: hordes 
 - **Detect hordes** with lookouts (also reveal the map). Without one you only get a faint rumble as a horde nears.
 - **Recruit** survivors with roles - fighter, sniper, medic, builder, scavenger. A sealed, fed camp draws refugees. Post them on walls to shoot (ammo) then stab (free).
 - **Grow** the camp: sealed territory (up to a level limit) holds buildings that produce supplies. **Research** upgrades, **trade** with visiting traders, and survive events (supply drops, sickness, storms).
-- **Win**: at camp level 4 build the **radio tower** and hold out until the helicopter arrives. Hordes get far more frequent while you wait.
+- **The siege:** zombies drift toward the camp all game (the side panel shows the rate per minute). It starts as a few a minute and ramps with time and camp level, with new zombie types appearing as the hours pass. A **noise meter** fills while you run loud things (generators, floodlights, workshops, breaching locked buildings, decoys, a lot of gunfire); when it is full a real horde comes. You can also **sound the siren** on purpose. Hordes are big, bring a Tyrant every third time, and are the only thing that scales with the minutes.
+- **Win**: at camp level 5 build the **radio tower** and hold out for 5 minutes until the helicopter arrives. Hordes come every 20 seconds or so while you wait. Expect a full game to take an hour or more.
 
-Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the horde), leaper (vaults walls), bloater (explodes). Hordes grow 1.4x each time and reach the thousands.
+Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the horde), leaper (vaults walls), bloater (explodes). Hordes are rare, grow with the clock, and reach the hundreds.
 
 ## Storyteller, rules, skills, noise, radio, relationships
-- **Storyteller** (pick at New Game): *Cassandra* (steady, hordes scale with your strength), *Phoebe* (chill, longer lulls, more help), *Randy* (chaos). A tension model decides what happens: when you struggle you get supply drops, traders and strangers; when you are comfortable you get storms, sickness and unannounced straggler groups. After heavy losses it gives you a breather.
+- **Storyteller** (pick at New Game): *Cassandra* (steady pressure that scales with your strength), *Phoebe* (chill, longer lulls, more help), *Randy* (chaos). A tension model decides what happens: when you struggle you get supply drops, traders and strangers; when you are comfortable you get storms, sickness and unannounced straggler groups. After heavy losses it gives you a breather.
 - **Camp rules** (`P`): six policies with trade-offs (Rationing, Overtime, Feasts and Music, Open Arms, Martial Law, Conscript Scavengers). One change per 90s.
 - **Skills**: shooting, melee, medicine, building and scavenging level up with use (0-5 stars); each class starts trained in its own. Max level earns a title (Marksman, Duelist, Field Surgeon, Master Builder, Pathfinder).
 - **Noise**: gunfire, hammering and sprinting carry (expanding rings show how far). Standing still makes you much harder to notice. **Decoys** (`V`) draw idle zombies and part of a horde toward them. *Suppressors* research cuts gunfire range.
@@ -41,7 +42,7 @@ Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the ho
 
 ## More survival systems
 - **Water and hygiene** (wells, rain collectors, latrines), **four seasons** (winter stops gardens and raises food and fuel needs; summer is thirstier) and **fog** weather.
-- **Tyrant bosses** walk with every fifth horde and drop loot, a keycard and a free blueprint.
+- **Tyrant bosses** walk with every third horde and drop loot, a keycard and a free blueprint.
 - **Crafting** at the Workshop: ammo, AP rounds (against armour), incendiary rounds (into crowds) and combat blades.
 - **Locked buildings** (Police Station, Bunker) need a keycard, or fuel to cut through.
 - **Sewers:** unsealed manholes let part of a horde come up near your camp; seal them with a grate.

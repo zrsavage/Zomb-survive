@@ -12,8 +12,8 @@ const AI = (() => {
   const home = () => [CORE.x + 0.5, CORE.y + 3.4];
   const near2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
   const hordeOn = () => {
-    if (hordes.length || G.nextHorde < 25) return true;
-    let n = 0; for (const z of zombies) if (z.mode === 2 && near2(z.x, z.y, CORE.x, CORE.y) < 225 && ++n >= 4) return true;
+    if (hordes.some(h => !h.minor)) return true;
+    let n = 0; for (const z of zombies) if (z.mode === 2 && near2(z.x, z.y, CORE.x, CORE.y) < 144 && (++n >= 12 || (defenders.length < 3 && near2(z.x, z.y, CORE.x, CORE.y) < 49))) return true;      // a crowd, or anything at an undefended core
     return false;
   };
 
@@ -173,18 +173,19 @@ const AI = (() => {
     }
     return out.sort((a, b) => Math.hypot(a[0] - CORE.x, a[1] - CORE.y) - Math.hypot(b[0] - CORE.x, b[1] - CORE.y));
   }
-  function buildFacility(type) {
-    if (G.level < FACILITIES[type].level || facilities.some(f => f.type === type)) return false;
+  function buildFacility(type, max) {
+    if (G.level < FACILITIES[type].level || facilities.filter(f => f.type === type).length >= (max || 1)) return false;
     if (G.mat < FACILITIES[type].cost.m + 25) return false;
     const spots = freeSpots(); if (!spots.length) return false;
-    G.tool = type;
+    G.tool = type; const before = have(type);
     for (let k = 0; k < Math.min(spots.length, 24); k++) {          // some spots are refused (power rules, room): keep trying the next one
       const [x, y] = spots[(k * 5 + facilities.length * 3) % spots.length];
       if (!inBuildRange(x, y)) continue;
-      tryBuild(x, y); if (facilities.some(f => f.type === type)) return true;
+      tryBuild(x, y); if (have(type) > before) return true;
     }
     return false;
   }
+  const have = t => facilities.filter(f => f.type === t).length;
   function plan() {
     const lvl = G.level, L = LEVELS[lvl - 1], r = A.ring[lvl - 1];
     const sealed = G.sealed;
@@ -231,7 +232,7 @@ const AI = (() => {
       const next = order.find(id => !G.res.done[id]);
       if (next) { const r0 = RESEARCH.find(x => x.id === next); if (canAfford(r0.cost) && G.mat > r0.cost.m + 50 + (saving ? L.up.m : 0)) startResearch(next); }
     }
-    if (sealed) for (const t of ['well', 'latrine', 'garden']) if (buildFacility(t)) break;                 // water, hygiene and food are never optional
+    if (sealed) { const gm = 1 + Math.floor(people() / 6), wm = 1 + Math.floor(people() / 12); if (buildFacility('well', wm) || buildFacility('latrine', 1) || buildFacility('garden', gm)) { /* one at a time */ } }                 // water, hygiene and food are never optional
     if (sealed && G.level >= 2 && (!saving || G.mat > L.up.m * 0.6)) for (const t of ['generator', 'workshop']) if (buildFacility(t)) break;
     if (G.lookouts.length < 2 && G.mat > 110 && sealed && (!saving || G.lookouts.length < 1)) { const dx = G.lookouts.length ? 1 : -1; place('lookout', CORE.x + dx * (r + 4), CORE.y + 2); }
     // burn out nests when there is fuel
@@ -244,6 +245,11 @@ const AI = (() => {
     if (hc.length >= 3 && G.ammo > (G.nextHorde < 150 ? 55 : 20) && G.crews.length < 2) {
       const cand = buildings.filter(b => !b.looted && !b.crew && !b.nest && !b.locked && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]).sort((a, b) => Math.hypot(a.x - CORE.x, a.y - CORE.y) - Math.hypot(b.x - CORE.x, b.y - CORE.y))[0];
       if (cand) { G.sel = [hc[0].id, hc[1].id]; G.tool = 'crew'; sendCrew(cand); }
+    }
+    // the way out: call for rescue once the camp is strong enough to survive the final stand
+    if (G.level >= RADIO_LEVEL && G.rescue === null && sealed && defenders.length >= 14 && G.ammo >= COST.radio.a + 120 && canAfford(COST.radio) && G.mat > COST.radio.m + 80) {
+      const spots = freeSpots();
+      for (const [x, y] of spots.slice(0, 20)) { if (!inBuildRange(x, y)) continue; G.tool = 'radio'; tryBuild(x, y); if (G.rescue !== null) break; }
     }
     // the trader: spend spare materials on whatever the camp is short of
     if (G.trader) for (let k = 0; k < 4; k++) {

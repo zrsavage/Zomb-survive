@@ -7,7 +7,7 @@ const Save = (() => {
   const unb64 = (str, Type) => { const s = atob(str), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Type(u.buffer); };
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue', 'storm', 'eventT', 'trader',
-    'refugeeT', 'sel', 'seed', 'morale', 'deaths', 'rules', 'ruleCd', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'nests', 'nestT',
+    'refugeeT', 'sel', 'seed', 'morale', 'deaths', 'rules', 'ruleCd', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'heat', 'pressAcc', 'nests', 'nestT',
     'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName'];
 
   // a town's data, whether it is the live one (globals) or a stored record

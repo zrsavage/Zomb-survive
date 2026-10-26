@@ -171,10 +171,10 @@ function buildTown(seed, name, opts) {
   const D = DIFFICULTY[diffKey] || DIFFICULTY.normal;
   G = {
     seed, diff: diffKey || 'normal', townName: name, level: 1, ammo: 40, mat: 45, food: 30, med: 4, fuel: 0, water: WATER.start, hygiene: HYGIENE.start, ap: 0, inc: 0, blades: 0, keys: 0, craft: 'ammo',
-    fog: 0, thirstT: WATER.thirstGap, incT: 0, supply: 1, supplyLvl: 0, depleted: 0, outposts: [], herdT: 450, herdScan: 0, herdId: 0, herdMsg: null, batt: 0, truckT: 0, idle: [], crews: [], sel: [], sid: Campaign.sid,
+    fog: 0, thirstT: WATER.thirstGap, incT: 0, supply: 1, supplyLvl: 0, depleted: 0, outposts: [], herdT: 700, herdScan: 0, herdId: 0, herdMsg: null, batt: 0, truckT: 0, idle: [], crews: [], sel: [], sid: Campaign.sid,
     nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
     coreHp: LEVELS[0].coreHp, kills: 0, elapsed: Campaign.t,
-    hordeN: 0, hordesBeaten: 0, nextHorde: D.first + (opts.grace || 0), hordeId: 0, rescue: null,
+    hordeN: 0, hordesBeaten: 0, nextHorde: 1e9, heat: 0, pressAcc: 0, pressAlive: 0, pulse: 1, pulseT: 0, hordeId: 0, rescue: null,
     over: false, won: false, paused: false, speed: 1, tool: 'orders', selP: false,
     territory: 0, sealed: false, income: { m: 0, f: 0, a: 0, med: 0, fuel: 0 }, held: 0, lookouts: [],
     fieldDirty: true, fieldTimer: 0, pfTimer: 0, repairT: 0, hudT: 0, visT: 0, scanT: 0, refugeeT: REFUGEE_GAP,
@@ -202,6 +202,7 @@ function newGame(diffKey, seed, storyKey) {
 }
 
 // ---- zombies: spawning ---------------------------------------------------------------
+const waveNow = () => Math.max(G.hordeN, 1 + Math.floor(G.elapsed / 60 / PRESSURE.tierMin));      // zombie variety and toughness follow time as well as hordes
 function pickType(n) {
   const r = rng(); let acc = 0;
   for (const m of HORDE_MIX) {
@@ -212,9 +213,9 @@ function pickType(n) {
   return 'walker';
 }
 function makeZombie(x, y, mode, h, forceType) {
-  const type = forceType || (mode === 2 ? pickType(G.hordeN) : (rng() < 0.05 ? 'runner' : 'walker'));
+  const type = forceType || (mode === 2 ? pickType(waveNow()) : (rng() < 0.05 ? 'runner' : 'walker'));
   const zt = ZTYPES[type];
-  const tough = mode === 2 ? 1 + HP_SCALE.per * Math.max(0, G.hordeN - HP_SCALE.from + 1) : 1;      // later hordes are tougher
+  const tough = mode === 2 ? 1 + HP_SCALE.per * Math.max(0, waveNow() - HP_SCALE.from + 1) : 1;      // later hordes are tougher
   return {
     hx: x, hy: y, burn: 0, hd: null, spT: 1 + rng() * 2, x, y, type, hp: zt.hp * tough, mode, h: h || 0, lose: 0, wt: 0, wx: 0, wy: 0, rage: 0, scr: SCREAM.gap * rng(),
     speed: zt.speed * (0.92 + rng() * 0.16), climb: 0, lift: 0, anim: rng() * 6, face: 1, st: 0, v: rng() * 6 | 0,
@@ -258,13 +259,62 @@ function spawnAmbient() {          // trickle in zombies out of sight so the tow
 function startHorde(opts = {}) {
   const minor = !!opts.minor, D = DIFFICULTY[G.diff];
   const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
-  const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1)));
-  hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 10 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
+  const mins = G.elapsed / 60;
+  const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1)));
+  hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 9 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
   if (minor) return;
   G.recentDeaths = 0;
-  const gap = G.rescue !== null ? HORDE.finalGapMin + rng() * (HORDE.finalGapMax - HORDE.finalGapMin)
-    : (HORDE.gapMin + rng() * (HORDE.gapMax - HORDE.gapMin)) * Math.max(0.6, 1 - 0.03 * n) * D.gap * Director.hordeGap();
-  G.nextHorde = gap;
+  G.nextHorde = G.rescue !== null ? HORDE.finalGapMin + rng() * (HORDE.finalGapMax - HORDE.finalGapMin) : 1e9;       // hordes only come when drawn
+}
+
+// ---- the siege: a constant trickle of the dead, and the noise that can draw a real horde ---------------------------------------------------
+function pressureRate() {                                   // zombies per second heading for the camp
+  const mins = Math.max(0, G.elapsed - PRESSURE.start) / 60, D = DIFFICULTY[G.diff];      // a few quiet minutes to find your feet
+  let r = Math.min(PRESSURE.max, (G.elapsed < PRESSURE.start ? 0 : PRESSURE.base * Math.min(1, mins / 4)) + PRESSURE.ramp * mins);
+  r *= 1 + PRESSURE.levelMul * (G.level - 1);
+  r *= D.press * Director.pressureMul() * (1 + 0.8 * G.heat / HEAT.max) * (G.rescue !== null ? 1.5 : 1);
+  return r / 60;
+}
+function spawnPressureZombie() {
+  if (zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) return false;
+  const open = sewers.filter(s => !s.sealed);
+  if (open.length && rng() < Survival.sewerShare()) {
+    const s = pick(open);
+    if (!s.found) { s.found = true; log('Zombies are climbing out of a manhole ' + compass(s.x - CORE.x, s.y - CORE.y) + ' of camp! Seal sewer accesses with a grate.'); }
+    zombies.push(makeZombie(s.x + 0.5, s.y + 0.5, 2, 0)); return true;
+  }
+  for (let t = 0; t < 14; t++) {
+    const side = rng() * 4 | 0, along = rng();
+    const x = side === 0 ? 0 : side === 1 ? W - 1 : (along * W | 0), y = side === 2 ? 0 : side === 3 ? H - 1 : (along * H | 0), i = y * W + x;
+    if (bld[i] >= 0 || wall[i] || dist[i] === Infinity) continue;
+    zombies.push(makeZombie(x + 0.3 + rng() * 0.4, y + 0.3 + rng() * 0.4, 2, 0)); return true;
+  }
+  return false;
+}
+function addHeat(v) { G.heat = clamp(G.heat + v, 0, HEAT.max); }
+function lureHorde(why) {
+  startHorde({ mult: 1.15, lure: true }); G.heat = HEAT.after;
+  log(why === 'siren' ? 'The siren wails across the town. They are coming.' : 'All that noise has drawn a horde. They are coming.');
+  Snd.horn && Snd.horn(); shake(2);
+}
+function updatePressure(dt) {
+  // heat: loud things you choose to run fill it, quiet decays it; full means a real horde
+  let gain = 0;
+  for (const f of facilities) { if (f.type === 'generator' && f.on) gain += HEAT.gen; else if (f.type === 'floodlight' && f.on) gain += HEAT.flood; else if (f.type === 'workshop' && f.on) gain += HEAT.shop; }
+  if (G.rescue !== null) gain += HEAT.radio;
+  G.heat = clamp(G.heat + (gain - HEAT.decay) * dt, 0, HEAT.max);
+  if (G.heat >= HEAT.max && G.rescue === null && !hordes.some(h => !h.minor)) lureHorde('noise');
+  // the trickle
+  G.pulseT -= dt; if (G.pulseT <= 0) { G.pulseT = 40 + rng() * 80; G.pulse = 0.3 + rng() * 1.9; }
+  const cap = PRESSURE.cap + PRESSURE.capPerLevel * (G.level - 1);
+  G.pressAcc += pressureRate() * dt;
+  while (G.pressAcc >= 1) {
+    if (G.pressAlive >= cap) { G.pressAcc = Math.min(G.pressAcc, 1.5); break; }
+    const n = Math.min(Math.floor(G.pressAcc), 1 + (rng() * PRESSURE.group | 0));
+    let made = 0; for (let k = 0; k < n; k++) if (spawnPressureZombie()) made++;
+    G.pressAcc -= Math.max(1, n); G.pressAlive += made;
+    if (!made) break;
+  }
 }
 function spawnHordeZombie(h, forceType) {
   if (zombies.length >= Math.min(MAX_ZOMBIES, Q.maxZ)) return false;
@@ -342,7 +392,7 @@ function updateZombies(dt) {
       continue;
     }
     if (z.mode === 2 && Math.hypot(z.x - cx, z.y - cy) < 2.2) {
-      G.coreHp -= zt.dmg * dt; z.face = cx > z.x ? 1 : -1; z.st = 1;
+      G.coreHp -= zt.dmg * dt * 0.45; z.face = cx > z.x ? 1 : -1; z.st = 1;
       if (G.coreHp <= 0 && !G.over) Campaign.campFell();
       continue;
     }
@@ -593,7 +643,7 @@ function fight(e, dt, o) {
     if (kind === 'ap') { G.ap -= 1; af = 1; dm *= 1.15; }
     else if (kind === 'inc') { G.inc -= 1; dm *= 0.7; for (const z of zombies) if ((z.x - best.x) ** 2 + (z.y - best.y) ** 2 < 1.6) z.burn = FIRE.burn; }
     else G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1));
-    best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot'; e.act = 0.22; e.actK = 'shoot';
+    addHeat(HEAT.gun); best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot'; e.act = 0.22; e.actK = 'shoot';
     e.cd = o.cd * (o.cdMul || 1) * (has('rapid') ? 0.8 : 1) * (o.starving ? 1.8 : 1) * (0.9 + rng() * 0.2);
     e.face = best.x >= e.px ? 1 : -1;
     tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1, ap: kind === 'ap', inc: kind === 'inc' });
@@ -752,7 +802,7 @@ function updatePlayer(dt) {
       if (P.lootB !== bi) { P.lootB = bi; P.loot = 0; }
       P.loot += dt; P.lootNeed = need.t;
       Snd.tick();
-      if (P.loot >= need.t) { if (need.key) G.keys--; if (need.fuel) G.fuel -= need.fuel; scavenge(b); P.loot = 0; P.lootB = -1; }
+      if (P.loot >= need.t) { if (need.key) G.keys--; if (need.fuel) { G.fuel -= need.fuel; addHeat(HEAT.breach); } if (b.type === 'bunker') addHeat(HEAT.vault); scavenge(b); P.loot = 0; P.lootB = -1; }
     }
   } else { P.loot = 0; P.lootB = -1; }
 
@@ -889,6 +939,7 @@ function updateEconomy(dt) {
 
 // ---- hordes: schedule, detection, warnings ---------------------------------------------------------------
 function updateHordes(dt) {
+  updatePressure(dt);
   G.nextHorde -= dt;
   if (G.nextHorde <= 0) startHorde();
   for (const h of hordes) {
@@ -905,7 +956,9 @@ function updateHordes(dt) {
   G.scanT = 0.5;
   const R2 = lookoutR() ** 2, byId = {};
   for (const h of hordes) { h.alive = 0; h.near = Infinity; h.cx = h.cy = 0; byId[h.id] = h; }
+  G.pressAlive = 0;
   for (const z of zombies) {
+    if (z.mode === 2 && !z.h) G.pressAlive++;
     const h = z.h && byId[z.h]; if (!h) continue;
     h.alive++; h.cx += z.x; h.cy += z.y;
     const d = Math.hypot(z.x - CORE.x, z.y - CORE.y);
@@ -1019,6 +1072,12 @@ function refund(name) { return Math.floor(((COST[name].m || 0) * 0.5)); }
 function tryBuild(tx, ty) {
   if (G.over || !inb(tx, ty)) return;
   const i = ty * W + tx, tool = G.tool;
+  if (tool === 'siren') {                                                  // deliberately draw a horde: click the camp core
+    if (!isCoreTile(tx, ty)) return warn('Click the camp core to sound the siren');
+    if (hordes.some(h => !h.minor)) return warn('A horde is already on its way');
+    if (!canAfford(HEAT.siren)) return warn('The siren needs ' + HEAT.siren.m + ' materials and ' + HEAT.siren.fuel + ' fuel');
+    pay(HEAT.siren); lureHorde('siren'); return;
+  }
   if (tool === 'molotov') return Outside.throwMolotov(tx, ty);              // can be thrown at buildings (nests)
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
@@ -1070,7 +1129,7 @@ function tryBuild(tx, ty) {
     if (wall[i] || trapAt[i]) return;
     const cost = effCost('decoy');
     if (!canAfford(cost)) return warn('Needs ' + cost.m + ' materials and ' + cost.a + ' ammo');
-    pay(cost); decoys.push({ x: tx + 0.5, y: ty + 0.5, t: NOISE.decoyTime, e: 0 }); Snd.build();
+    pay(cost); decoys.push({ x: tx + 0.5, y: ty + 0.5, t: NOISE.decoyTime, e: 0 }); addHeat(HEAT.decoy); Snd.build();
     log('Decoy set: it will draw the dead for ' + NOISE.decoyTime + 's');
   } else if (tool === 'spike' || tool === 'barrel') {
     if (wall[i] || trapAt[i] || ground[i] === undefined) return;

@@ -205,8 +205,9 @@ const Bg = {
       t.pending.eta -= dt;
       if (t.pending.eta <= 0) { const pd = t.pending; t.pending = null; this.resolve(t, pd); }
     } else {
-      g.nextHorde -= dt;
-      if (g.nextHorde <= 0) this.launch(t);
+      if (g.raidT === undefined) g.raidT = 700 + rng() * 700;         // a town you are not in still gets raided now and then
+      g.raidT -= dt;
+      if (g.raidT <= 0) this.launch(t);
     }
   },
 
@@ -214,9 +215,9 @@ const Bg = {
     const g = t.G, D = DIFFICULTY[Campaign.diff], st = STORYTELLERS[Campaign.story] || STORYTELLERS.cassandra;
     const n = ++g.hordeN;
     const sMul = Campaign.story === 'randy' ? 0.6 + rng() * 1.1 : st.size * clamp(0.9 + this.strength(t) / 90, 0.9, st.adapt);
-    const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (0.9 + rng() * 0.2) * D.size * sMul * (1 + NEST.hordeBonus * g.nests.length)));
+    const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * g.elapsed / 60) * (0.9 + rng() * 0.2) * D.size * sMul * (1 + NEST.hordeBonus * g.nests.length)));
     const gapMul = Campaign.story === 'randy' ? 0.4 + rng() * 1.8 : st.gap;
-    g.nextHorde = (HORDE.gapMin + rng() * (HORDE.gapMax - HORDE.gapMin)) * Math.max(0.6, 1 - 0.03 * n) * D.gap * gapMul;
+    g.raidT = (900 + rng() * 900) * D.gap * (gapMul || 1);
     t.pending = { size, n, eta: BG.eta, boss: n % BOSS_EVERY === 0 ? (n >= 10 ? 2 : 1) : 0 };
     if (g.lookouts && g.lookouts.length) Campaign.notify(t.name + ': lookouts report a horde of about ' + size + ', arriving in ~' + BG.eta + 's. Travel there to defend it yourself, or trust your garrison.', true);
   },
