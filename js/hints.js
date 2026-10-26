@@ -52,6 +52,8 @@ const Hints = (() => {
     since += dt;
     if (cur) { shown += dt; if (shown > 16) hide(); return; }
     if (!on() || G.intro || G.paused || since < 22) return;
+    if (hordes.some(h => !h.minor) || Loot.isOpen()) return;
+    { let hunters = 0; for (const z of zombies) if (z.mode !== 0 && z.mode !== 3 && (z.x - P.px) ** 2 + (z.y - P.py) ** 2 < 144 && ++hunters >= 3) return; }
     tick -= dt; if (tick > 0) return; tick = 1;
     for (const h of LIST) {
       if (seen[h.id]) continue;

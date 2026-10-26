@@ -4847,7 +4847,7 @@ const Loot = (() => {
     else { const L2 = EVENTS.crateLoot, rl = v => Math.round(v * (0.8 + rng() * 0.5)); e = [{ r: 'm', n: rl(L2.m) }, { r: 'f', n: rl(L2.f) }, { r: 'a', n: rl(L2.a) }]; if (rng() < 0.35) e.push({ i: Items.roll(), n: 1 }); }
     return (c.items = e);
   }
-  const titleOf = c => c.type === 'boss' ? 'The Tyrant’s cache' : c.type === 'airdrop' ? 'Supply drop' : c.type === 'pile' ? (c.items && c.items.length === 1 ? 'Found: ' + entryName(c.items[0]) : 'Items on the ground') : 'Supply crate';
+  const titleOf = c => c.title ? c.title : c.type === 'boss' ? 'The Tyrant’s cache' : c.type === 'airdrop' ? 'Supply drop' : c.type === 'pile' ? (c.items && c.items.length === 1 ? 'Found: ' + entryName(c.items[0]) : 'Items on the ground') : 'Supply crate';
   // per-frame: open the window when the player presses E beside something
   L.update = function (dt) {
     L.cd -= dt; if (L.cur) return;
@@ -4874,7 +4874,7 @@ const Loot = (() => {
     const n = L.near;
     if (n && !L.cur && !AI.on) {
       const px = n.x * T, py = n.y * T - (n.type === 'pile' ? 24 : 26), label = 'E  ' + (n.type === 'pile' ? 'Pick up' : 'Open') + ': ' + titleOf(n).replace('Found: ', '');
-      ctx.font = '8px monospace'; const w = ctx.measureText(label).width + 8;
+      ctx.font = '7px monospace'; const w = ctx.measureText(label).width + 8;
       ctx.fillStyle = '#000c'; ctx.fillRect(px - w / 2, py - 7, w, 12); ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 1; ctx.strokeRect(px - w / 2 + 0.5, py - 6.5, w - 1, 11);
       ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, px, py - 0.5); ctx.textAlign = 'left';
     }
@@ -4913,7 +4913,8 @@ const Build = (() => {
     if (G.completing) return false;
     const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool, x, y, cost: { ...cost }, work: timeOf(tool, y * W + x), prog: 0, prio: 2 };
     list().push(bp); Snd.click();
-    floatText(x + 0.5, y - 0.3, '-' + costText(cost), '#e8c070');
+    B.pop = B.pop || { n: 0, cost: {}, t: 0 }; B.pop.n++; B.pop.t = 0.4; B.pop.x = x + 0.5; B.pop.y = y - 0.3;
+    for (const k in cost) B.pop.cost[k] = (B.pop.cost[k] || 0) + cost[k];
     return true;
   };
   B.cancel = bp => {
@@ -4946,7 +4947,8 @@ const Build = (() => {
   const order = (a, b) => b.prio - a.prio || a.id - b.id;
 
   B.update = dt => {
-    const L = list(); if (!L.length) return;
+    if (B.pop && B.pop.n && (B.pop.t -= dt) <= 0) { floatText(B.pop.x, B.pop.y, '-' + costText(B.pop.cost) + (B.pop.n > 1 ? ' (' + B.pop.n + ' planned)' : ''), '#e8c070'); B.pop = { n: 0, cost: {}, t: 0 }; }
+    const L = list(); if (!L.length) { B.idle = 0; return; }
     const crew = new Set(); for (const c of G.crews) for (const s of c.members) crew.add(s.id);
     const work = new Map(); let hands = 0, busy = 0;
     const add = (bp, r) => { work.set(bp, (work.get(bp) || 0) + r); };
@@ -4974,6 +4976,7 @@ const Build = (() => {
       else if (!u.order) { Units.moveTo(u, bp.x + 0.5, bp.y + 0.5); u.order.build = true; }
     }
     B.hands = hands + 1; B.busy = busy + (B.you ? 1 : 0);
+    if (!AI.on && !G.intro) { B.idle = (B.idle || 0) + (B.busy ? -B.idle : dt); if (B.idle > 14) { B.idle = -30; toast('Planned builds are waiting for hands. Stand next to them and hold still (J: build queue).'); } }
     for (const [bp, r] of work) {
       bp.prog += r * dt; bp.w = r; bp.tick = (bp.tick || 0) - dt;
       if (bp.tick <= 0) { bp.tick = 1.1; Snd.tick(); investigate(bp.x + 0.5, bp.y + 0.5, NOISE.build, false); }
@@ -4997,8 +5000,8 @@ const Build = (() => {
     if (G.hover) {                                                    // name what you are pointing at
       const bp = B.at(G.hover.tx, G.hover.ty);
       if (bp) {
-        const s = labelOf(bp.tool) + ' - ' + PRIO[bp.prio] + ' priority - ' + Math.round(bp.prog / bp.work * 100) + '%' + (bp.w ? '' : ' (waiting for a free pair of hands)'), px = (bp.x + 0.5) * T, py = bp.y * T - 8;
-        ctx.font = '8px monospace'; const w = ctx.measureText(s).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 7, w, 12); ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, px, py - 0.5); ctx.textAlign = 'left';
+        const s = labelOf(bp.tool) + ' · ' + PRIO[bp.prio] + ' · ' + Math.round(bp.prog / bp.work * 100) + '%' + (bp.w ? '' : ' · needs a builder'), px = (bp.x + 0.5) * T, py = bp.y * T - 8;
+        ctx.font = '6px monospace'; const w = ctx.measureText(s).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 5, w, 9); ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, px, py - 0.5); ctx.textAlign = 'left';
       }
     }
   };
@@ -5082,7 +5085,7 @@ const Weapons = (() => {
       else ctx.drawImage(Items.canvas('scrap'), Math.round(px - 6), Math.round(py - 12 + Math.sin(t * 3 + b.x) * 1.2), 12, 12);
       ctx.globalAlpha = 1;
       if (near) {
-        const lab = (b.locked ? 'Locked: keycard or fuel' : 'Hold E: search the ' + BUILDING_TYPES[b.type].label.toLowerCase()); ctx.font = '8px monospace';
+        const lab = (b.locked ? 'Locked: keycard or fuel' : 'Hold E: search the ' + BUILDING_TYPES[b.type].label.toLowerCase()); ctx.font = '7px monospace';
         const w = ctx.measureText(lab).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 29, w, 12); ctx.strokeStyle = b.locked ? '#e8c547' : '#7fcf6a'; ctx.lineWidth = 1; ctx.strokeRect(px - w / 2 + 0.5, py - 28.5, w - 1, 11);
         ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, px, py - 22.5); ctx.textAlign = 'left';
       }
@@ -5146,6 +5149,8 @@ const Hints = (() => {
     since += dt;
     if (cur) { shown += dt; if (shown > 16) hide(); return; }
     if (!on() || G.intro || G.paused || since < 22) return;
+    if (hordes.some(h => !h.minor) || Loot.isOpen()) return;
+    { let hunters = 0; for (const z of zombies) if (z.mode !== 0 && z.mode !== 3 && (z.x - P.px) ** 2 + (z.y - P.py) ** 2 < 144 && ++hunters >= 3) return; }
     tick -= dt; if (tick > 0) return; tick = 1;
     for (const h of LIST) {
       if (seen[h.id]) continue;
@@ -5191,8 +5196,21 @@ const Intro = (() => {
   ];
   const wallCount = () => { let n = 0; for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) { const x = CORE.x + dx, y = CORE.y + dy; if (inb(x, y) && wall[y * W + x] === K.WALL) n++; } return n; };
   function pickHouse() {
-    let best = null, bd = 1e9;
-    for (const b of buildings) { if (b.looted || b.locked || b.nest || b.crew || b.type !== 'house') continue; const d = Math.hypot(b.x + b.w / 2 - CORE.x, b.y + b.h / 2 - CORE.y); if (d < bd && d > 6) { bd = d; best = b; } }
+    let best = null, bd = 1e9;                                               // near camp, and away from the dead
+    for (const b of buildings) {
+      if (b.looted || b.locked || b.nest || b.crew || b.type !== 'house') continue;
+      const dx = b.x + b.w / 2, dy = b.y + b.h, d = Math.hypot(dx - CORE.x, dy - CORE.y); if (d <= 6) continue;
+      let n = 0; for (const z of zombies) if (Math.hypot(z.x - dx, z.y - dy) < 8) n++;
+      const sc = d + n * 1.5; if (sc < bd) { bd = sc; best = b; }
+    }
+    if (best) {                                                              // quietly thin out the dead around the door and along the way, so the first trip is a lesson, not a funeral
+      const ex = best.x + best.w / 2, ey = best.y + best.h, sx = CORE.x + 0.5, sy = CORE.y + 0.5, L2 = (ex - sx) ** 2 + (ey - sy) ** 2 || 1;
+      for (let k = zombies.length - 1; k >= 0; k--) {
+        const z = zombies[k]; if (z.mode !== 0 && z.mode !== 3) continue;
+        const t = clamp(((z.x - sx) * (ex - sx) + (z.y - sy) * (ey - sy)) / L2, 0, 1), px = sx + (ex - sx) * t, py = sy + (ey - sy) * t;
+        if (Math.hypot(z.x - ex, z.y - ey) < 9 || Math.hypot(z.x - px, z.y - py) < 4) zombies.splice(k, 1);
+      }
+    }
     return best;
   }
   function spawnWalkers(n) {
@@ -5208,7 +5226,7 @@ const Intro = (() => {
     G.intro = { step: 0 }; G.introHold = true; G.fireLit = false; G.ruins = true;
     G.ammo = 10; G.food = 12; G.nextHorde = Math.max(G.nextHorde, 900); G.eventT = 900; G.refugeeT = 900;
     P.mag = 5; P.inv = [];
-    I.cache = { x: CORE.x + 0.5 - 2.6, y: CORE.y + 2.6, t: 1e9, type: 'pile', items: [{ r: 'a', n: 35 }, { r: 'f', n: 18 }, { i: 'bandage', n: 1 }] };
+    I.cache = { x: CORE.x + 0.5 - 2.6, y: CORE.y + 2.6, t: 1e9, type: 'pile', title: 'A buried cache', items: [{ r: 'a', n: 35 }, { r: 'f', n: 18 }, { i: 'bandage', n: 1 }] };
     crates.push(I.cache);
     I.walked = 0; I.lx = P.px; I.ly = P.py; I.fireP = 0; I.packSeen = false; I.stepStarted = -1;
     G.paused = true; slide = 0; showSlide();
@@ -5223,7 +5241,7 @@ const Intro = (() => {
     typing = performance.now();
   }
   function advance() { if (!card || !card.classList.contains('show')) return false; if (performance.now() - typing < 500) return true; slide++; if (slide >= SLIDES.length) finishSlides(); else showSlide(); return true; }
-  function finishSlides() { card.classList.remove('show'); G.paused = false; G.cam.zoom = Math.min(G.cam.zoom, 1); render_hint(); }
+  function finishSlides() { card.classList.remove('show'); G.paused = false; render_hint(); }
   const render_hint = () => { if (G.intro) toast('Look around. You are not alone out here.'); };
   I.slidesOpen = () => !!(card && card.classList.contains('show'));
   I.onKey = k => { if (!I.slidesOpen()) return false; if (k === ' ' || k === 'enter' || k === 'e') advance(); else if (k === 'escape') finishSlides(); return true; };
@@ -5293,7 +5311,7 @@ const Intro = (() => {
     if (d > 5) {                                                          // an arrow beside you pointing the way
       const a = Math.atan2(t.y - P.py, t.x - P.px), ax = P.px * T + Math.cos(a) * 30, ay = (P.py - 0.5) * T + Math.sin(a) * 30;
       ctx.save(); ctx.translate(ax, ay); ctx.rotate(a); ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-4, -5); ctx.lineTo(-2, 0); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-      ctx.font = '8px monospace'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(Math.round(d) + 'm', ax + Math.cos(a) * 12 - 8, ay + Math.sin(a) * 12 + 3);
+      ctx.font = '7px monospace'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(Math.round(d) + 'm', ax + Math.cos(a) * 12 - 8, ay + Math.sin(a) * 12 + 3);
     }
   };
   return I;
@@ -6083,7 +6101,7 @@ const UI = (() => {
     for (const [k, id] of RESROW) { const r = Items.RES[k], v = G[r.field] | 0, w = $(id).parentElement; w.title = r.name + ': ' + v + ' of ' + storeCap() + ' storable. ' + r.use + '.'; }
     $('rJobs').textContent = (G.blue || []).length; $('rJobs').style.color = (G.blue || []).length > 6 ? '#e8a447' : '';
     if ($('jobs').classList.contains('show')) renderJobs();
-    $('rPack').textContent = Items.packCount(); $('rPack').style.color = Items.packCount() >= Items.PACK.slots * Items.PACK.stack ? 'var(--bad)' : '';
+    $('rPack').textContent = Items.pack().length; $('rPack').style.color = Items.pack().length >= Items.PACK.slots ? 'var(--bad)' : '';
     if ($('pack').classList.contains('show')) renderPack();
     $('rAmmo').textContent = G.ammo | 0; $('dAmmo').textContent = fmtRate(G.net.a);
     $('rMat').textContent = G.mat | 0; $('dMat').textContent = fmtRate(G.net.m);
@@ -6106,6 +6124,9 @@ const UI = (() => {
     $('iSupply').textContent = Math.round(G.supply * 100) + '%' + (G.depleted ? ' · ' + G.depleted + ' dry' : '');
     $('supBar').style.width = (G.supply * 100) + '%'; $('supBar').style.background = G.supply < STOCK.crit ? 'var(--bad)' : G.supply < STOCK.warn ? '#e8a447' : 'var(--good)';
     $('iWater').textContent = (G.water | 0) + ' / ' + Math.round(G.hygiene) + '% clean'; $('iWater').style.color = G.water <= 0 || G.hygiene < HYGIENE.low ? 'var(--bad)' : '';
+    const rowOf = id => $(id).closest('.row'); const show = (id, v) => { const r = rowOf(id); if (r) r.style.display = v ? '' : 'none'; };
+    show('iStock', G.ap + G.inc + G.blades + G.keys > 0); show('iNests', G.nests.length > 0 || !!G.nestSeen); show('iPower', facilities.some(f => ['generator', 'solar', 'floodlight', 'workshop', 'turret'].includes(f.type)));
+    show('iPress', G.elapsed >= PRESSURE.start * 0.8 || G.heat > 3);
     $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Blades ' + G.blades + ' · Keys ' + G.keys;
     const hasShop = facilities.some(f => f.type === 'workshop');
     $('craftRow').style.display = hasShop ? '' : 'none';
@@ -6120,10 +6141,11 @@ const UI = (() => {
     $('iNests').textContent = G.nests.length + (G.nests.length ? ' (hordes +' + Math.round(NEST.hordeBonus * 100 * G.nests.length) + '%)' : '');
     $('pHp').textContent = Math.max(0, P.hp | 0); $('pHp').style.color = P.hp < 35 ? 'var(--bad)' : '';
     $('zCount').textContent = G.visibleZ;
-    const hd = $('horde');
+    const hd = $('horde'); hd.style.display = '';
     if (G.hordeMsg) { hd.className = 'panel ' + G.hordeMsg.cls; hd.textContent = G.hordeMsg.text; }
     else if (G.herdMsg) { hd.className = 'panel alert'; hd.textContent = G.herdMsg; }
-    else { hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
+    else if (G.intro) { hd.className = 'panel'; hd.style.display = 'none'; }
+    else { hd.style.display = ''; hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
     if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = G.rescueKind === 'convoy' ? 'Convoy arrives in ' + fmtTime(Math.max(0, G.rescue)) : 'Broadcasting for supplies: next drop in ' + fmtTime(Math.max(0, G.dropT)) + ' - ends in ' + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
 

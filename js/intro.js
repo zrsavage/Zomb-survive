@@ -32,8 +32,21 @@ const Intro = (() => {
   ];
   const wallCount = () => { let n = 0; for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) { const x = CORE.x + dx, y = CORE.y + dy; if (inb(x, y) && wall[y * W + x] === K.WALL) n++; } return n; };
   function pickHouse() {
-    let best = null, bd = 1e9;
-    for (const b of buildings) { if (b.looted || b.locked || b.nest || b.crew || b.type !== 'house') continue; const d = Math.hypot(b.x + b.w / 2 - CORE.x, b.y + b.h / 2 - CORE.y); if (d < bd && d > 6) { bd = d; best = b; } }
+    let best = null, bd = 1e9;                                               // near camp, and away from the dead
+    for (const b of buildings) {
+      if (b.looted || b.locked || b.nest || b.crew || b.type !== 'house') continue;
+      const dx = b.x + b.w / 2, dy = b.y + b.h, d = Math.hypot(dx - CORE.x, dy - CORE.y); if (d <= 6) continue;
+      let n = 0; for (const z of zombies) if (Math.hypot(z.x - dx, z.y - dy) < 8) n++;
+      const sc = d + n * 1.5; if (sc < bd) { bd = sc; best = b; }
+    }
+    if (best) {                                                              // quietly thin out the dead around the door and along the way, so the first trip is a lesson, not a funeral
+      const ex = best.x + best.w / 2, ey = best.y + best.h, sx = CORE.x + 0.5, sy = CORE.y + 0.5, L2 = (ex - sx) ** 2 + (ey - sy) ** 2 || 1;
+      for (let k = zombies.length - 1; k >= 0; k--) {
+        const z = zombies[k]; if (z.mode !== 0 && z.mode !== 3) continue;
+        const t = clamp(((z.x - sx) * (ex - sx) + (z.y - sy) * (ey - sy)) / L2, 0, 1), px = sx + (ex - sx) * t, py = sy + (ey - sy) * t;
+        if (Math.hypot(z.x - ex, z.y - ey) < 9 || Math.hypot(z.x - px, z.y - py) < 4) zombies.splice(k, 1);
+      }
+    }
     return best;
   }
   function spawnWalkers(n) {
@@ -49,7 +62,7 @@ const Intro = (() => {
     G.intro = { step: 0 }; G.introHold = true; G.fireLit = false; G.ruins = true;
     G.ammo = 10; G.food = 12; G.nextHorde = Math.max(G.nextHorde, 900); G.eventT = 900; G.refugeeT = 900;
     P.mag = 5; P.inv = [];
-    I.cache = { x: CORE.x + 0.5 - 2.6, y: CORE.y + 2.6, t: 1e9, type: 'pile', items: [{ r: 'a', n: 35 }, { r: 'f', n: 18 }, { i: 'bandage', n: 1 }] };
+    I.cache = { x: CORE.x + 0.5 - 2.6, y: CORE.y + 2.6, t: 1e9, type: 'pile', title: 'A buried cache', items: [{ r: 'a', n: 35 }, { r: 'f', n: 18 }, { i: 'bandage', n: 1 }] };
     crates.push(I.cache);
     I.walked = 0; I.lx = P.px; I.ly = P.py; I.fireP = 0; I.packSeen = false; I.stepStarted = -1;
     G.paused = true; slide = 0; showSlide();
@@ -64,7 +77,7 @@ const Intro = (() => {
     typing = performance.now();
   }
   function advance() { if (!card || !card.classList.contains('show')) return false; if (performance.now() - typing < 500) return true; slide++; if (slide >= SLIDES.length) finishSlides(); else showSlide(); return true; }
-  function finishSlides() { card.classList.remove('show'); G.paused = false; G.cam.zoom = Math.min(G.cam.zoom, 1); render_hint(); }
+  function finishSlides() { card.classList.remove('show'); G.paused = false; render_hint(); }
   const render_hint = () => { if (G.intro) toast('Look around. You are not alone out here.'); };
   I.slidesOpen = () => !!(card && card.classList.contains('show'));
   I.onKey = k => { if (!I.slidesOpen()) return false; if (k === ' ' || k === 'enter' || k === 'e') advance(); else if (k === 'escape') finishSlides(); return true; };
@@ -134,7 +147,7 @@ const Intro = (() => {
     if (d > 5) {                                                          // an arrow beside you pointing the way
       const a = Math.atan2(t.y - P.py, t.x - P.px), ax = P.px * T + Math.cos(a) * 30, ay = (P.py - 0.5) * T + Math.sin(a) * 30;
       ctx.save(); ctx.translate(ax, ay); ctx.rotate(a); ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-4, -5); ctx.lineTo(-2, 0); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
-      ctx.font = '8px monospace'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(Math.round(d) + 'm', ax + Math.cos(a) * 12 - 8, ay + Math.sin(a) * 12 + 3);
+      ctx.font = '7px monospace'; ctx.fillStyle = '#ffe9b0'; ctx.fillText(Math.round(d) + 'm', ax + Math.cos(a) * 12 - 8, ay + Math.sin(a) * 12 + 3);
     }
   };
   return I;

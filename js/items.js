@@ -168,7 +168,7 @@ const Loot = (() => {
     else { const L2 = EVENTS.crateLoot, rl = v => Math.round(v * (0.8 + rng() * 0.5)); e = [{ r: 'm', n: rl(L2.m) }, { r: 'f', n: rl(L2.f) }, { r: 'a', n: rl(L2.a) }]; if (rng() < 0.35) e.push({ i: Items.roll(), n: 1 }); }
     return (c.items = e);
   }
-  const titleOf = c => c.type === 'boss' ? 'The Tyrant’s cache' : c.type === 'airdrop' ? 'Supply drop' : c.type === 'pile' ? (c.items && c.items.length === 1 ? 'Found: ' + entryName(c.items[0]) : 'Items on the ground') : 'Supply crate';
+  const titleOf = c => c.title ? c.title : c.type === 'boss' ? 'The Tyrant’s cache' : c.type === 'airdrop' ? 'Supply drop' : c.type === 'pile' ? (c.items && c.items.length === 1 ? 'Found: ' + entryName(c.items[0]) : 'Items on the ground') : 'Supply crate';
   // per-frame: open the window when the player presses E beside something
   L.update = function (dt) {
     L.cd -= dt; if (L.cur) return;
@@ -195,7 +195,7 @@ const Loot = (() => {
     const n = L.near;
     if (n && !L.cur && !AI.on) {
       const px = n.x * T, py = n.y * T - (n.type === 'pile' ? 24 : 26), label = 'E  ' + (n.type === 'pile' ? 'Pick up' : 'Open') + ': ' + titleOf(n).replace('Found: ', '');
-      ctx.font = '8px monospace'; const w = ctx.measureText(label).width + 8;
+      ctx.font = '7px monospace'; const w = ctx.measureText(label).width + 8;
       ctx.fillStyle = '#000c'; ctx.fillRect(px - w / 2, py - 7, w, 12); ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 1; ctx.strokeRect(px - w / 2 + 0.5, py - 6.5, w - 1, 11);
       ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, px, py - 0.5); ctx.textAlign = 'left';
     }

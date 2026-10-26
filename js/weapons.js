@@ -73,7 +73,7 @@ const Weapons = (() => {
       else ctx.drawImage(Items.canvas('scrap'), Math.round(px - 6), Math.round(py - 12 + Math.sin(t * 3 + b.x) * 1.2), 12, 12);
       ctx.globalAlpha = 1;
       if (near) {
-        const lab = (b.locked ? 'Locked: keycard or fuel' : 'Hold E: search the ' + BUILDING_TYPES[b.type].label.toLowerCase()); ctx.font = '8px monospace';
+        const lab = (b.locked ? 'Locked: keycard or fuel' : 'Hold E: search the ' + BUILDING_TYPES[b.type].label.toLowerCase()); ctx.font = '7px monospace';
         const w = ctx.measureText(lab).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 29, w, 12); ctx.strokeStyle = b.locked ? '#e8c547' : '#7fcf6a'; ctx.lineWidth = 1; ctx.strokeRect(px - w / 2 + 0.5, py - 28.5, w - 1, 11);
         ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lab, px, py - 22.5); ctx.textAlign = 'left';
       }

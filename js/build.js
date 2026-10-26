@@ -27,7 +27,8 @@ const Build = (() => {
     if (G.completing) return false;
     const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool, x, y, cost: { ...cost }, work: timeOf(tool, y * W + x), prog: 0, prio: 2 };
     list().push(bp); Snd.click();
-    floatText(x + 0.5, y - 0.3, '-' + costText(cost), '#e8c070');
+    B.pop = B.pop || { n: 0, cost: {}, t: 0 }; B.pop.n++; B.pop.t = 0.4; B.pop.x = x + 0.5; B.pop.y = y - 0.3;
+    for (const k in cost) B.pop.cost[k] = (B.pop.cost[k] || 0) + cost[k];
     return true;
   };
   B.cancel = bp => {
@@ -60,7 +61,8 @@ const Build = (() => {
   const order = (a, b) => b.prio - a.prio || a.id - b.id;
 
   B.update = dt => {
-    const L = list(); if (!L.length) return;
+    if (B.pop && B.pop.n && (B.pop.t -= dt) <= 0) { floatText(B.pop.x, B.pop.y, '-' + costText(B.pop.cost) + (B.pop.n > 1 ? ' (' + B.pop.n + ' planned)' : ''), '#e8c070'); B.pop = { n: 0, cost: {}, t: 0 }; }
+    const L = list(); if (!L.length) { B.idle = 0; return; }
     const crew = new Set(); for (const c of G.crews) for (const s of c.members) crew.add(s.id);
     const work = new Map(); let hands = 0, busy = 0;
     const add = (bp, r) => { work.set(bp, (work.get(bp) || 0) + r); };
@@ -88,6 +90,7 @@ const Build = (() => {
       else if (!u.order) { Units.moveTo(u, bp.x + 0.5, bp.y + 0.5); u.order.build = true; }
     }
     B.hands = hands + 1; B.busy = busy + (B.you ? 1 : 0);
+    if (!AI.on && !G.intro) { B.idle = (B.idle || 0) + (B.busy ? -B.idle : dt); if (B.idle > 14) { B.idle = -30; toast('Planned builds are waiting for hands. Stand next to them and hold still (J: build queue).'); } }
     for (const [bp, r] of work) {
       bp.prog += r * dt; bp.w = r; bp.tick = (bp.tick || 0) - dt;
       if (bp.tick <= 0) { bp.tick = 1.1; Snd.tick(); investigate(bp.x + 0.5, bp.y + 0.5, NOISE.build, false); }
@@ -111,8 +114,8 @@ const Build = (() => {
     if (G.hover) {                                                    // name what you are pointing at
       const bp = B.at(G.hover.tx, G.hover.ty);
       if (bp) {
-        const s = labelOf(bp.tool) + ' - ' + PRIO[bp.prio] + ' priority - ' + Math.round(bp.prog / bp.work * 100) + '%' + (bp.w ? '' : ' (waiting for a free pair of hands)'), px = (bp.x + 0.5) * T, py = bp.y * T - 8;
-        ctx.font = '8px monospace'; const w = ctx.measureText(s).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 7, w, 12); ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, px, py - 0.5); ctx.textAlign = 'left';
+        const s = labelOf(bp.tool) + ' · ' + PRIO[bp.prio] + ' · ' + Math.round(bp.prog / bp.work * 100) + '%' + (bp.w ? '' : ' · needs a builder'), px = (bp.x + 0.5) * T, py = bp.y * T - 8;
+        ctx.font = '6px monospace'; const w = ctx.measureText(s).width + 8; ctx.fillStyle = '#000d'; ctx.fillRect(px - w / 2, py - 5, w, 9); ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s, px, py - 0.5); ctx.textAlign = 'left';
       }
     }
   };

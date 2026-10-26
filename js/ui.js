@@ -78,7 +78,7 @@ const UI = (() => {
     for (const [k, id] of RESROW) { const r = Items.RES[k], v = G[r.field] | 0, w = $(id).parentElement; w.title = r.name + ': ' + v + ' of ' + storeCap() + ' storable. ' + r.use + '.'; }
     $('rJobs').textContent = (G.blue || []).length; $('rJobs').style.color = (G.blue || []).length > 6 ? '#e8a447' : '';
     if ($('jobs').classList.contains('show')) renderJobs();
-    $('rPack').textContent = Items.packCount(); $('rPack').style.color = Items.packCount() >= Items.PACK.slots * Items.PACK.stack ? 'var(--bad)' : '';
+    $('rPack').textContent = Items.pack().length; $('rPack').style.color = Items.pack().length >= Items.PACK.slots ? 'var(--bad)' : '';
     if ($('pack').classList.contains('show')) renderPack();
     $('rAmmo').textContent = G.ammo | 0; $('dAmmo').textContent = fmtRate(G.net.a);
     $('rMat').textContent = G.mat | 0; $('dMat').textContent = fmtRate(G.net.m);
@@ -101,6 +101,9 @@ const UI = (() => {
     $('iSupply').textContent = Math.round(G.supply * 100) + '%' + (G.depleted ? ' · ' + G.depleted + ' dry' : '');
     $('supBar').style.width = (G.supply * 100) + '%'; $('supBar').style.background = G.supply < STOCK.crit ? 'var(--bad)' : G.supply < STOCK.warn ? '#e8a447' : 'var(--good)';
     $('iWater').textContent = (G.water | 0) + ' / ' + Math.round(G.hygiene) + '% clean'; $('iWater').style.color = G.water <= 0 || G.hygiene < HYGIENE.low ? 'var(--bad)' : '';
+    const rowOf = id => $(id).closest('.row'); const show = (id, v) => { const r = rowOf(id); if (r) r.style.display = v ? '' : 'none'; };
+    show('iStock', G.ap + G.inc + G.blades + G.keys > 0); show('iNests', G.nests.length > 0 || !!G.nestSeen); show('iPower', facilities.some(f => ['generator', 'solar', 'floodlight', 'workshop', 'turret'].includes(f.type)));
+    show('iPress', G.elapsed >= PRESSURE.start * 0.8 || G.heat > 3);
     $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Blades ' + G.blades + ' · Keys ' + G.keys;
     const hasShop = facilities.some(f => f.type === 'workshop');
     $('craftRow').style.display = hasShop ? '' : 'none';
@@ -115,10 +118,11 @@ const UI = (() => {
     $('iNests').textContent = G.nests.length + (G.nests.length ? ' (hordes +' + Math.round(NEST.hordeBonus * 100 * G.nests.length) + '%)' : '');
     $('pHp').textContent = Math.max(0, P.hp | 0); $('pHp').style.color = P.hp < 35 ? 'var(--bad)' : '';
     $('zCount').textContent = G.visibleZ;
-    const hd = $('horde');
+    const hd = $('horde'); hd.style.display = '';
     if (G.hordeMsg) { hd.className = 'panel ' + G.hordeMsg.cls; hd.textContent = G.hordeMsg.text; }
     else if (G.herdMsg) { hd.className = 'panel alert'; hd.textContent = G.herdMsg; }
-    else { hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
+    else if (G.intro) { hd.className = 'panel'; hd.style.display = 'none'; }
+    else { hd.style.display = ''; hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
     if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = G.rescueKind === 'convoy' ? 'Convoy arrives in ' + fmtTime(Math.max(0, G.rescue)) : 'Broadcasting for supplies: next drop in ' + fmtTime(Math.max(0, G.dropT)) + ' - ends in ' + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
 
