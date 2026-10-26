@@ -343,8 +343,8 @@ const UI = (() => {
     menuMode = mode;
     const c = $('card'), ov = $('overlay');
     ov.classList.toggle('title', mode === 'title'); if (mode === 'title') TitleFx.start($('fxc')); else TitleFx.stop();
-    const diff = (localStorage.getItem('zomb-diff') || 'normal');
-    const story = localStorage.getItem('zomb-story') || 'cassandra';
+    const diff = (store.get('zomb-diff') || 'normal');
+    const story = store.get('zomb-story') || 'cassandra';
     const storyBtns = '<div class="seg" id="storySeg">' + Object.keys(STORYTELLERS).map(k => '<button data-story="' + k + '" class="' + (k === story ? 'on' : '') + '">' + STORYTELLERS[k].label + '</button>').join('') + '</div>' +
       '<div id="storyDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + STORYTELLERS[story].desc + '</div>';
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
@@ -378,15 +378,15 @@ const UI = (() => {
       setQuality(b.dataset.q); resize(); document.querySelectorAll('[data-q]').forEach(x => x.classList.toggle('on', x === b));
     }));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
-      localStorage.setItem('zomb-diff', b.dataset.diff);
+      store.set('zomb-diff', b.dataset.diff);
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
     }));
     const v = $('volume'); if (v) v.addEventListener('input', () => { Snd.resume(); Snd.setVolume(v.value / 100); });
     document.querySelectorAll('[data-story]').forEach(b => b.addEventListener('click', () => {
-      localStorage.setItem('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
+      store.set('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
       document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
     }));
-    on('mNew', () => { newGame(localStorage.getItem('zomb-diff') || 'normal', undefined, localStorage.getItem('zomb-story') || 'cassandra'); hideMenu(); });
+    on('mNew', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); hideMenu(); });
     on('mContinue', () => { if (Save.load()) hideMenu(); else toast('Could not load the save'); });
     on('mFull', toggleFullscreen);
     on('mResume', hideMenu);
@@ -504,6 +504,7 @@ const UI = (() => {
   }
 
   function bindInput() {
+    $('mini').addEventListener('pointerdown', e => { if (!G) return; const r = $('mini').getBoundingClientRect(); G.cam.free = true; G.cam.x = clamp((e.clientX - r.left) / r.width * W, 0, W); G.cam.y = clamp((e.clientY - r.top) / r.height * H, 0, H); e.stopPropagation(); });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('pointerdown', e => {
       Snd.resume();

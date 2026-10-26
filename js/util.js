@@ -26,6 +26,11 @@ function weighted(table, key, r = rng) {      // table: { name: {weight} }
   return Object.keys(table)[0];
 }
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, n >> 8 & 255, n & 255]; }
+// storage can be missing or blocked (private windows, sandboxed pages): never let it stop the game
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } },
+};
 function shade(hex, f) {                      // f<1 darker, f>1 lighter
   const [r, g, b] = hexToRgb(hex);
   const c = v => clamp(Math.round(v * f), 0, 255);

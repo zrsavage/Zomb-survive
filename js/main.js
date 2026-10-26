@@ -30,7 +30,7 @@ buildSprites();
 resize();
 UI.init();
 UI.bindInput();
-newGame(localStorage.getItem('zomb-diff') || 'normal');       // a live backdrop behind the title menu
+newGame(store.get('zomb-diff') || 'normal');       // a live backdrop behind the title menu
 UI.showMenu('title');
 requestAnimationFrame(frame);
 

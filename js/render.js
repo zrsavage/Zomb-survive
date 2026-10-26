@@ -446,21 +446,50 @@ function render(realDt) {
   drawAtmosphere(cw, ch);
 }
 
+const MS = 6;                                                 // minimap pixels per tile: drawn at full resolution, not scaled up from one pixel a tile
+let miniBase = null, miniFor = null;
 function renderMini() {
-  mctx.imageSmoothingEnabled = false;
-  mctx.clearRect(0, 0, W, H);
-  mctx.drawImage(Art.mini, 0, 0);
-  mctx.drawImage(fogCanvas, 0, 0);
-  for (let i = 0; i < W * H; i++) if (wall[i] && explored[i]) { mctx.fillStyle = wall[i] === K.LOOKOUT ? '#4fa3e8' : '#d9a85a'; mctx.fillRect(i % W, (i / W) | 0, 1, 1); }
-  mctx.fillStyle = '#e84a3a';
-  for (const z of zombies) if (vis[(z.y | 0) * W + (z.x | 0)]) mctx.fillRect(z.x | 0, z.y | 0, 1, 1);
-  for (const h of hordes) if (h.seen && h.alive) { mctx.strokeStyle = '#ff5a50'; mctx.strokeRect((h.cx | 0) - 3, (h.cy | 0) - 3, 7, 7); }
-  for (const h of herds) if (h.seen) { mctx.strokeStyle = '#ffa23a'; mctx.strokeRect((h.cx | 0) - 2, (h.cy | 0) - 2, 5, 5); }
-  for (const s of sewers) if (s.found) { mctx.fillStyle = s.sealed ? '#8a8e96' : '#ff5a3a'; mctx.fillRect(s.x, s.y, 1, 1); }
-  for (const c of crates) { mctx.fillStyle = c.type === 'survivor' ? ((G.time * 3 | 0) % 2 ? '#7fd0ff' : '#fff') : (G.time * 3 | 0) % 2 ? '#ffe27a' : '#fff'; mctx.fillRect((c.x | 0) - 1, (c.y | 0) - 1, 3, 3); }
-  const poiCol = { pharmacy: '#3ee07a', gas: '#e8884a', police: '#5a8aff', junkyard: '#b0a070', farmstead: '#d8e86a' };
-  for (const b of buildings) if (b.poi && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) { mctx.fillStyle = poiCol[b.type]; mctx.fillRect((b.x + (b.w >> 1)) - 1, (b.y + (b.h >> 1)) - 1, 3, 3); }
-  for (const n of G.nests) { const b = buildings[n.bi]; if (explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) { mctx.fillStyle = (G.time * 3 | 0) % 2 ? '#ff2a1a' : '#fff'; mctx.fillRect(b.x + (b.w >> 1), b.y + (b.h >> 1), 2, 2); } }
-  mctx.fillStyle = '#7dd0ff'; mctx.fillRect(CORE.x - 1, CORE.y - 1, 3, 3);
-  mctx.fillStyle = '#ffd27a'; mctx.fillRect((P.px | 0) - 1, (P.py | 0) - 1, 3, 3);
+  const mw = W * MS, mh = H * MS;
+  if (mini.width !== mw) { mini.width = mw; mini.height = mh; }
+  if (miniFor !== Art.terrain) {                              // the town itself, scaled down smoothly once per town
+    miniBase = document.createElement('canvas'); miniBase.width = mw; miniBase.height = mh;
+    const bg = miniBase.getContext('2d'); bg.imageSmoothingEnabled = true; bg.imageSmoothingQuality = 'high';
+    const tmp = document.createElement('canvas'); tmp.width = W * T / 2; tmp.height = H * T / 2;      // two gentle halvings look far better than one harsh one
+    const tg = tmp.getContext('2d'); tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = 'high'; tg.drawImage(Art.terrain, 0, 0, tmp.width, tmp.height);
+    bg.drawImage(tmp, 0, 0, mw, mh);
+    miniFor = Art.terrain;
+  }
+  const g = mctx, S = MS, cx = x => x * S, dot = (x, y, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(x * S, y * S, r, 0, 6.283); g.fill(); };
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.clearRect(0, 0, mw, mh);
+  g.drawImage(miniBase, 0, 0);
+  g.globalAlpha = 0.97; g.drawImage(fogCanvas, 0, 0, mw, mh); g.globalAlpha = 1;
+  // walls and posts
+  for (let i = 0; i < W * H; i++) if (wall[i] && explored[i]) {
+    const k = wall[i]; g.fillStyle = k === K.LOOKOUT ? '#4fa3e8' : k === K.TOWER || k === K.OUTPOST ? '#f0d08a' : k === K.GATE ? '#9aa0aa' : '#d9a85a';
+    g.fillRect((i % W) * S, ((i / W) | 0) * S, S, S);
+    if (defAt[i]) { g.fillStyle = '#7fe0ff'; g.fillRect((i % W) * S + 2, ((i / W) | 0) * S + 2, S - 4, S - 4); }
+  }
+  // buildings of interest
+  const poiCol = { pharmacy: '#3ee07a', gas: '#e8884a', police: '#5a8aff', junkyard: '#b0a070', farmstead: '#d8e86a', bunker: '#c070ff' };
+  for (const b of buildings) if (b.poi && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) {
+    const x = (b.x + b.w / 2) * S, y = (b.y + b.h / 2) * S;
+    g.fillStyle = '#000a'; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill();
+    g.fillStyle = poiCol[b.type] || '#fff'; g.beginPath(); g.moveTo(x, y - 4.5); g.lineTo(x + 4.5, y); g.lineTo(x, y + 4.5); g.lineTo(x - 4.5, y); g.closePath(); g.fill();
+  }
+  for (const n of G.nests) { const b = buildings[n.bi]; if (explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) { const p = 0.5 + 0.5 * Math.sin(G.time * 6); g.strokeStyle = 'rgba(255,60,40,' + (0.5 + p * 0.5) + ')'; g.lineWidth = 2; g.beginPath(); g.arc((b.x + b.w / 2) * S, (b.y + b.h / 2) * S, 7 + p * 2, 0, 6.283); g.stroke(); } }
+  for (const s of sewers) if (s.found) { g.fillStyle = s.sealed ? '#8a8e96' : '#ff5a3a'; g.fillRect(s.x * S + 1, s.y * S + 1, S - 2, S - 2); }
+  for (const c of crates) { const on = (G.time * 3 | 0) % 2; dot(c.x, c.y, 3.2, c.type === 'airdrop' ? (on ? '#7fe08a' : '#fff') : c.type === 'survivor' ? (on ? '#7fd0ff' : '#fff') : (on ? '#ffe27a' : '#fff')); }
+  // the dead
+  g.fillStyle = '#ff4a38';
+  for (const z of zombies) if (vis[(z.y | 0) * W + (z.x | 0)]) { const big = z.type === 'brute' || z.type === 'tyrant' || z.type === 'bloater'; g.beginPath(); g.arc(z.x * S, z.y * S, big ? 2.6 : 1.5, 0, 6.283); g.fill(); }
+  for (const h of hordes) if (h.seen && h.alive) { g.strokeStyle = '#ff5a50'; g.lineWidth = 2; g.setLineDash([4, 3]); g.beginPath(); g.arc(h.cx * S, h.cy * S, 16 + 2 * Math.sin(G.time * 5), 0, 6.283); g.stroke(); g.setLineDash([]); }
+  for (const h of herds) if (h.seen) { g.strokeStyle = '#ffa23a'; g.lineWidth = 1.5; g.beginPath(); g.arc(h.cx * S, h.cy * S, 11, 0, 6.283); g.stroke(); }
+  // survivors out and about
+  for (const u of Units.all()) dot(u.px, u.py, 2.4, G.sel.includes(u.s.id) ? '#7fe08a' : '#cfe8ff');
+  // the camp, the survivor you drive, and what the camera sees
+  g.fillStyle = '#000b'; g.fillRect(CORE.x * S - 7, CORE.y * S - 7, 14, 14); g.fillStyle = '#7dd0ff'; g.fillRect(CORE.x * S - 5, CORE.y * S - 5, 10, 10);
+  dot(P.px, P.py, 4.2, '#000b'); dot(P.px, P.py, 3, '#ffd27a');
+  const vw = innerWidth / G.cam.zoom / T, vh = innerHeight / G.cam.zoom / T;
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 1.5; g.strokeRect((G.cam.x - vw / 2) * S, (G.cam.y - vh / 2) * S, vw * S, vh * S);
 }

@@ -61,7 +61,7 @@
   .cat{font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin:4px 0 -1px}
   body.compact .cat{display:none}
 
-  #side{right:8px;top:8px;width:250px;display:flex;flex-direction:column;gap:5px;max-height:calc(100vh - 200px);overflow:auto}
+  #side{right:8px;top:8px;width:250px;display:flex;flex-direction:column;gap:5px;max-height:calc(100vh - 242px);overflow:auto}
   #people .chip{display:flex;gap:6px;align-items:center;padding:3px 5px;border:1px solid transparent;border-radius:4px;cursor:pointer}
   #people .chip:hover{background:#222d27}
   #people .chip.sel{border-color:var(--acc);background:#1f3140}
@@ -71,7 +71,7 @@
   #log div:first-child{color:var(--txt)}
   .bar{height:4px;background:#2a332d;border-radius:2px;margin-top:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
 
-  #mini{position:fixed;right:8px;bottom:8px;width:264px;height:198px;image-rendering:pixelated;border:1px solid var(--line);border-radius:7px;background:#05080a;box-shadow:0 4px 18px #0009}
+  #mini{position:fixed;right:8px;bottom:8px;width:288px;height:216px;cursor:pointer;border:1px solid var(--line);border-radius:7px;background:#05080a;box-shadow:0 4px 18px #0009}
   #toast{position:fixed;top:128px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:6px;background:#000c;border:1px solid var(--line);opacity:0;transition:opacity .35s;pointer-events:none;font-size:14px;max-width:min(90vw,720px);text-align:center;z-index:4}
   #toast.show{opacity:1}
   #prompt{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000b;border:1px solid var(--line);display:none}
@@ -229,7 +229,7 @@
 <div id="rules" class="panel modal"></div>
 <div id="radio" class="panel modal"></div>
 
-<canvas id="mini" width="88" height="66"></canvas>
+<canvas id="mini" width="528" height="396"></canvas>
 <div id="help" class="panel">C command mode: click or drag to select survivors, right-click to order (move / man a wall / scavenge), X stand down · K work toggles · WASD drives the founder · wheel zoom · right-drag look · R research · H hold fire · M mute · Space pause · Esc menu</div>
 <div id="cmdbar" class="panel"></div>
 <div id="selbox"></div>
