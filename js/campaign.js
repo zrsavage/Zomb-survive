@@ -286,7 +286,7 @@ const Bg = {
       const R = RECIPES[g.craft] || RECIPES.ammo; t.shopT += dt * shops;
       while (t.shopT >= R.time) {
         t.shopT -= R.time;
-        if ((!R.in.m || g.mat >= R.in.m) && (!R.in.fuel || g.fuel >= R.in.fuel)) { g.mat -= R.in.m || 0; g.fuel -= R.in.fuel || 0; if (R.out.a) g.ammo = Math.min(cap, g.ammo + R.out.a); if (R.out.ap) g.ap += R.out.ap; if (R.out.inc) g.inc += R.out.inc; if (R.out.blade) g.blades += R.out.blade; } else break;
+        if ((!R.in.m || g.mat >= R.in.m) && (!R.in.fuel || g.fuel >= R.in.fuel)) { g.mat -= R.in.m || 0; g.fuel -= R.in.fuel || 0; if (R.out.a) g.ammo = Math.min(cap, g.ammo + R.out.a); if (R.out.ap) g.ap += R.out.ap; if (R.out.inc) g.inc += R.out.inc; if (R.out.mw) { g.mstock = g.mstock || {}; g.mstock[R.out.mw] = (g.mstock[R.out.mw] || 0) + 1; } } else break;
       }
     }
     // people eat and drink

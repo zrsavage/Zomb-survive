@@ -11,7 +11,7 @@ const Units = (() => {
   const free = (x, y) => { const tx = x | 0, ty = y | 0; return inb(tx, ty) && bld[ty * W + tx] < 0 && !isCoreTile(tx, ty) && wall[ty * W + tx] !== K.RADIO; };
   const doorOf = b => [clamp((b.x + b.w / 2) | 0, 0, W - 1), clamp(b.y + b.h, 0, H - 1)];
 
-  const defaultWork = s => ({ guard: s.role === 'fighter' || s.role === 'sniper', loot: s.role === 'scavenger', build: s.role !== 'sniper' });
+  const defaultWork = s => ({ guard: s.role === 'fighter' || s.role === 'sniper', loot: s.role === 'scavenger', build: s.role !== 'sniper', train: 'off' });
   const workOf = s => s.work || (s.work = defaultWork(s));
 
   function of(s, x, y) {
@@ -186,6 +186,7 @@ const Units = (() => {
     }
     const drop = crates.find(c => c.type === 'airdrop');
     if (drop && !G.idle.some(o => { const b = U.get(o.id); return b && b.order && b.order.drop; })) { orderMove(u, drop.x, drop.y, false); u.order.drop = true; return; }      // someone fetches the supply drop
+    if (w.train && w.train !== 'off') { const [sx, sy] = trainSpot(u); if (Math.hypot(sx - u.px, sy - u.py) > 1.6) { orderMove(u, sx, sy, false); u.order.train = true; } return; }
     if (rng() < 0.5) {                                   // mill about the camp
       const [hx, hy] = home(); orderMove(u, hx + (rng() - 0.5) * 6.5, hy + rng() * 2.2, false); u.order.slow = true;
     }
@@ -244,6 +245,40 @@ const Units = (() => {
     if (rng() < TURN.chance * (medic ? TURN.medicMul : 1)) { turning.push({ x: u.px, y: u.py, t: TURN.delay, s }); log('The body is already stirring...'); }
     Snd.error();
   }
+  // ---- training: practice when told to, away from the wall. Shooting costs ammo and the noise draws the dead. ------------------
+  function trainSpot(u) {
+    let best = null, bd = 1e9;
+    for (const f of facilities) if (f.type === 'yard') { const d = Math.hypot(f.x - u.px, f.y - u.py); if (d < bd) { bd = d; best = f; } }
+    if (best) return [best.x + 0.5 + ((u.s.id % 3) - 1) * 0.7, best.y + 1.1, true];
+    const [hx, hy] = home(); return [hx + ((u.s.id % 5) - 2) * 1.2, hy + 1.3 + (u.s.id % 2) * 0.8, false];
+  }
+  function trainTick(u, dt) {
+    const w = workOf(u.s), kind = w.train;
+    u.tr = null;
+    if (!kind || kind === 'off' || u.s.sick > 0 || u.bpId || u.manual > 0 || alarm()) return;
+    const [sx, sy, yard] = trainSpot(u);
+    if (Math.hypot(sx - u.px, sy - u.py) > 1.6) { if (!u.order) { orderMove(u, sx, sy, false); u.order.train = true; } return; }
+    if (u.order) return;
+    const lv = skillLv(u.s, kind);
+    if (lv >= 5) { u.tr = 'max'; return; }
+    if (!yard && lv >= TRAIN.noCapLevel) { u.tr = 'cap'; if (!u.capMsg) { u.capMsg = 1; log(who(u.s) + ' has learned all the camp can teach. A training yard would take them further.'); } return; }
+    u.face = 1;
+    if (kind === 'melee') {
+      u.tr = 'melee'; u.st = 'stab'; u.trT = (u.trT || 0) - dt;
+      if (u.trT <= 0) { u.trT = 0.65; u.stab = 0.18; u.act = 0.2; u.actK = 'stab'; Snd.stab(u.px + 0.7, u.py); }
+      addXp(u.s, 'melee', TRAIN.melee * (yard ? TRAIN.yardMelee : 1) * dt);
+    } else {
+      if (G.ammo < TRAIN.minAmmo) { u.tr = 'noammo'; return; }
+      u.tr = 'shoot'; u.trT = (u.trT || 0) - dt;
+      if (u.trT <= 0) {
+        u.trT = TRAIN.shootGap; G.ammo -= 1; u.shot = 0.09; u.st = 'shoot'; u.act = 0.2; u.actK = 'shoot'; u.aimA = 0; u.aimT = 0.6;
+        if (flashes.length < 40) flashes.push({ x: u.px + 0.5, y: u.py - 0.5, life: 0.09 });
+        tracers.push({ x1: u.px + 0.5, y1: u.py - 0.5, x2: u.px + 5, y2: u.py - 0.5, life: 0.07 });
+        Snd.shot(u.px, u.py, false); addHeat(HEAT.gun * 0.6); alertNoise(u.px, u.py, gunRadius(false) * 0.85, 3);
+        addXp(u.s, 'shoot', TRAIN.shoot * (yard ? TRAIN.yardShoot : 1));
+      }
+    }
+  }
   function updateBody(u, dt, inCrew) {
     u.moving = false; u.hurt -= dt; if (u.stab > 0) u.stab -= dt; if (u.act > 0) u.act -= dt; if (u.manual > 0) u.manual -= dt;
     const s = u.s;
@@ -269,6 +304,7 @@ const Units = (() => {
     }
     // fight whatever is close; calm survivors only fire at what is nearly on top of them
     if (zombies.length) fight(u, dt, fightOpts(u, !alarm() && !inCrew)); else { u.st = 'idle'; if (u.sta < STAMINA.max) u.sta = Math.min(STAMINA.max, u.sta + STAMINA.restRegen * dt); }
+    if (!inCrew) trainTick(u, dt);
     if (u.moving && u.st === 'idle') u.st = 'walk';
     // shout of the gun / the smell of people: nearby idle dead come to look
     u.alertT -= dt;
@@ -354,8 +390,9 @@ const Units = (() => {
   function statusOf(s) {
     if (defenders.some(d => d.s === s)) { const d = defenders.find(x => x.s === s); return 'on the wall' + (d.auto ? ' (self-posted)' : ''); }
     const c = G.crews.find(c => c.members.includes(s)); if (c) return { out: 'walking out', work: 'scavenging', back: 'coming home' }[c.phase || 'out'];
-    const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
+    const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : u.order.train ? 'heading to train' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
     if (u.working) return 'building';
+    if (u.tr) return { melee: 'training melee', shoot: 'training shooting', cap: 'needs a training yard', max: 'a master', noammo: 'training paused: low ammo' }[u.tr];
     return 'idle';
   }
   const pendingTiles = () => pending();

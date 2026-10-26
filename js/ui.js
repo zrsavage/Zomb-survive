@@ -11,6 +11,7 @@ const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) 
 const TOOLS = [
   { cat: 'Command', id: 'combat', key: '0', label: 'Fight', cost: () => ({}), tip: 'Aim with the mouse. Hold left-click to fire, R reloads, right-click or F swings at what is close. Every shot is yours and every shot is heard.' },
   { cat: 'Command', id: 'orders', key: 'C', label: 'Select & command', cost: () => ({}), tip: 'Click or drag to select survivors. Right-click: move there, man a wall, or scavenge a building. They carry it out on their own.' },
+  { cat: 'Land', id: 'demolish', key: '7', label: 'Demolish', cost: () => ({}), tip: 'Click a building to pull it down. It takes time, recovers salvage, and leaves clear ground for fields, beds, workshops or walls.' },
   { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
   { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
   { cat: 'Defense', id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
@@ -67,7 +68,7 @@ const UI = (() => {
     const cs = $('craftSeg');
     for (const k in RECIPES) {
       const b = document.createElement('button'); b.dataset.craft = k; b.style.justifyContent = 'center'; b.style.padding = '3px 2px'; b.style.fontSize = '11px';
-      b.textContent = RECIPES[k].label; b.title = Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
+      b.textContent = RECIPES[k].label; b.title = RECIPES[k].weapon ? MW[RECIPES[k].weapon].label + ': ' + Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ', ' + RECIPES[k].time + 's. Melee weapon: damage x' + MW[RECIPES[k].weapon].dmg + ', reach ' + MW[RECIPES[k].weapon].reach + ', needs melee level ' + MW[RECIPES[k].weapon].need + (RECIPES[k].tech ? '. Needs research.' : '') : Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
       b.addEventListener('click', () => { G.craft = k; Snd.click(); }); cs.appendChild(b);
     }
   }
@@ -102,12 +103,12 @@ const UI = (() => {
     $('supBar').style.width = (G.supply * 100) + '%'; $('supBar').style.background = G.supply < STOCK.crit ? 'var(--bad)' : G.supply < STOCK.warn ? '#e8a447' : 'var(--good)';
     $('iWater').textContent = (G.water | 0) + ' / ' + Math.round(G.hygiene) + '% clean'; $('iWater').style.color = G.water <= 0 || G.hygiene < HYGIENE.low ? 'var(--bad)' : '';
     const rowOf = id => $(id).closest('.row'); const show = (id, v) => { const r = rowOf(id); if (r) r.style.display = v ? '' : 'none'; };
-    show('iStock', G.ap + G.inc + G.blades + G.keys > 0); show('iNests', G.nests.length > 0 || !!G.nestSeen); show('iPower', facilities.some(f => ['generator', 'solar', 'floodlight', 'workshop', 'turret'].includes(f.type)));
+    show('iStock', G.ap + G.inc + G.keys > 0); show('iNests', G.nests.length > 0 || !!G.nestSeen); show('iPower', facilities.some(f => ['generator', 'solar', 'floodlight', 'workshop', 'turret'].includes(f.type)));
     show('iPress', G.elapsed >= PRESSURE.start * 0.8 || G.heat > 3);
-    $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Blades ' + G.blades + ' · Keys ' + G.keys;
+    $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Keys ' + G.keys;
     const hasShop = facilities.some(f => f.type === 'workshop');
     $('craftRow').style.display = hasShop ? '' : 'none';
-    document.querySelectorAll('[data-craft]').forEach(b => b.classList.toggle('on', b.dataset.craft === G.craft));
+    document.querySelectorAll('[data-craft]').forEach(b => { const R0 = RECIPES[b.dataset.craft]; b.classList.toggle('on', b.dataset.craft === G.craft); b.disabled = !!(R0.tech && !has(R0.tech)); if (R0.weapon) b.textContent = R0.label + ((G.mstock || {})[R0.weapon] ? ' ×' + G.mstock[R0.weapon] : ''); });
     const bay = facilities.some(f => f.type === 'garagebay'), tb = $('btnTruck');
     tb.style.display = bay && !Campaign.truck ? '' : 'none';
     if (bay && !Campaign.truck) { tb.textContent = G.truckT > 0 ? 'Truck: ' + Math.ceil(G.truckT) + 's' : 'Build truck (' + costStr(TRUCK.cost) + ')'; tb.disabled = G.truckT > 0 || !canAfford(TRUCK.cost); }
@@ -325,7 +326,7 @@ const UI = (() => {
   }
   function renderPack() {
     const inv = Items.pack(), cap = storeCap(), camp = Items.atCamp();
-    const key = RESROW.map(([k]) => G[Items.RES[k].field] | 0).join() + '|' + inv.map(s => s.id + s.n).join() + '|' + camp + '|' + (P.mag | 0) + '|' + (P.hp | 0);
+    const key = RESROW.map(([k]) => G[Items.RES[k].field] | 0).join() + '|' + inv.map(s => s.id + s.n).join() + '|' + camp + '|' + (P.mag | 0) + '|' + (P.hp | 0) + '|' + (P.mw || '') + JSON.stringify(G.mstock || {});
     if (key === lastPack) return; lastPack = key;
     const el = $('pack');
     const stock = RESROW.map(([k]) => { const r = Items.RES[k], v = G[r.field] | 0, low = (k === 'a' && v < 30) || (k === 'f' && v < 20) || (k === 'water' && v < 20) || (k === 'm' && v < 40);
@@ -334,8 +335,11 @@ const UI = (() => {
       return '<div class="lootrow">' + Items.img(s.id, 24) + '<span class="ln"><b>' + d.name + '</b> <span class="lq">x' + s.n + '</span><br><small>' + d.desc + '</small></span>' +
         (d.use ? '<button data-u="' + s.id + '">Use</button>' : '') + (d.stash ? '<button data-s="' + s.id + '"' + (camp ? '' : ' disabled title="Walk back to camp to stash"') + '>Stash</button>' : '') + '<button data-d="' + s.id + '">Drop</button></div>'; }).join('')
       : '<div style="color:var(--dim)">Empty. The dead sometimes carry something worth taking; ruins hide more.</div>';
+    const armory = () => { const st = G.mstock || {}, cur = P.mw && MW[P.mw] ? P.mw : 'knife'; const have = Object.keys(MW).filter(k => st[k] > 0 && k !== cur);
+      return '<div>Carrying: <b>' + MW[cur].label + '</b> <small style="color:var(--dim)">(damage ×' + MW[cur].dmg + ', reach ' + MW[cur].reach + ')</small></div>' + (have.length ? have.map(k => '<div class="lootrow"><span class="ln"><b>' + MW[k].label + '</b> ×' + st[k] + ' <small>damage ×' + MW[k].dmg + ', reach ' + MW[k].reach + ', ' + (MW[k].cd < 1 ? 'fast' : MW[k].cd > 1.1 ? 'slow' : 'average') + '</small></span><button data-eq="' + k + '">Take</button></div>').join('') : '<small style="color:var(--dim)">Nothing on the rack. Build a workshop and make some.</small>'); };
     el.innerHTML = '<div class="row"><h3>Pack &amp; stockpile</h3><button id="pkClose" style="padding:2px 8px">Close (I)</button></div>' +
       '<div class="sec">Weapon</div><div>' + Items.img('a', 18) + ' Pistol: <b>' + (P.mag | 0) + '</b> in the magazine, <b>' + (G.ammo | 0) + '</b> in reserve. Health <b>' + Math.max(0, P.hp | 0) + '</b>.</div>' +
+      '<div class="sec">Your melee weapon</div>' + armory() +
       '<div class="sec">Camp stockpile</div>' + stock +
       '<div class="sec">Your pack (' + Items.packCount() + ' items, ' + inv.length + '/' + Items.PACK.slots + ' slots)</div>' + pk +
       (inv.some(s => Items.ITEMS[s.id].stash) ? '<div style="margin-top:8px"><button id="pkStash"' + (camp ? '' : ' disabled') + '>Stash everything useful at camp</button> ' + (camp ? '' : '<small style="color:var(--dim)">(walk back to the fire first)</small>') + '</div>' : '');
@@ -343,6 +347,7 @@ const UI = (() => {
     el.querySelectorAll('button[data-u]').forEach(b => b.onclick = () => { Items.useOne(b.dataset.u); lastPack = ''; renderPack(); });
     el.querySelectorAll('button[data-s]').forEach(b => b.onclick = () => { Items.stashOne(b.dataset.s); lastPack = ''; renderPack(); });
     el.querySelectorAll('button[data-d]').forEach(b => b.onclick = () => { Items.dropOne(b.dataset.d); lastPack = ''; renderPack(); });
+    el.querySelectorAll('button[data-eq]').forEach(b => b.onclick = () => { const st = mwStock(), id = b.dataset.eq; if (st[id] > 0) { st[id]--; const old = P.mw; if (old && MW[old] && old !== 'knife') st[old] = (st[old] || 0) + 1; P.mw = id; Snd.click(); } lastPack = ''; renderPack(); });
     const st = el.querySelector('#pkStash'); if (st) st.onclick = () => { Items.stashAll(); lastPack = ''; renderPack(); };
   }
   function toggleRules() {
@@ -571,8 +576,10 @@ const UI = (() => {
     const names = [...(G.selP ? ['You'] : []), ...sel.map(e => who(e.s) + ' (' + Units.statusOf(e.s) + ')')];
     const k = names.join('|') + G.crews.length; if (el.dataset.k === k) return; el.dataset.k = k;
     el.classList.add('show');
-    el.innerHTML = '<b>' + n + ' selected</b> · ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) : '') + '<br><span style="color:var(--dim)">Right-click: ground to move · wall to man it · building to scavenge</span> <button id="cbDown">Stand down (X)</button><button id="cbWork">Work (K)</button><button id="cbClr">Deselect</button>';
+    el.innerHTML = '<b>' + n + ' selected</b> · ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) : '') + '<br><span style="color:var(--dim)">Right-click: ground to move · wall to man it · building to scavenge</span> <button id="cbDown">Stand down (X)</button><button id="cbTM">Train melee</button><button id="cbTS">Train shooting</button><button id="cbWork">Work (K)</button><button id="cbClr">Deselect</button>';
     $('cbDown').onclick = () => { Units.standDownSelected(); lastPeople = ''; };
+    $('cbTM').onclick = () => { for (const e of Units.selected()) Units.workOf(e.s).train = 'melee'; lastWork = ''; toast('Selected survivors will train melee when they are free'); };
+    $('cbTS').onclick = () => { for (const e of Units.selected()) Units.workOf(e.s).train = 'shoot'; lastWork = ''; toast('Selected survivors will practise shooting: it costs ammo and the noise draws the dead'); };
     $('cbWork').onclick = toggleWork; $('cbClr').onclick = () => { clearSel(); lastPeople = ''; };
   }
   let lastSecure = '';
@@ -591,15 +598,18 @@ const UI = (() => {
   function toggleWork() { const el = $('work'); el.classList.toggle('show'); lastWork = ''; if (el.classList.contains('show')) renderWork(); Snd.click(); }
   function renderWork() {
     const rows = [...G.idle.map(s => ({ s })), ...defenders.map(d => ({ s: d.s })), ...G.crews.flatMap(c => c.members.map(s => ({ s })))];
-    const key = rows.map(r => r.s.id + Units.statusOf(r.s) + JSON.stringify(Units.workOf(r.s)) + (G.sel.includes(r.s.id) ? '*' : '')).join('|');
+    const key = rows.map(r => r.s.id + Units.statusOf(r.s) + JSON.stringify(Units.workOf(r.s)) + (r.s.mw || '') + skillLv(r.s, 'melee') + skillLv(r.s, 'shoot') + (G.sel.includes(r.s.id) ? '*' : '')).join('|') + JSON.stringify(G.mstock || {});
     if (key === lastWork) return; lastWork = key;
     const el = $('work');
-    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Anyone you are not ordering decides for themselves. <b>Guard</b>: man a wall when a horde comes (and step down afterwards). <b>Scavenge</b>: go out for loot on their own when the camp is calm and has ammo to spare. <b>Build</b>: work the build queue (J) when nothing else needs them.</div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th><th>Build</th></tr>';
-    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td><td><button data-w="build" data-i="' + i + '" class="' + (w.build !== false ? 'on' : '') + '">' + (w.build !== false ? 'On' : 'Off') + '</button></td></tr>'; });
+    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Free survivors guard when a horde comes, then build, scavenge and train. Shooting practice burns ammo and its noise draws the dead; past level 3 needs a training yard.</div>' + '<div style="margin:4px 0">Everyone free: <button data-bulk="melee" style="display:inline-flex">Train melee</button> <button data-bulk="shoot" style="display:inline-flex">Train shooting</button> <button data-bulk="off" style="display:inline-flex">Stop training</button> <small style="color:var(--dim)">Rack: ' + (Object.entries(G.mstock || {}).filter(([k, n]) => n > 0).map(([k, n]) => MW[k].label + ' ×' + n).join(', ') || 'empty (the workshop makes weapons)') + '</small></div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th><th>Build</th><th>Train</th><th>Melee weapon</th></tr>';
+    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td><td><button data-w="build" data-i="' + i + '" class="' + (w.build !== false ? 'on' : '') + '">' + (w.build !== false ? 'On' : 'Off') + '</button></td><td><button data-tr data-i="' + i + '" class="' + (w.train && w.train !== 'off' ? 'on' : '') + '">' + ({ off: 'Off', melee: 'Melee ' + skillLv(r.s, 'melee'), shoot: 'Shoot ' + skillLv(r.s, 'shoot') }[w.train || 'off']) + '</button></td><td><button data-mwb data-i="' + i + '" title="Click to change. Auto gives the best one they can handle.">' + MW[mwOf(r.s)].label + (r.s.mwLock ? '' : ' (auto)') + '</button> <small style="color:var(--dim)">need ' + MW[mwOf(r.s)].need + '</small></td></tr>'; });
     h += '</table>' + (rows.length ? '' : '<div style="color:var(--dim)">No survivors yet.</div>');
     el.innerHTML = h;
     $('wkClose').onclick = toggleWork;
     el.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w[b.dataset.w] = b.dataset.w === 'build' ? w.build === false : !w[b.dataset.w]; lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-tr]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w.train = { off: 'melee', melee: 'shoot', shoot: 'off' }[w.train || 'off']; lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-mwb]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i], s0 = r.s, st = G.mstock || {}; const opts = ['auto', ...Object.keys(MW).filter(k => (st[k] > 0 || k === s0.mw) && k !== 'knife')]; const cur = s0.mwLock ? s0.mw : 'auto'; const nx = opts[(opts.indexOf(cur) + 1) % opts.length]; equipMw(s0, nx, true); if (nx === 'auto') autoArm(); lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-bulk]').forEach(b => b.onclick = () => { for (const r of rows) { if (defenders.some(d => d.s === r.s) || G.crews.some(c => c.members.includes(r.s))) continue; Units.workOf(r.s).train = b.dataset.bulk; } lastWork = ''; renderWork(); Snd.click(); });
     el.querySelectorAll('a[data-sel]').forEach(a => a.onclick = ev => { ev.preventDefault(); const r = rows[+a.dataset.sel]; clearSel(); G.sel.push(r.s.id); lastWork = ''; renderWork(); lastPeople = ''; });
   }
 

@@ -407,7 +407,8 @@ const RESEARCH = [
   { id: 'walls',   name: 'Reinforced Walls', desc: 'Walls, towers and gates have 35% more health.',     cost: { m: 150 },         time: 40 },
   { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster, and so do you (15%).',                         cost: { m: 90, a: 80 },   time: 45 },
   { id: 'ap',      name: 'AP Rounds',        desc: 'Bullets deal 30% more damage.',                      cost: { m: 120, a: 120 }, time: 50 },
-  { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less.', cost: { m: 60 }, time: 25 },
+  { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less. The workshop can also make more.', cost: { m: 60 }, time: 25 },
+  { id: 'smithing', name: 'Smithing',        desc: 'Lets the workshop forge fire axes and war blades: heavy weapons for people with a trained arm (melee level 3 and 4).', cost: { m: 160, fuel: 6 }, time: 60 },
   { id: 'hands',   name: 'Fast Hands',       desc: 'Stabbing is 35% harder and 15% faster.',             cost: { m: 100 },         time: 40 },
   { id: 'watch',   name: 'Watch Network',    desc: 'Lookouts see 50% farther and reveal more map.',      cost: { m: 130 },         time: 45 },
   { id: 'scav',    name: 'Scavenging Kit',   desc: 'Loot yields +35% and takes 30% less time.',          cost: { m: 90, f: 40 },   time: 35 },
@@ -524,6 +525,9 @@ const FACILITIES = {
   battery:    { label: 'Battery',    level: 3, cost: { m: 40 }, desc: 'Stores up to 30 power; smooths brownouts. Generators run full to charge it.' },
   mine:       { label: 'Mine',       level: 2, cost: { m: 50 }, desc: 'Digs raw materials without end: +0.3 materials/s. A little noisy.' },
   solar:      { label: 'Solar array', level: 3, cost: { m: 90 }, desc: 'Gives 2 power with no fuel and no noise. Keeps workshops, lights and turrets running for good.' },
+  yard:       { label: 'Training yard', level: 1, cost: { m: 35 }, desc: 'Dummies and a firing line. Training here is about twice as fast and the only way past level 3. Shooting practice still costs ammo and is loud.' },
+  bunkhouse:  { label: 'Bunkhouse',  level: 1, cost: { m: 50 }, desc: 'Beds for 5 more people. Build it on ground you cleared or on any free tile in the camp.' },
+  barracks:   { label: 'Barracks',   level: 3, cost: { m: 140 }, desc: 'Beds for 14 more people.' },
   garagebay:  { label: 'Garage bay', level: 3, cost: { m: 80 }, desc: 'Lets you build a Truck: needed to reach other towns.' },
 };
 const TIER = { hp: [1, 1.8, 3], press: [1, 0.6, 0.3], cost: [0, 6, 14], names: ['Timber', 'Reinforced', 'Concrete'] };
@@ -553,9 +557,21 @@ const RECIPES = {
   ammo:  { label: 'Ammo',          in: { m: 2 },            out: { a: 1 },     time: 5 },
   ap:    { label: 'AP rounds',     in: { m: 3, fuel: 1 },   out: { ap: 2 },    time: 8 },
   inc:   { label: 'Incendiary',    in: { m: 2, fuel: 1 },   out: { inc: 2 },   time: 8 },
-  blade: { label: 'Combat blade',  in: { m: 12 },           out: { blade: 1 }, time: 15 },
 };
 const BLADE = { dur: 160, dmg: 1.5 };
+// Melee weapons are made at the workshop and handed out. A better one needs a trained arm (need = melee level): below that it
+// hits weaker and wears the user out. rank orders them for auto-arming.
+const MW = {
+  knife:    { label: 'Knife',       rank: 0,   dmg: 1,    cd: 1,    sta: 1,    reach: 1.6,  pierce: 1, need: 0, art: 'knife' },
+  club:     { label: 'Spiked club', rank: 1,   dmg: 1.3,  cd: 1.08, sta: 1.1,  reach: 1.7,  pierce: 1, need: 0, art: 'club',     cost: { m: 18 },            time: 12 },
+  spear:    { label: 'Spear',       rank: 1.5, dmg: 0.9,  cd: 1,    sta: 0.7,  reach: 2.7,  pierce: 2, need: 0, art: 'spear',    cost: { m: 24 },            time: 14, tech: 'spears' },
+  machete:  { label: 'Machete',     rank: 2,   dmg: 1.6,  cd: 0.82, sta: 0.95, reach: 1.75, pierce: 1, need: 1, art: 'machete',  cost: { m: 36 },            time: 20 },
+  axe:      { label: 'Fire axe',    rank: 3,   dmg: 2.3,  cd: 1.2,  sta: 1.5,  reach: 1.8,  pierce: 2, need: 3, art: 'axe',      cost: { m: 70, fuel: 2 },   time: 30, tech: 'smithing' },
+  warblade: { label: 'War blade',   rank: 4,   dmg: 3.0,  cd: 0.95, sta: 1.3,  reach: 2.0,  pierce: 2, need: 4, art: 'warblade', cost: { m: 140, fuel: 4 },  time: 48, tech: 'smithing' },
+};
+for (const k in MW) if (MW[k].cost) RECIPES['mw_' + k] = { label: MW[k].label, in: MW[k].cost, out: { mw: k }, time: MW[k].time, tech: MW[k].tech, weapon: k };
+// Training: people who are not on guard practise on their own when told to. Shooting costs ammo and is loud.
+const TRAIN = { melee: 1.1, shoot: 3.0, shootGap: 1.4, yardMelee: 2.2, yardShoot: 1.5, noCapLevel: 3, minAmmo: 25 };
 const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
 const SEWER = { count: 6, minD: 10, maxD: 30, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
 const HERD = { gapMin: 420, gapMax: 720, min: 20, max: 50, cap: 2, attackR: 14 };
@@ -1297,7 +1313,7 @@ Art.renderTerrain = function () {
     else if (v < 0.265) { R('#5a4228', px - 4, py + 1, 9, 2); R('#3a2a18', px - 4, py + 3, 1, 2); R('#3a2a18', px + 4, py + 3, 1, 2); }
   }
   // buildings (roof + facade)
-  for (const b of buildings) drawBuilding(g, b);
+  for (const b of buildings) { if (b.razed) drawRubble(g, b); else drawBuilding(g, b); }
   // lamp posts
   for (const l of lamps) {
     const px = l.x * T, py = l.y * T;
@@ -1320,6 +1336,22 @@ Art.renderTerrain = function () {
   Art.fogTex = noiseTex();
 };
 
+function drawRubble(g, b) {                                          // what is left of a building that was pulled down
+  const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, r = mulberry32(b.seed + 77), R = (c, a, bb, cc, d) => { g.fillStyle = pq(c); g.fillRect(a, bb, cc, d); };
+  g.globalAlpha = 0.55; R('#3a362e', x + 1, y + 1, w - 2, h - 2); g.globalAlpha = 1;
+  for (let i = 0; i < b.w * b.h * 9; i++) {
+    const px = x + 1 + (r() * (w - 4) | 0), py = y + 1 + (r() * (h - 4) | 0), v = r();
+    if (v < 0.35) R(['#6a665c', '#807a6c', '#58544a'][r() * 3 | 0], px, py, 2 + (r() * 3 | 0), 1 + (r() * 2 | 0));      // broken concrete
+    else if (v < 0.55) R(['#8a4a3a', '#a05a44'][r() * 2 | 0], px, py, 2, 1);                                          // brick
+    else if (v < 0.7) R('#6a4a28', px, py, 4 + (r() * 4 | 0), 1);                                                     // a splintered plank
+    else if (v < 0.76) R('#2a2824', px, py, 3, 2);
+  }
+  for (let k = 0; k < 2 + b.w; k++) { const px = x + 3 + (r() * (w - 12) | 0), py = y + 3 + (r() * (h - 10) | 0); R('#7a766a', px, py, 5, 3); R('#9a968a', px, py, 5, 1); R('#4a463e', px + 1, py + 3, 4, 1); }
+}
+Art.rebakeTerrain = function () {                                    // repaint the ground after a building falls, keeping blood, claim and fog layers
+  const d = Art.decals, c = Art.claim, f = Art.fogTex;
+  Art.renderTerrain(); Art.decals = d; Art.claim = c; Art.fogTex = f;
+};
 function drawBuilding(g, b) {
   const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, FH = 9;
   const r = mulberry32(b.seed), R = (c, a, bb, cc, d) => { g.fillStyle = pq(c); g.fillRect(a, bb, cc, d); };
@@ -1586,6 +1618,15 @@ Art.drawFacility2 = function (g, f, t) {
     R('#2a2c30', px + 7, py + 11, 2, 4); R('#1c2a4a', px + 1, py + 3, 14, 9); R('#2f4f8a', px + 2, py + 4, 12, 7);
     for (let q = 0; q < 3; q++) { R('#4a74b8', px + 2 + q * 4, py + 4, 3, 3); R('#4a74b8', px + 2 + q * 4, py + 8, 3, 3); }
     R('#9ad0ff', px + 3, py + 4, 1, 1); R('#9ad0ff', px + 11, py + 8, 1, 1); R('#8a94a8', px + 1, py + 3, 14, 1);
+  } else if (f.type === 'yard') {
+    g.globalAlpha = 0.5; R('#5a4a30', px + 1, py + 11, 14, 4); g.globalAlpha = 1;
+    R('#5a4228', px + 7, py + 5, 2, 10); R('#c8b070', px + 4, py + 6, 8, 6); R('#a89050', px + 4, py + 6, 8, 1); R('#d8c488', px + 6, py + 2, 4, 4); R('#6a5232', px + 1, py + 7, 14, 2);
+    R('#c8302a', px + 7, py + 8, 2, 2); if (G.time % 1 < 0.1) R('#fff', px + 13, py + 5, 1, 1);
+  } else if (f.type === 'bunkhouse') {
+    R('#5a4a38', px + 1, py + 6, 14, 9); R('#7a6248', px + 1, py + 6, 14, 2); R('#8a3a2a', px, py + 2, 16, 5); R('#a04a38', px, py + 2, 16, 2); R('#2a2018', px + 6, py + 9, 4, 6); R('#e8c860', px + 3, py + 9, 2, 2); R('#e8c860', px + 11, py + 9, 2, 2);
+  } else if (f.type === 'barracks') {
+    R('#4e5a4a', px, py + 5, T, 10); R('#6a7a64', px, py + 5, T, 2); R('#3a4a34', px - 1, py + 1, T + 2, 5); R('#566a4e', px - 1, py + 1, T + 2, 2);
+    for (let q = 0; q < 3; q++) R('#e8c860', px + 2 + q * 5, py + 9, 3, 3); R('#2a2018', px + 7, py + 12, 2, 3); R('#c8302a', px + 13, py - 3, 1, 5); R('#e8e0c0', px + 14, py - 3, 2, 2);
   } else if (f.type === 'garagebay') {
     R('#5a5c60', px, py + 2, T, 13); R('#e8c020', px, py + 3, T, 1); R('#e8c020', px, py + 13, T, 1);
     if (Campaign.truck) { R('#3a5a8a', px + 1, py + 6, 11, 6); R('#5a80b0', px + 1, py + 6, 11, 2); R('#8ab0d8', px + 9, py + 7, 3, 2); R('#1a1a1e', px + 3, py + 12, 3, 3); R('#1a1a1e', px + 9, py + 12, 3, 3); }
@@ -1789,6 +1830,27 @@ function newSurvivor(role) {
 }
 const findSurvivor = id => allPeople().find(s => s.id === id);
 // ---- skills (level up with use) ---------------------------------------------------------------
+// ---- melee weapons: what people carry, handed out from the workshop's stock ---------------------------------------------------
+const defaultMw = s => (has('spears') || (s && s.role === 'fighter')) ? 'spear' : 'knife';
+const mwOf = s => (s && s.mw && MW[s.mw]) ? s.mw : defaultMw(s);
+function mwStock() { return G.mstock || (G.mstock = {}); }
+function equipMw(s, id, lock) {                    // swap what s carries with the stock; the old weapon goes back on the rack
+  const st = mwStock(), old = s.mw;
+  if (id && id !== 'auto' && id !== old) { if (!(st[id] > 0) && id !== defaultMw(s)) return false; if (st[id] > 0) st[id]--; }
+  if (old && old !== id && MW[old] && old !== defaultMw(s)) st[old] = (st[old] || 0) + 1;
+  s.mw = (id === 'auto' || !id) ? null : id; s.mwLock = !!lock && id !== 'auto';
+  return true;
+}
+function autoArm() {                               // everyone not locked gets the best weapon in stock their arm can handle
+  const st = mwStock(), people = allPeople().slice().sort((a, b) => skillLv(b, 'melee') - skillLv(a, 'melee'));
+  for (const s of people) {
+    if (s.mwLock) continue;
+    const lv = skillLv(s, 'melee'), cur = MW[mwOf(s)];
+    let best = null;
+    for (const id in st) if (st[id] > 0 && MW[id].need <= lv && MW[id].rank > cur.rank && (!best || MW[id].rank > MW[best].rank)) best = id;
+    if (best) { equipMw(s, best, false); log(who(s) + ' takes up a ' + MW[best].label.toLowerCase()); }
+  }
+}
 function skillLv(s, k) { const x = (s.xp && s.xp[k]) || 0; let l = 0; for (let i = 1; i < SKILL_XP.length; i++) if (x >= SKILL_XP[i]) l = i; return l; }
 const skillMul = (s, k) => { const l = skillLv(s, k); return 1 + 0.05 * l + (l >= 5 ? 0.1 : 0); };
 function addXp(s, k, n) {
@@ -1873,7 +1935,8 @@ function addRecruit(s, why) {
   log(intro(s) + ' ' + why);
 }
 // how many people the camp can hold: the level's base, plus room for one more per 12 tiles of walled-in ground beyond the open-ground limit
-const popCap = g => { g = g || G; const L = LEVELS[g.level - 1]; return Math.min(160, L.defs + (g.sealed ? Math.floor(Math.max(0, g.territory - L.cap) / 12) : 0)); };
+const housing = g => { let n = 0; if (g === G) { for (const f of facilities) if (f.type === 'bunkhouse') n += 5; else if (f.type === 'barracks') n += 14; } return n; };
+const popCap = g => { g = g || G; const L = LEVELS[g.level - 1]; return Math.min(200, L.defs + (g.sealed ? Math.floor(Math.max(0, g.territory - L.cap) / 12) : 0) + housing(g)); };
 const roomForPerson = () => people() < popCap();
 
 // ---- effects helpers ---------------------------------------------------------------
@@ -2320,7 +2383,8 @@ function fight(e, dt, o) {
   e.cd -= dt; e.mcd -= dt; e.shot -= dt; e.noiseT -= dt; if (e.aimT > 0) e.aimT -= dt;
   e.st = 'idle';
   if (!zombies.length) return;
-  const spear = !!o.spear, reach = (spear ? SPEAR.reach : MELEE.range), hasSta = e.sta !== undefined;
+  const wp = MW[e === P ? (P.mw && MW[P.mw] ? P.mw : 'knife') : mwOf(e.s)], spear = wp.reach >= 2.5, reach = Math.max(MELEE.range, wp.reach), hasSta = e.sta !== undefined;
+  const mlv = e.s ? skillLv(e.s, 'melee') : 3, under = mlv < wp.need;      // too heavy for an untrained arm
   let near = null, second = null, nd = reach * reach, sd = nd;
   for (let j = 0; j < zombies.length; j++) {
     const z = zombies[j], dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
@@ -2338,11 +2402,10 @@ function fight(e, dt, o) {
     if (hasSta && e.sta < STAMINA.max) e.sta = Math.min(STAMINA.max, e.sta + STAMINA.fightRegen * (1 + 0.12 * (e.s ? skillLv(e.s, 'melee') : 0)) * dt);
     e.face = near.x >= e.px ? 1 : -1; e.st = 'stab'; e.aimA = Math.atan2(near.y - 0.4 - (e.py - 0.5), near.x - e.px); e.aimT = 0.5;
     if (e.mcd <= 0) {
-      e.mcd = MELEE.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1) * (e.tired ? STAMINA.tiredCd : 1);
-      let bl = 1; if (e.blade && e.blade.dur > 0) { bl = BLADE.dmg; if (--e.blade.dur <= 0) { e.blade = null; if (e.s) log(who(e.s) + '\'s blade snapped'); } }
-      const dm = MELEE.dmg * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * bl * (spear ? SPEAR.dmg : 1) * (e.tired ? STAMINA.tiredDmg : 1);
-      if (hasSta) e.sta = Math.max(0, e.sta - (spear ? STAMINA.spearSwing : STAMINA.swing) / (o.meleeMul > 0 ? Math.max(0.6, o.meleeMul) : 1));
-      const hit = spear && second ? [near, second] : [near];
+      e.mcd = MELEE.cd * wp.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1) * (e.tired ? STAMINA.tiredCd : 1);
+      const dm = MELEE.dmg * wp.dmg * (under ? 0.6 + 0.1 * mlv : 1) * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * (e.tired ? STAMINA.tiredDmg : 1);
+      if (hasSta) e.sta = Math.max(0, e.sta - STAMINA.swing * wp.sta * (under ? 1.3 : 1) / (o.meleeMul > 0 ? Math.max(0.6, o.meleeMul) : 1));
+      const hit = wp.pierce >= 2 && second ? [near, second] : [near];
       for (const t of hit) {
         t.hp -= dm; t.by = e.s || null;
         addBurst(t.x, t.y - 0.3, '#9ad06a', 2);
@@ -2395,7 +2458,6 @@ function updateDefenders(dt) {
     if (d.hurt) d.hurt -= dt;
     if (d.act > 0) d.act -= dt;
     const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
-    if (!d.blade && G.blades > 0) { G.blades--; d.blade = { dur: BLADE.dur }; }
     const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
     if (d.s.lover) { const l = defenders.find(o => o.s.id === d.s.lover); if (l && (l.px - d.px) ** 2 + (l.py - d.py) ** 2 < 49) { rel.dmg = REL.loverDmg; rel.cd = 0.95; } }
     if (d.s.rival) { const r = defenders.find(o => o.s.id === d.s.rival); if (r && (r.px - d.px) ** 2 + (r.py - d.py) ** 2 < 25) rel.cd *= REL.rivalCd; }
@@ -2838,6 +2900,12 @@ function tryBuild(tx, ty) {
     pay(HEAT.siren); lureHorde('siren'); return;
   }
   if (tool === 'molotov') return Outside.throwMolotov(tx, ty);              // can be thrown at buildings (nests)
+  if (tool === 'erase') { const bp = Build.at(tx, ty) || (G.blue || []).find(q => q.fw && tx >= q.x && tx < q.x + q.fw && ty >= q.y && ty < q.y + q.fh); if (bp) { Build.cancel(bp); return; } }
+  if (tool === 'demolish') {
+    if (bld[i] < 0 || isCoreTile(tx, ty)) return warn('Click a building to pull it down');
+    if (!inBuildRange(tx, ty)) return warn('Too far - walk closer');
+    return Build.demolish(buildings[bld[i]]);
+  }
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
   if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
@@ -2903,7 +2971,7 @@ function tryBuild(tx, ty) {
     if (!s) return warn('No healthy idle survivors. Scavenge for them, or seal your camp to draw refugees.');
     Units.post(s, tx, ty, false); Snd.click();
   } else if (tool === 'erase') {
-    { const bp = Build.at(tx, ty); if (bp) { Build.cancel(bp); return; } }
+    { const bp = Build.at(tx, ty) || (G.blue || []).find(q => q.fw && tx >= q.x && tx < q.x + q.fw && ty >= q.y && ty < q.y + q.fh); if (bp) { Build.cancel(bp); return; } }
     if (defAt[i]) { Units.standDown(defAt[i]); return; }
     if (trapAt[i]) { const t = trapAt[i]; traps.splice(traps.indexOf(t), 1); trapAt[i] = null; G.mat += refund(t.type); Snd.demolish(); return; }
     if (facAt[i]) { Base.remove(facAt[i]); Snd.demolish(); return; }
@@ -2963,6 +3031,7 @@ function simulate(dt) {
   Outside.update(dt); Base.update(dt); Survival.update(dt);
   updateDefenders(dt);
   Units.update(dt);
+  G.armT = (G.armT || 0) - dt; if (G.armT <= 0) { G.armT = 5; autoArm(); }
   Build.update(dt);
   if (G.intro) Intro.update(dt);
   Hints.update(dt);
@@ -3387,12 +3456,12 @@ const Base = {
         case 'rain': G.water = Math.min(store, G.water + WATER.rain * S.rain * rain * dt); break;
         case 'clinic': G.med = Math.min(store, G.med + 0.04 * dt); break;
         case 'workshop': {
-          const R = RECIPES[G.craft] || RECIPES.ammo;
+          let R = RECIPES[G.craft] || RECIPES.ammo; if (R.tech && !has(R.tech)) R = RECIPES.ammo;
           f.on = ratio > 0 && demand > 0;
           if (f.on) {
             f.t += dt * ratio;
             if (f.t >= R.time) {
-              if (canAfford(R.in)) { pay(R.in); const o = R.out; if (o.a) G.ammo = Math.min(store, G.ammo + o.a); if (o.ap) G.ap += o.ap; if (o.inc) G.inc += o.inc; if (o.blade) G.blades += o.blade; f.t = 0; }
+              if (canAfford(R.in)) { pay(R.in); const o = R.out; if (o.a) G.ammo = Math.min(store, G.ammo + o.a); if (o.ap) G.ap += o.ap; if (o.inc) G.inc += o.inc; if (o.mw) { const st = mwStock(); st[o.mw] = (st[o.mw] || 0) + 1; log('The workshop finished a ' + MW[o.mw].label.toLowerCase()); } f.t = 0; }
               else f.t = R.time;
             }
           }
@@ -3819,7 +3888,7 @@ const Bg = {
       const R = RECIPES[g.craft] || RECIPES.ammo; t.shopT += dt * shops;
       while (t.shopT >= R.time) {
         t.shopT -= R.time;
-        if ((!R.in.m || g.mat >= R.in.m) && (!R.in.fuel || g.fuel >= R.in.fuel)) { g.mat -= R.in.m || 0; g.fuel -= R.in.fuel || 0; if (R.out.a) g.ammo = Math.min(cap, g.ammo + R.out.a); if (R.out.ap) g.ap += R.out.ap; if (R.out.inc) g.inc += R.out.inc; if (R.out.blade) g.blades += R.out.blade; } else break;
+        if ((!R.in.m || g.mat >= R.in.m) && (!R.in.fuel || g.fuel >= R.in.fuel)) { g.mat -= R.in.m || 0; g.fuel -= R.in.fuel || 0; if (R.out.a) g.ammo = Math.min(cap, g.ammo + R.out.a); if (R.out.ap) g.ap += R.out.ap; if (R.out.inc) g.inc += R.out.inc; if (R.out.mw) { g.mstock = g.mstock || {}; g.mstock[R.out.mw] = (g.mstock[R.out.mw] || 0) + 1; } } else break;
       }
     }
     // people eat and drink
@@ -4220,7 +4289,7 @@ const Units = (() => {
   const free = (x, y) => { const tx = x | 0, ty = y | 0; return inb(tx, ty) && bld[ty * W + tx] < 0 && !isCoreTile(tx, ty) && wall[ty * W + tx] !== K.RADIO; };
   const doorOf = b => [clamp((b.x + b.w / 2) | 0, 0, W - 1), clamp(b.y + b.h, 0, H - 1)];
 
-  const defaultWork = s => ({ guard: s.role === 'fighter' || s.role === 'sniper', loot: s.role === 'scavenger', build: s.role !== 'sniper' });
+  const defaultWork = s => ({ guard: s.role === 'fighter' || s.role === 'sniper', loot: s.role === 'scavenger', build: s.role !== 'sniper', train: 'off' });
   const workOf = s => s.work || (s.work = defaultWork(s));
 
   function of(s, x, y) {
@@ -4395,6 +4464,7 @@ const Units = (() => {
     }
     const drop = crates.find(c => c.type === 'airdrop');
     if (drop && !G.idle.some(o => { const b = U.get(o.id); return b && b.order && b.order.drop; })) { orderMove(u, drop.x, drop.y, false); u.order.drop = true; return; }      // someone fetches the supply drop
+    if (w.train && w.train !== 'off') { const [sx, sy] = trainSpot(u); if (Math.hypot(sx - u.px, sy - u.py) > 1.6) { orderMove(u, sx, sy, false); u.order.train = true; } return; }
     if (rng() < 0.5) {                                   // mill about the camp
       const [hx, hy] = home(); orderMove(u, hx + (rng() - 0.5) * 6.5, hy + rng() * 2.2, false); u.order.slow = true;
     }
@@ -4453,6 +4523,40 @@ const Units = (() => {
     if (rng() < TURN.chance * (medic ? TURN.medicMul : 1)) { turning.push({ x: u.px, y: u.py, t: TURN.delay, s }); log('The body is already stirring...'); }
     Snd.error();
   }
+  // ---- training: practice when told to, away from the wall. Shooting costs ammo and the noise draws the dead. ------------------
+  function trainSpot(u) {
+    let best = null, bd = 1e9;
+    for (const f of facilities) if (f.type === 'yard') { const d = Math.hypot(f.x - u.px, f.y - u.py); if (d < bd) { bd = d; best = f; } }
+    if (best) return [best.x + 0.5 + ((u.s.id % 3) - 1) * 0.7, best.y + 1.1, true];
+    const [hx, hy] = home(); return [hx + ((u.s.id % 5) - 2) * 1.2, hy + 1.3 + (u.s.id % 2) * 0.8, false];
+  }
+  function trainTick(u, dt) {
+    const w = workOf(u.s), kind = w.train;
+    u.tr = null;
+    if (!kind || kind === 'off' || u.s.sick > 0 || u.bpId || u.manual > 0 || alarm()) return;
+    const [sx, sy, yard] = trainSpot(u);
+    if (Math.hypot(sx - u.px, sy - u.py) > 1.6) { if (!u.order) { orderMove(u, sx, sy, false); u.order.train = true; } return; }
+    if (u.order) return;
+    const lv = skillLv(u.s, kind);
+    if (lv >= 5) { u.tr = 'max'; return; }
+    if (!yard && lv >= TRAIN.noCapLevel) { u.tr = 'cap'; if (!u.capMsg) { u.capMsg = 1; log(who(u.s) + ' has learned all the camp can teach. A training yard would take them further.'); } return; }
+    u.face = 1;
+    if (kind === 'melee') {
+      u.tr = 'melee'; u.st = 'stab'; u.trT = (u.trT || 0) - dt;
+      if (u.trT <= 0) { u.trT = 0.65; u.stab = 0.18; u.act = 0.2; u.actK = 'stab'; Snd.stab(u.px + 0.7, u.py); }
+      addXp(u.s, 'melee', TRAIN.melee * (yard ? TRAIN.yardMelee : 1) * dt);
+    } else {
+      if (G.ammo < TRAIN.minAmmo) { u.tr = 'noammo'; return; }
+      u.tr = 'shoot'; u.trT = (u.trT || 0) - dt;
+      if (u.trT <= 0) {
+        u.trT = TRAIN.shootGap; G.ammo -= 1; u.shot = 0.09; u.st = 'shoot'; u.act = 0.2; u.actK = 'shoot'; u.aimA = 0; u.aimT = 0.6;
+        if (flashes.length < 40) flashes.push({ x: u.px + 0.5, y: u.py - 0.5, life: 0.09 });
+        tracers.push({ x1: u.px + 0.5, y1: u.py - 0.5, x2: u.px + 5, y2: u.py - 0.5, life: 0.07 });
+        Snd.shot(u.px, u.py, false); addHeat(HEAT.gun * 0.6); alertNoise(u.px, u.py, gunRadius(false) * 0.85, 3);
+        addXp(u.s, 'shoot', TRAIN.shoot * (yard ? TRAIN.yardShoot : 1));
+      }
+    }
+  }
   function updateBody(u, dt, inCrew) {
     u.moving = false; u.hurt -= dt; if (u.stab > 0) u.stab -= dt; if (u.act > 0) u.act -= dt; if (u.manual > 0) u.manual -= dt;
     const s = u.s;
@@ -4478,6 +4582,7 @@ const Units = (() => {
     }
     // fight whatever is close; calm survivors only fire at what is nearly on top of them
     if (zombies.length) fight(u, dt, fightOpts(u, !alarm() && !inCrew)); else { u.st = 'idle'; if (u.sta < STAMINA.max) u.sta = Math.min(STAMINA.max, u.sta + STAMINA.restRegen * dt); }
+    if (!inCrew) trainTick(u, dt);
     if (u.moving && u.st === 'idle') u.st = 'walk';
     // shout of the gun / the smell of people: nearby idle dead come to look
     u.alertT -= dt;
@@ -4563,8 +4668,9 @@ const Units = (() => {
   function statusOf(s) {
     if (defenders.some(d => d.s === s)) { const d = defenders.find(x => x.s === s); return 'on the wall' + (d.auto ? ' (self-posted)' : ''); }
     const c = G.crews.find(c => c.members.includes(s)); if (c) return { out: 'walking out', work: 'scavenging', back: 'coming home' }[c.phase || 'out'];
-    const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
+    const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : u.order.train ? 'heading to train' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
     if (u.working) return 'building';
+    if (u.tr) return { melee: 'training melee', shoot: 'training shooting', cap: 'needs a training yard', max: 'a master', noammo: 'training paused: low ammo' }[u.tr];
     return 'idle';
   }
   const pendingTiles = () => pending();
@@ -4662,22 +4768,23 @@ const Combat = (() => {
   function melee(a) {
     if (P.mcd > 0 || P.dead > 0) return;
     a = a || aim();
-    P.mcd = MEL.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1; P.aimA = Math.atan2(a.dy, a.dx); P.aimT = 0.4;
-    P.sta = Math.max(0, P.sta - MEL.sta); if (P.sta <= 0) P.tired = true;
+    const wp = MW[P.mw && MW[P.mw] ? P.mw : 'knife'], reach = Math.max(MEL.reach, wp.reach + 0.35), cap = wp.pierce >= 2 ? 4 : 3;
+    P.mcd = MEL.cd * wp.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1; P.aimA = Math.atan2(a.dy, a.dx); P.aimT = 0.4;
+    P.sta = Math.max(0, P.sta - MEL.sta * wp.sta); if (P.sta <= 0) P.tired = true;
     const ang = Math.atan2(a.dy, a.dx); let hit = 0;
-    const dm = MELEE.dmg * 1.15 * (P.tired ? STAMINA.tiredDmg : 1) * (has('hands') ? 1.35 : 1);
+    const dm = MELEE.dmg * 1.15 * wp.dmg * (P.tired ? STAMINA.tiredDmg : 1) * (has('hands') ? 1.35 : 1);
     for (const z of zombies) {
-      if (z.hp <= 0 || hit >= 3) continue;
+      if (z.hp <= 0 || hit >= cap) continue;
       const rx = z.x - P.px, ry = z.y - P.py, d = Math.hypot(rx, ry);
-      if (d > MEL.reach + radiusOf(z) * 0.5) continue;
+      if (d > reach + radiusOf(z) * 0.5) continue;
       let da = Math.atan2(ry, rx) - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
-      if (Math.abs(da) > MEL.arc) continue;
+      if (Math.abs(da) > (wp.reach >= 2.5 ? 0.35 : MEL.arc)) continue;
       z.hp -= dm; z.hit = 0.12; z.by = null; hit++;
       if (z.mode === 0 || z.mode === 3) { z.mode = 1; z.lose = 0; }
       const kx = z.x + rx / (d || 1) * MEL.shove, ky = z.y + ry / (d || 1) * MEL.shove; if (free2(kx, ky)) { z.x = kx; z.y = ky; }            // a shove that buys a moment
       addBurst(z.x, z.y - 0.3, '#9ad06a', 3); tracers.push({ x1: z.x - 0.25, y1: z.y - 0.5, x2: z.x + 0.25, y2: z.y - 0.1, life: 0.12, slash: true });
     }
-    Snd.stab(P.px + a.dx, P.py + a.dy); if (!hit) tracers.push({ x1: P.px + a.dx * 0.5, y1: P.py - 0.5 + a.dy * 0.3, x2: P.px + a.dx * 1.8, y2: P.py - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
+    Snd.stab(P.px + a.dx, P.py + a.dy); if (!hit) tracers.push({ x1: P.px + a.dx * 0.5, y1: P.py - 0.5 + a.dy * 0.3, x2: P.px + a.dx * (wp.reach + 0.2), y2: P.py - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
   }
   const free2 = (x, y) => inb(x | 0, y | 0) && bld[(y | 0) * W + (x | 0)] < 0 && !isCoreTile(x | 0, y | 0);
   C.melee = melee;
@@ -4948,7 +5055,7 @@ const Build = (() => {
   const B = {};
   const REACH = 2.4, PER = 2;                                        // how close a worker must be; most workers on one blueprint
   const TIME = { wall: 3.5, tower: 9, gate: 5, lookout: 8, radio: 24, outpost: 18, electrify: 4, reinforce: 6, spike: 2.5, barrel: 4 };
-  const COLORS = { wall: '#b58a52', tower: '#c8ccd2', gate: '#c8a050', lookout: '#8ad0a8', radio: '#e8e070', outpost: '#c89a62', electrify: '#7fd0ff', reinforce: '#a8a8a8', spike: '#d0d0d0', barrel: '#e8884a' };
+  const COLORS = { demolish: '#e0603a', wall: '#b58a52', tower: '#c8ccd2', gate: '#c8a050', lookout: '#8ad0a8', radio: '#e8e070', outpost: '#c89a62', electrify: '#7fd0ff', reinforce: '#a8a8a8', spike: '#d0d0d0', barrel: '#e8884a' };
   const PRIO = ['', 'Low', 'Normal', 'Urgent'];
   const list = () => G.blue || (G.blue = []);
   const labelOf = tool => { const t = TOOLS.find(x => x.id === tool); return t ? t.label : tool; };
@@ -4972,6 +5079,29 @@ const Build = (() => {
     for (const k in cost) B.pop.cost[k] = (B.pop.cost[k] || 0) + cost[k];
     return true;
   };
+  // pulling a building down: it takes time, leaves rubble and a pile of salvage, and the ground is free for walls, fields and beds
+  B.demolish = b => {
+    if (b.razed) return; if (b.nest) return warn('Clear the nest first'); if (b.crew) return warn('A crew is working there');
+    if (B.at(b.x, b.y)) return warn('Already marked for demolition. Erase it to cancel.');
+    const bp = { id: (G.blueId = (G.blueId || 0) + 1), tool: 'demolish', x: b.x, y: b.y, fw: b.w, fh: b.h, bi: buildings.indexOf(b), cost: {}, work: 5 + b.w * b.h * 0.9, prog: 0, prio: 2 };
+    list().push(bp); Snd.click();
+    floatText(b.x + b.w / 2, b.y - 0.3, 'demolish: ' + Math.ceil(bp.work) + 's of work', '#e8c070');
+    if (G.sealed && b.claimed) toast('Careful: this building is part of your wall. Replace it with walls or the camp opens up.');
+    if (!b.looted) toast('Unsearched: tearing it down still recovers part of what is inside.');
+  };
+  function razeDo(bp) {
+    const b = buildings[bp.bi]; if (!b || b.razed) return;
+    const ent = [{ r: 'm', n: Math.round(b.w * b.h * 2.4 * (0.8 + rng() * 0.4)) }];
+    if (!b.looted) { const got = takeLoot(b, 0.7); for (const [k] of LOOT_KEYS) if (got[k]) ent.push({ r: k, n: got[k] }); }
+    for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === bp.bi) bld[y * W + x] = -1;
+    b.razed = true; b.looted = true; b.crew = false; b.locked = false;
+    { const m = {}; for (const e of ent) if (e.r) m[e.r] = (m[e.r] || 0) + e.n; ent.length = 0; for (const k in m) ent.push({ r: k, n: m[k] }); }
+    crates.push({ x: b.x + b.w / 2, y: b.y + b.h + 0.4, t: 900, type: 'pile', title: 'Salvage from the ' + BUILDING_TYPES[b.type].label.toLowerCase(), items: ent });
+    Art.rebakeTerrain(); G.fieldDirty = true; computeBaseField(); computePlayerField(); computeTerritory();
+    addBurst(b.x + b.w / 2, b.y + b.h / 2, '#8a8070', 26, { spread: 5, grav: 2, size: 2 }); Snd.demolish && Snd.demolish(); Snd.boom && Snd.boom(b.x + b.w / 2, b.y + b.h / 2); shake(1.2);
+    investigate(b.x + b.w / 2, b.y + b.h / 2, NOISE.build * 2, false);
+    log('The ' + BUILDING_TYPES[b.type].label.toLowerCase() + ' is down. The ground is clear and there is salvage in the rubble.');
+  }
   B.cancel = bp => {
     const L = list(), k = L.indexOf(bp); if (k < 0) return;
     L.splice(k, 1);
@@ -4982,6 +5112,7 @@ const Build = (() => {
   };
   B.setPrio = (bp, p) => { bp.prio = clamp(p, 1, 3); };
   const built = bp => {
+    if (bp.tool === 'demolish') return !!(buildings[bp.bi] && buildings[bp.bi].razed);
     const i = bp.y * W + bp.x;
     if (TOOL_KIND[bp.tool]) return wall[i] === TOOL_KIND[bp.tool];
     if (bp.tool === 'electrify') return !!elec[i];
@@ -4991,14 +5122,19 @@ const Build = (() => {
   };
   function finish(bp) {
     list().splice(list().indexOf(bp), 1);
-    const tool = G.tool; G.completing = true; G.tool = bp.tool;
-    try { tryBuild(bp.x, bp.y); } finally { G.completing = false; G.tool = tool; }
+    if (bp.tool === 'demolish') razeDo(bp);
+    else { const tool = G.tool; G.completing = true; G.tool = bp.tool;
+      try { tryBuild(bp.x, bp.y); } finally { G.completing = false; G.tool = tool; } }
     if (built(bp)) {
-      G.fieldDirty = true; G.visT = 0; Snd.build(); floatText(bp.x + 0.5, bp.y - 0.3, labelOf(bp.tool) + ' done', '#9be09a');
+      G.fieldDirty = true; G.visT = 0; Snd.build(); floatText(bp.x + (bp.fw || 1) / 2, bp.y - 0.3, bp.tool === 'demolish' ? 'cleared' : labelOf(bp.tool) + ' done', '#9be09a');
       if (rings.length < 24) rings.push({ x: bp.x + 0.5, y: bp.y + 0.5, r: NOISE.build, t: 0, max: 0.6 });
     } else { addRes(bp.cost); log('Could not build the ' + labelOf(bp.tool).toLowerCase() + ' at ' + bp.x + ',' + bp.y + ': the spot was taken. Supplies returned.'); }
   }
-  const dist = (bp, px, py) => Math.hypot(bp.x + 0.5 - px, bp.y + 0.5 - py);
+  const dist = (bp, px, py) => {                                       // distance to the blueprint; a building being pulled down is a whole footprint
+    if (bp.fw) { const dx = Math.max(bp.x - px, 0, px - (bp.x + bp.fw)), dy = Math.max(bp.y - py, 0, py - (bp.y + bp.fh)); return Math.hypot(dx, dy); }
+    return Math.hypot(bp.x + 0.5 - px, bp.y + 0.5 - py);
+  };
+  const standAt = bp => bp.fw ? [bp.x + bp.fw / 2, bp.y + bp.fh + 0.7] : [bp.x + 0.5, bp.y + 0.5];
   const order = (a, b) => b.prio - a.prio || a.id - b.id;
 
   B.update = dt => {
@@ -5028,7 +5164,7 @@ const Build = (() => {
       if (!bp) continue;
       counts.set(bp, (counts.get(bp) || 0) + 1);
       if (dist(bp, u.px, u.py) <= REACH - 0.5) { add(bp, (s.role === 'builder' ? 1.6 : 0.8) * skillMul(s, 'build')); busy++; u.st = 'stab'; u.stab = 0.12; u.working = true; u.face = bp.x + 0.5 >= u.px ? 1 : -1; u.moving = false; }
-      else if (!u.order) { Units.moveTo(u, bp.x + 0.5, bp.y + 0.5); u.order.build = true; }
+      else if (!u.order) { const [sx, sy] = standAt(bp); Units.moveTo(u, sx, sy); u.order.build = true; }
     }
     B.hands = hands + 1; B.busy = busy + (B.you ? 1 : 0);
     if (!AI.on && !G.intro) { B.idle = (B.idle || 0) + (B.busy ? -B.idle : dt); if (B.idle > 14) { B.idle = -30; toast('Planned builds are waiting for hands. Stand next to them and hold still (J: build queue).'); } }
@@ -5044,11 +5180,11 @@ const Build = (() => {
     const L = list(); if (!L.length || !G) return;
     const t = G.time || 0;
     for (const bp of L) {
-      const px = bp.x * T, py = bp.y * T, k = bp.prog / bp.work, col = COLORS[bp.tool] || '#cfd4d8';
-      ctx.globalAlpha = 0.28; ctx.fillStyle = col; ctx.fillRect(px, py, T, T);
-      ctx.globalAlpha = 0.55 + 0.2 * k; ctx.fillRect(px, py + T * (1 - k), T, T * k); ctx.globalAlpha = 1;      // fills from the ground up as it is worked
-      ctx.strokeStyle = bp.w ? '#fff' : col; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.lineDashOffset = -t * 6; ctx.strokeRect(px + 0.5, py + 0.5, T - 1, T - 1); ctx.setLineDash([]);
-      ctx.fillStyle = '#000b'; ctx.fillRect(px - 1, py + T + 1, T + 2, 3); ctx.fillStyle = bp.w ? '#ffe27a' : '#8a8f98'; ctx.fillRect(px, py + T + 2, T * k, 1);
+      const bw = (bp.fw || 1) * T, bh = (bp.fh || 1) * T, px = bp.x * T, py = bp.y * T, k = bp.prog / bp.work, col = COLORS[bp.tool] || '#cfd4d8';
+      ctx.globalAlpha = 0.28; ctx.fillStyle = col; ctx.fillRect(px, py, bw, bh);
+      ctx.globalAlpha = 0.55 + 0.2 * k; ctx.fillRect(px, py + bh * (1 - k), bw, bh * k); ctx.globalAlpha = 1;      // fills from the ground up as it is worked
+      ctx.strokeStyle = bp.w ? '#fff' : col; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.lineDashOffset = -t * 6; ctx.strokeRect(px + 0.5, py + 0.5, bw - 1, bh - 1); ctx.setLineDash([]);
+      ctx.fillStyle = '#000b'; ctx.fillRect(px - 1, py + bh + 1, bw + 2, 3); ctx.fillStyle = bp.w ? '#ffe27a' : '#8a8f98'; ctx.fillRect(px, py + bh + 2, bw * k, 1);
       if (bp.prio !== 2) { ctx.fillStyle = bp.prio === 3 ? '#ff6a4a' : '#8ab0d8'; ctx.font = '8px monospace'; ctx.fillText(bp.prio === 3 ? '!!' : 'v', px + 2, py - 2); }
       if (bp.w && (t * 8 | 0) % 3 === 0) { ctx.fillStyle = '#ffe9a0'; ctx.fillRect(px + 4 + (t * 37 % 8), py + 2 + (t * 23 % 6), 1.5, 1.5); }
     }
@@ -5086,6 +5222,10 @@ const Weapons = (() => {
     rifle: () => mk('rifle', 17, 5, [R('#1a1c20', 3, 1, 14, 2), R('#4a4f58', 3, 1, 14, 1), R('#5a3a1a', 0, 1, 5, 3), R('#7a5226', 0, 1, 5, 1), R('#101114', 9, 3, 2, 2), R('#2a8ad0', 7, 0, 3, 1), R('#8a909a', 12, 1, 5, 1)]),
     knife: () => mk('knife', 8, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#d8dde2', 3, 0, 5, 2), R('#fff', 3, 0, 5, 1), R('#8a909a', 6, 1, 2, 1)]),
     spear: () => mk('spear', 22, 3, [R('#6a4a22', 0, 1, 17, 1), R('#8a6a3a', 0, 1, 17, 0), R('#c8ccd2', 17, 0, 5, 3), R('#fff', 17, 0, 5, 1), R('#e8e0c0', 15, 0, 2, 3)]),
+    club: () => mk('club', 9, 4, [R('#5a3a1a', 0, 1, 6, 2), R('#7a5226', 0, 1, 6, 1), R('#6a4a22', 5, 0, 4, 4), R('#9aa0a8', 6, 0, 1, 1), R('#9aa0a8', 8, 1, 1, 1), R('#9aa0a8', 7, 3, 1, 1)]),
+    machete: () => mk('machete', 11, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#c8ccd2', 3, 0, 8, 2), R('#fff', 3, 0, 8, 1), R('#8a909a', 9, 1, 2, 1)]),
+    axe: () => mk('axe', 14, 6, [R('#6a4a22', 0, 2, 12, 1), R('#8a6a3a', 0, 2, 12, 0), R('#b02a2a', 9, 0, 5, 5), R('#d8dde2', 11, 0, 3, 5), R('#fff', 12, 1, 2, 1)]),
+    warblade: () => mk('warblade', 18, 5, [R('#2a2a30', 0, 2, 4, 2), R('#c8a030', 4, 1, 1, 4), R('#d8dde4', 5, 1, 13, 3), R('#fff', 5, 1, 13, 1), R('#8a909a', 5, 3, 13, 1), R('#e8f0ff', 14, 2, 4, 1)]),
     flash: () => mk('flash', 11, 9, [R('#fff6c0', 0, 4, 11, 1), R('#ffe27a', 1, 3, 9, 3), R('#ffb040', 3, 2, 5, 5), R('#fff', 4, 3, 3, 3), R('#ffe27a', 5, 0, 1, 9), R('#ff8a22', 2, 1, 1, 1), R('#ff8a22', 8, 7, 1, 1)]),
   };
   const spr = n => cache[n] || SPR[n]();
@@ -5103,9 +5243,9 @@ const Weapons = (() => {
     const swinging = o.stab > 0, reloading = o === P && P.reloadT > 0;
     let a, kind = kindOf(o), recoil = 0;
     if (swinging) {
-      kind = (o.s && o.s.role === 'fighter') || has('spears') ? 'spear' : 'knife';
+      kind = MW[o === P ? (P.mw && MW[P.mw] ? P.mw : 'knife') : mwOf(o.s)].art;
       const k = o.stab / 0.2, base = o.aimA !== undefined && o.aimT > 0 ? o.aimA : (face > 0 ? 0 : Math.PI);
-      a = base + (kind === 'spear' ? 0 : (k - 0.5) * 2.2 * (face > 0 ? -1 : 1));
+      a = base + (kind === 'spear' || kind === 'warblade' ? (k - 0.5) * 0.5 : (k - 0.5) * 2.2 * (face > 0 ? -1 : 1));
       recoil = kind === 'spear' ? (1 - k) * 5 : 0;
     } else if (reloading) { a = face > 0 ? 1.1 : Math.PI - 1.1; }
     else if (o.aimT > 0 && o.aimA !== undefined) { a = o.aimA; recoil = o.shot > 0 ? -2 : 0; }
@@ -5186,6 +5326,9 @@ const Hints = (() => {
     { id: 'weapon', title: 'A new gun', text: 'You have another gun now. Press <b>B</b> to switch. The military ones (machine pistol, assault rifle, marksman rifle) can only be found; what you build at camp is cruder. Each gun keeps its own clip.', when: () => Combat.unlocked().length > 1 },
     { id: 'refugees', title: 'More people', text: 'Your camp is sealed, so <b>refugees</b> will start arriving, as long as there is food, spirits are up and there is room. You also find survivors hiding in buildings you search, and strangers sometimes wander in. The "New arrivals" line on the right tells you what is holding them back.', when: () => G.sealed && G.elapsed > 120 },
     { id: 'walledin', title: 'Wall in more ground', text: 'Your camp is sealed. Walls can close off far more than the camp: whole blocks, a district, the town. Everything inside a closed loop is yours. Add a second and third layer where they press hardest, and remember every wall you hold needs people and towers behind it.', when: () => G.sealed && G.elapsed > 400 },
+    { id: 'train', title: 'Training', text: 'People who are not on guard can <b>train</b>. Open <b>K</b> and set Melee or Shoot, or select people (C) and use the buttons. Melee practice is free. Shooting practice burns ammo and the noise draws the dead. Past level 3 needs a <b>training yard</b>. Better weapons need a trained arm.', when: () => G.idle.length >= 2 },
+    { id: 'weaponsmith', title: 'Make better weapons', text: 'A powered <b>workshop</b> can make melee weapons as well as ammo: spiked clubs, machetes, spears, and with Smithing, fire axes and war blades. Each person is handed the best one their skill allows. Heavier weapons hit harder but tire an untrained arm.', when: () => facilities.some(f => f.type === 'workshop') },
+    { id: 'demolish', title: 'Clear the ground', text: 'Need room for fields or beds? <b>Demolish</b> (7) pulls a building down: it takes time, leaves salvage, and the ground is free. Gardens, bunkhouses and wells go on free ground inside your walls.', when: () => G.sealed && G.elapsed > 500 },
     { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
     { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
     { id: 'secure', title: 'Making a town secure', text: 'A town is <b>secured</b> when it can look after itself: walls sealed and manned, food and water growing, ammo being made. Press <b>Y</b> to see what is missing. Secure it, then move on to the next.', when: () => G.level >= 3 && G.sealed },
@@ -5527,6 +5670,7 @@ function drawWorld(cam, cw, ch, z) {
 
   // scavenged / crewed buildings
   for (const b of buildings) {
+    if (b.razed) continue;
     if (b.looted) { ctx.fillStyle = 'rgba(0,0,0,0.36)'; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T - 9); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(b.x * T + b.w * T / 2 - 3, b.y * T + (b.h * T - 9) / 2 - 1, 6, 2); }
     if (b.locked && !b.looted) { const lx = b.x * T + b.w * T / 2, ly = b.y * T + (b.h * T - 9) / 2; ctx.fillStyle = '#0008'; ctx.fillRect(lx - 5, ly - 5, 10, 12); ctx.fillStyle = '#e8c547'; ctx.fillRect(lx - 3, ly - 1, 6, 5); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 1; ctx.strokeRect(lx - 2.5, ly - 5.5, 5, 5); }
     if (b.crew) {
@@ -5596,7 +5740,7 @@ function drawWorld(cam, cw, ch, z) {
     if (n.hp < NEST.hp) { ctx.fillStyle = '#000a'; ctx.fillRect(bx + 2, by + bh - 6, bw - 4, 3); ctx.fillStyle = '#ff8a22'; ctx.fillRect(bx + 2, by + bh - 6, (bw - 4) * Math.max(0, n.hp) / NEST.hp, 3); }
   }
   // facilities
-  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay', 'mine', 'solar'];
+  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay', 'mine', 'solar', 'yard', 'bunkhouse', 'barracks'];
   for (const f of facilities) (NEWFAC.includes(f.type) ? Art.drawFacility2 : Art.drawFacility)(ctx, f, t);
   // sewer accesses you know about
   for (const s of sewers) {
@@ -5943,7 +6087,7 @@ function renderMini() {
   }
   // buildings of interest
   const poiCol = { pharmacy: '#3ee07a', gas: '#e8884a', police: '#5a8aff', junkyard: '#b0a070', farmstead: '#d8e86a', bunker: '#c070ff' };
-  for (const b of buildings) if (b.poi && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) {
+  for (const b of buildings) if (b.poi && !b.razed && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) {
     const x = (b.x + b.w / 2) * S, y = (b.y + b.h / 2) * S;
     g.fillStyle = '#000a'; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill();
     g.fillStyle = poiCol[b.type] || '#fff'; g.beginPath(); g.moveTo(x, y - 4.5); g.lineTo(x + 4.5, y); g.lineTo(x, y + 4.5); g.lineTo(x - 4.5, y); g.closePath(); g.fill();
@@ -5976,7 +6120,7 @@ const Save = (() => {
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'born', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue', 'storm', 'eventT', 'trader',
     'refugeeT', 'sel', 'seed', 'morale', 'deaths', 'rules', 'ruleCd', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'heat', 'pressAcc', 'dropT', 'supCd', 'secured', 'safeT', 'coreHurtAt', 'nests', 'nestT',
-    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'blue', 'blueId', 'intro', 'introHold', 'fireLit', 'ruins'];
+    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'mstock', 'blue', 'blueId', 'intro', 'introHold', 'fireLit', 'ruins'];
 
   // a town's data, whether it is the live one (globals) or a stored record
   function viewOf(t) {
@@ -5990,7 +6134,7 @@ const Save = (() => {
     for (const k of SCALARS) d.scalars[k] = g[k];
     d.wall = b64(m.wall); d.explored = b64(m.explored); d.wallHp = b64(hp16); d.tier = b64(m.wallTier); d.elec = b64(m.elec);
     d.facilities = L.facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
-    d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0));
+    d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0) | (b.razed ? 4 : 0));
     d.stock = L.buildings.map(b => b.stock); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
     d.idle = g.idle; d.crews = g.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk, phase: c.phase || 'out', prog: c.prog || 0 }));
     d.defenders = L.defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s, blade: x.blade || null }));
@@ -6002,7 +6146,7 @@ const Save = (() => {
     Towns.snapshot(Campaign.active);                       // refresh the live town's record (also writes back the id counter)
     const c = Campaign;
     return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
-      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })), guns: P.guns || {} }, towns: c.towns.map(serializeTown) };
+      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })), guns: P.guns || {}, mw: P.mw || null }, towns: c.towns.map(serializeTown) };
   }
   // where the save lives: the browser's storage, a copy in memory for this visit, and the private cloud copy
   let mem = null;
@@ -6033,7 +6177,9 @@ const Save = (() => {
     for (const n of G.nests) if (buildings[n.bi]) buildings[n.bi].nest = true;
     if (td.stock) td.stock.forEach((st, i) => { if (buildings[i] && st) buildings[i].stock = st; });
     if (td.sewers) td.sewers.forEach((f, i) => { if (sewers[i]) { sewers[i].found = !!(f & 1); sewers[i].sealed = !!(f & 2); } });
-    td.buildings.forEach((f, i) => { if (buildings[i]) { buildings[i].looted = !!(f & 1); buildings[i].crew = !!(f & 2); } });
+    let razedAny = false;
+    td.buildings.forEach((f, i) => { const b = buildings[i]; if (b) { b.looted = !!(f & 1); b.crew = !!(f & 2); if (f & 4) { razedAny = true; b.razed = true; b.looted = true; for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === i) bld[y * W + x] = -1; } } });
+    if (razedAny) Art.rebakeTerrain();
     G.idle = td.idle; G.crews = td.crews;
     defenders = []; defAt = new Array(W * H).fill(null);
     for (const x of td.defenders) { addDefender(x.x, x.y, x.s); const dd = defAt[x.y * W + x.x]; if (dd) { dd.hp = x.hp; dd.blade = x.blade || null; } }
@@ -6073,7 +6219,7 @@ const Save = (() => {
     Campaign.nextId = c.nextId || (Math.max(...Campaign.towns.map(t => t.id)) + 1);
     activeT = activeT || Campaign.towns[0];
     Towns.load(activeT); Campaign.active = activeT;
-    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {};
+    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {}; P.mw = d.P.mw || null;
     computePlayerField(); updateVision();
     log('Game loaded');
     return true;
@@ -6095,6 +6241,7 @@ const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) 
 const TOOLS = [
   { cat: 'Command', id: 'combat', key: '0', label: 'Fight', cost: () => ({}), tip: 'Aim with the mouse. Hold left-click to fire, R reloads, right-click or F swings at what is close. Every shot is yours and every shot is heard.' },
   { cat: 'Command', id: 'orders', key: 'C', label: 'Select & command', cost: () => ({}), tip: 'Click or drag to select survivors. Right-click: move there, man a wall, or scavenge a building. They carry it out on their own.' },
+  { cat: 'Land', id: 'demolish', key: '7', label: 'Demolish', cost: () => ({}), tip: 'Click a building to pull it down. It takes time, recovers salvage, and leaves clear ground for fields, beds, workshops or walls.' },
   { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
   { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
   { cat: 'Defense', id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
@@ -6151,7 +6298,7 @@ const UI = (() => {
     const cs = $('craftSeg');
     for (const k in RECIPES) {
       const b = document.createElement('button'); b.dataset.craft = k; b.style.justifyContent = 'center'; b.style.padding = '3px 2px'; b.style.fontSize = '11px';
-      b.textContent = RECIPES[k].label; b.title = Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
+      b.textContent = RECIPES[k].label; b.title = RECIPES[k].weapon ? MW[RECIPES[k].weapon].label + ': ' + Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ', ' + RECIPES[k].time + 's. Melee weapon: damage x' + MW[RECIPES[k].weapon].dmg + ', reach ' + MW[RECIPES[k].weapon].reach + ', needs melee level ' + MW[RECIPES[k].weapon].need + (RECIPES[k].tech ? '. Needs research.' : '') : Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
       b.addEventListener('click', () => { G.craft = k; Snd.click(); }); cs.appendChild(b);
     }
   }
@@ -6186,12 +6333,12 @@ const UI = (() => {
     $('supBar').style.width = (G.supply * 100) + '%'; $('supBar').style.background = G.supply < STOCK.crit ? 'var(--bad)' : G.supply < STOCK.warn ? '#e8a447' : 'var(--good)';
     $('iWater').textContent = (G.water | 0) + ' / ' + Math.round(G.hygiene) + '% clean'; $('iWater').style.color = G.water <= 0 || G.hygiene < HYGIENE.low ? 'var(--bad)' : '';
     const rowOf = id => $(id).closest('.row'); const show = (id, v) => { const r = rowOf(id); if (r) r.style.display = v ? '' : 'none'; };
-    show('iStock', G.ap + G.inc + G.blades + G.keys > 0); show('iNests', G.nests.length > 0 || !!G.nestSeen); show('iPower', facilities.some(f => ['generator', 'solar', 'floodlight', 'workshop', 'turret'].includes(f.type)));
+    show('iStock', G.ap + G.inc + G.keys > 0); show('iNests', G.nests.length > 0 || !!G.nestSeen); show('iPower', facilities.some(f => ['generator', 'solar', 'floodlight', 'workshop', 'turret'].includes(f.type)));
     show('iPress', G.elapsed >= PRESSURE.start * 0.8 || G.heat > 3);
-    $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Blades ' + G.blades + ' · Keys ' + G.keys;
+    $('iStock').textContent = 'AP ' + G.ap + ' · Inc ' + G.inc + ' · Keys ' + G.keys;
     const hasShop = facilities.some(f => f.type === 'workshop');
     $('craftRow').style.display = hasShop ? '' : 'none';
-    document.querySelectorAll('[data-craft]').forEach(b => b.classList.toggle('on', b.dataset.craft === G.craft));
+    document.querySelectorAll('[data-craft]').forEach(b => { const R0 = RECIPES[b.dataset.craft]; b.classList.toggle('on', b.dataset.craft === G.craft); b.disabled = !!(R0.tech && !has(R0.tech)); if (R0.weapon) b.textContent = R0.label + ((G.mstock || {})[R0.weapon] ? ' ×' + G.mstock[R0.weapon] : ''); });
     const bay = facilities.some(f => f.type === 'garagebay'), tb = $('btnTruck');
     tb.style.display = bay && !Campaign.truck ? '' : 'none';
     if (bay && !Campaign.truck) { tb.textContent = G.truckT > 0 ? 'Truck: ' + Math.ceil(G.truckT) + 's' : 'Build truck (' + costStr(TRUCK.cost) + ')'; tb.disabled = G.truckT > 0 || !canAfford(TRUCK.cost); }
@@ -6409,7 +6556,7 @@ const UI = (() => {
   }
   function renderPack() {
     const inv = Items.pack(), cap = storeCap(), camp = Items.atCamp();
-    const key = RESROW.map(([k]) => G[Items.RES[k].field] | 0).join() + '|' + inv.map(s => s.id + s.n).join() + '|' + camp + '|' + (P.mag | 0) + '|' + (P.hp | 0);
+    const key = RESROW.map(([k]) => G[Items.RES[k].field] | 0).join() + '|' + inv.map(s => s.id + s.n).join() + '|' + camp + '|' + (P.mag | 0) + '|' + (P.hp | 0) + '|' + (P.mw || '') + JSON.stringify(G.mstock || {});
     if (key === lastPack) return; lastPack = key;
     const el = $('pack');
     const stock = RESROW.map(([k]) => { const r = Items.RES[k], v = G[r.field] | 0, low = (k === 'a' && v < 30) || (k === 'f' && v < 20) || (k === 'water' && v < 20) || (k === 'm' && v < 40);
@@ -6418,8 +6565,11 @@ const UI = (() => {
       return '<div class="lootrow">' + Items.img(s.id, 24) + '<span class="ln"><b>' + d.name + '</b> <span class="lq">x' + s.n + '</span><br><small>' + d.desc + '</small></span>' +
         (d.use ? '<button data-u="' + s.id + '">Use</button>' : '') + (d.stash ? '<button data-s="' + s.id + '"' + (camp ? '' : ' disabled title="Walk back to camp to stash"') + '>Stash</button>' : '') + '<button data-d="' + s.id + '">Drop</button></div>'; }).join('')
       : '<div style="color:var(--dim)">Empty. The dead sometimes carry something worth taking; ruins hide more.</div>';
+    const armory = () => { const st = G.mstock || {}, cur = P.mw && MW[P.mw] ? P.mw : 'knife'; const have = Object.keys(MW).filter(k => st[k] > 0 && k !== cur);
+      return '<div>Carrying: <b>' + MW[cur].label + '</b> <small style="color:var(--dim)">(damage ×' + MW[cur].dmg + ', reach ' + MW[cur].reach + ')</small></div>' + (have.length ? have.map(k => '<div class="lootrow"><span class="ln"><b>' + MW[k].label + '</b> ×' + st[k] + ' <small>damage ×' + MW[k].dmg + ', reach ' + MW[k].reach + ', ' + (MW[k].cd < 1 ? 'fast' : MW[k].cd > 1.1 ? 'slow' : 'average') + '</small></span><button data-eq="' + k + '">Take</button></div>').join('') : '<small style="color:var(--dim)">Nothing on the rack. Build a workshop and make some.</small>'); };
     el.innerHTML = '<div class="row"><h3>Pack &amp; stockpile</h3><button id="pkClose" style="padding:2px 8px">Close (I)</button></div>' +
       '<div class="sec">Weapon</div><div>' + Items.img('a', 18) + ' Pistol: <b>' + (P.mag | 0) + '</b> in the magazine, <b>' + (G.ammo | 0) + '</b> in reserve. Health <b>' + Math.max(0, P.hp | 0) + '</b>.</div>' +
+      '<div class="sec">Your melee weapon</div>' + armory() +
       '<div class="sec">Camp stockpile</div>' + stock +
       '<div class="sec">Your pack (' + Items.packCount() + ' items, ' + inv.length + '/' + Items.PACK.slots + ' slots)</div>' + pk +
       (inv.some(s => Items.ITEMS[s.id].stash) ? '<div style="margin-top:8px"><button id="pkStash"' + (camp ? '' : ' disabled') + '>Stash everything useful at camp</button> ' + (camp ? '' : '<small style="color:var(--dim)">(walk back to the fire first)</small>') + '</div>' : '');
@@ -6427,6 +6577,7 @@ const UI = (() => {
     el.querySelectorAll('button[data-u]').forEach(b => b.onclick = () => { Items.useOne(b.dataset.u); lastPack = ''; renderPack(); });
     el.querySelectorAll('button[data-s]').forEach(b => b.onclick = () => { Items.stashOne(b.dataset.s); lastPack = ''; renderPack(); });
     el.querySelectorAll('button[data-d]').forEach(b => b.onclick = () => { Items.dropOne(b.dataset.d); lastPack = ''; renderPack(); });
+    el.querySelectorAll('button[data-eq]').forEach(b => b.onclick = () => { const st = mwStock(), id = b.dataset.eq; if (st[id] > 0) { st[id]--; const old = P.mw; if (old && MW[old] && old !== 'knife') st[old] = (st[old] || 0) + 1; P.mw = id; Snd.click(); } lastPack = ''; renderPack(); });
     const st = el.querySelector('#pkStash'); if (st) st.onclick = () => { Items.stashAll(); lastPack = ''; renderPack(); };
   }
   function toggleRules() {
@@ -6655,8 +6806,10 @@ const UI = (() => {
     const names = [...(G.selP ? ['You'] : []), ...sel.map(e => who(e.s) + ' (' + Units.statusOf(e.s) + ')')];
     const k = names.join('|') + G.crews.length; if (el.dataset.k === k) return; el.dataset.k = k;
     el.classList.add('show');
-    el.innerHTML = '<b>' + n + ' selected</b> · ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) : '') + '<br><span style="color:var(--dim)">Right-click: ground to move · wall to man it · building to scavenge</span> <button id="cbDown">Stand down (X)</button><button id="cbWork">Work (K)</button><button id="cbClr">Deselect</button>';
+    el.innerHTML = '<b>' + n + ' selected</b> · ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) : '') + '<br><span style="color:var(--dim)">Right-click: ground to move · wall to man it · building to scavenge</span> <button id="cbDown">Stand down (X)</button><button id="cbTM">Train melee</button><button id="cbTS">Train shooting</button><button id="cbWork">Work (K)</button><button id="cbClr">Deselect</button>';
     $('cbDown').onclick = () => { Units.standDownSelected(); lastPeople = ''; };
+    $('cbTM').onclick = () => { for (const e of Units.selected()) Units.workOf(e.s).train = 'melee'; lastWork = ''; toast('Selected survivors will train melee when they are free'); };
+    $('cbTS').onclick = () => { for (const e of Units.selected()) Units.workOf(e.s).train = 'shoot'; lastWork = ''; toast('Selected survivors will practise shooting: it costs ammo and the noise draws the dead'); };
     $('cbWork').onclick = toggleWork; $('cbClr').onclick = () => { clearSel(); lastPeople = ''; };
   }
   let lastSecure = '';
@@ -6675,15 +6828,18 @@ const UI = (() => {
   function toggleWork() { const el = $('work'); el.classList.toggle('show'); lastWork = ''; if (el.classList.contains('show')) renderWork(); Snd.click(); }
   function renderWork() {
     const rows = [...G.idle.map(s => ({ s })), ...defenders.map(d => ({ s: d.s })), ...G.crews.flatMap(c => c.members.map(s => ({ s })))];
-    const key = rows.map(r => r.s.id + Units.statusOf(r.s) + JSON.stringify(Units.workOf(r.s)) + (G.sel.includes(r.s.id) ? '*' : '')).join('|');
+    const key = rows.map(r => r.s.id + Units.statusOf(r.s) + JSON.stringify(Units.workOf(r.s)) + (r.s.mw || '') + skillLv(r.s, 'melee') + skillLv(r.s, 'shoot') + (G.sel.includes(r.s.id) ? '*' : '')).join('|') + JSON.stringify(G.mstock || {});
     if (key === lastWork) return; lastWork = key;
     const el = $('work');
-    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Anyone you are not ordering decides for themselves. <b>Guard</b>: man a wall when a horde comes (and step down afterwards). <b>Scavenge</b>: go out for loot on their own when the camp is calm and has ammo to spare. <b>Build</b>: work the build queue (J) when nothing else needs them.</div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th><th>Build</th></tr>';
-    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td><td><button data-w="build" data-i="' + i + '" class="' + (w.build !== false ? 'on' : '') + '">' + (w.build !== false ? 'On' : 'Off') + '</button></td></tr>'; });
+    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Free survivors guard when a horde comes, then build, scavenge and train. Shooting practice burns ammo and its noise draws the dead; past level 3 needs a training yard.</div>' + '<div style="margin:4px 0">Everyone free: <button data-bulk="melee" style="display:inline-flex">Train melee</button> <button data-bulk="shoot" style="display:inline-flex">Train shooting</button> <button data-bulk="off" style="display:inline-flex">Stop training</button> <small style="color:var(--dim)">Rack: ' + (Object.entries(G.mstock || {}).filter(([k, n]) => n > 0).map(([k, n]) => MW[k].label + ' ×' + n).join(', ') || 'empty (the workshop makes weapons)') + '</small></div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th><th>Build</th><th>Train</th><th>Melee weapon</th></tr>';
+    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td><td><button data-w="build" data-i="' + i + '" class="' + (w.build !== false ? 'on' : '') + '">' + (w.build !== false ? 'On' : 'Off') + '</button></td><td><button data-tr data-i="' + i + '" class="' + (w.train && w.train !== 'off' ? 'on' : '') + '">' + ({ off: 'Off', melee: 'Melee ' + skillLv(r.s, 'melee'), shoot: 'Shoot ' + skillLv(r.s, 'shoot') }[w.train || 'off']) + '</button></td><td><button data-mwb data-i="' + i + '" title="Click to change. Auto gives the best one they can handle.">' + MW[mwOf(r.s)].label + (r.s.mwLock ? '' : ' (auto)') + '</button> <small style="color:var(--dim)">need ' + MW[mwOf(r.s)].need + '</small></td></tr>'; });
     h += '</table>' + (rows.length ? '' : '<div style="color:var(--dim)">No survivors yet.</div>');
     el.innerHTML = h;
     $('wkClose').onclick = toggleWork;
     el.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w[b.dataset.w] = b.dataset.w === 'build' ? w.build === false : !w[b.dataset.w]; lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-tr]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w.train = { off: 'melee', melee: 'shoot', shoot: 'off' }[w.train || 'off']; lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-mwb]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i], s0 = r.s, st = G.mstock || {}; const opts = ['auto', ...Object.keys(MW).filter(k => (st[k] > 0 || k === s0.mw) && k !== 'knife')]; const cur = s0.mwLock ? s0.mw : 'auto'; const nx = opts[(opts.indexOf(cur) + 1) % opts.length]; equipMw(s0, nx, true); if (nx === 'auto') autoArm(); lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('button[data-bulk]').forEach(b => b.onclick = () => { for (const r of rows) { if (defenders.some(d => d.s === r.s) || G.crews.some(c => c.members.includes(r.s))) continue; Units.workOf(r.s).train = b.dataset.bulk; } lastWork = ''; renderWork(); Snd.click(); });
     el.querySelectorAll('a[data-sel]').forEach(a => a.onclick = ev => { ev.preventDefault(); const r = rows[+a.dataset.sel]; clearSel(); G.sel.push(r.s.id); lastWork = ''; renderWork(); lastPeople = ''; });
   }
 

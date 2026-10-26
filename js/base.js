@@ -82,12 +82,12 @@ const Base = {
         case 'rain': G.water = Math.min(store, G.water + WATER.rain * S.rain * rain * dt); break;
         case 'clinic': G.med = Math.min(store, G.med + 0.04 * dt); break;
         case 'workshop': {
-          const R = RECIPES[G.craft] || RECIPES.ammo;
+          let R = RECIPES[G.craft] || RECIPES.ammo; if (R.tech && !has(R.tech)) R = RECIPES.ammo;
           f.on = ratio > 0 && demand > 0;
           if (f.on) {
             f.t += dt * ratio;
             if (f.t >= R.time) {
-              if (canAfford(R.in)) { pay(R.in); const o = R.out; if (o.a) G.ammo = Math.min(store, G.ammo + o.a); if (o.ap) G.ap += o.ap; if (o.inc) G.inc += o.inc; if (o.blade) G.blades += o.blade; f.t = 0; }
+              if (canAfford(R.in)) { pay(R.in); const o = R.out; if (o.a) G.ammo = Math.min(store, G.ammo + o.a); if (o.ap) G.ap += o.ap; if (o.inc) G.inc += o.inc; if (o.mw) { const st = mwStock(); st[o.mw] = (st[o.mw] || 0) + 1; log('The workshop finished a ' + MW[o.mw].label.toLowerCase()); } f.t = 0; }
               else f.t = R.time;
             }
           }

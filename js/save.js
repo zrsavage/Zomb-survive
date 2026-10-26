@@ -8,7 +8,7 @@ const Save = (() => {
   const r2 = v => Math.round(v * 100) / 100;
   const SCALARS = ['level', 'ammo', 'mat', 'food', 'coreHp', 'kills', 'elapsed', 'born', 'hordeN', 'hordesBeaten', 'nextHorde', 'hordeId', 'rescue', 'storm', 'eventT', 'trader',
     'refugeeT', 'sel', 'seed', 'morale', 'deaths', 'rules', 'ruleCd', 'radioT', 'radioMsg', 'rescueKind', 'stress', 'recentDeaths', 'med', 'fuel', 'heat', 'pressAcc', 'dropT', 'supCd', 'secured', 'safeT', 'coreHurtAt', 'nests', 'nestT',
-    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'blue', 'blueId', 'intro', 'introHold', 'fireLit', 'ruins'];
+    'water', 'hygiene', 'ap', 'inc', 'blades', 'keys', 'craft', 'fog', 'supplyLvl', 'herdT', 'herdId', 'batt', 'truckT', 'townName', 'mstock', 'blue', 'blueId', 'intro', 'introHold', 'fireLit', 'ruins'];
 
   // a town's data, whether it is the live one (globals) or a stored record
   function viewOf(t) {
@@ -22,7 +22,7 @@ const Save = (() => {
     for (const k of SCALARS) d.scalars[k] = g[k];
     d.wall = b64(m.wall); d.explored = b64(m.explored); d.wallHp = b64(hp16); d.tier = b64(m.wallTier); d.elec = b64(m.elec);
     d.facilities = L.facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
-    d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0));
+    d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0) | (b.razed ? 4 : 0));
     d.stock = L.buildings.map(b => b.stock); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
     d.idle = g.idle; d.crews = g.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk, phase: c.phase || 'out', prog: c.prog || 0 }));
     d.defenders = L.defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s, blade: x.blade || null }));
@@ -34,7 +34,7 @@ const Save = (() => {
     Towns.snapshot(Campaign.active);                       // refresh the live town's record (also writes back the id counter)
     const c = Campaign;
     return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
-      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })), guns: P.guns || {} }, towns: c.towns.map(serializeTown) };
+      P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp), inv: (P.inv || []).map(s => ({ ...s })), guns: P.guns || {}, mw: P.mw || null }, towns: c.towns.map(serializeTown) };
   }
   // where the save lives: the browser's storage, a copy in memory for this visit, and the private cloud copy
   let mem = null;
@@ -65,7 +65,9 @@ const Save = (() => {
     for (const n of G.nests) if (buildings[n.bi]) buildings[n.bi].nest = true;
     if (td.stock) td.stock.forEach((st, i) => { if (buildings[i] && st) buildings[i].stock = st; });
     if (td.sewers) td.sewers.forEach((f, i) => { if (sewers[i]) { sewers[i].found = !!(f & 1); sewers[i].sealed = !!(f & 2); } });
-    td.buildings.forEach((f, i) => { if (buildings[i]) { buildings[i].looted = !!(f & 1); buildings[i].crew = !!(f & 2); } });
+    let razedAny = false;
+    td.buildings.forEach((f, i) => { const b = buildings[i]; if (b) { b.looted = !!(f & 1); b.crew = !!(f & 2); if (f & 4) { razedAny = true; b.razed = true; b.looted = true; for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (inb(x, y) && bld[y * W + x] === i) bld[y * W + x] = -1; } } });
+    if (razedAny) Art.rebakeTerrain();
     G.idle = td.idle; G.crews = td.crews;
     defenders = []; defAt = new Array(W * H).fill(null);
     for (const x of td.defenders) { addDefender(x.x, x.y, x.s); const dd = defAt[x.y * W + x.x]; if (dd) { dd.hp = x.hp; dd.blade = x.blade || null; } }
@@ -105,7 +107,7 @@ const Save = (() => {
     Campaign.nextId = c.nextId || (Math.max(...Campaign.towns.map(t => t.id)) + 1);
     activeT = activeT || Campaign.towns[0];
     Towns.load(activeT); Campaign.active = activeT;
-    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {};
+    P.px = d.P.px; P.py = d.P.py; P.hp = d.P.hp; P.travel = 0; P.inv = d.P.inv || []; P.guns = d.P.guns || {}; P.mw = d.P.mw || null;
     computePlayerField(); updateVision();
     log('Game loaded');
     return true;

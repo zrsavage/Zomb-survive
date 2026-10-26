@@ -136,7 +136,8 @@ const RESEARCH = [
   { id: 'walls',   name: 'Reinforced Walls', desc: 'Walls, towers and gates have 35% more health.',     cost: { m: 150 },         time: 40 },
   { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster, and so do you (15%).',                         cost: { m: 90, a: 80 },   time: 45 },
   { id: 'ap',      name: 'AP Rounds',        desc: 'Bullets deal 30% more damage.',                      cost: { m: 120, a: 120 }, time: 50 },
-  { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less.', cost: { m: 60 }, time: 25 },
+  { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less. The workshop can also make more.', cost: { m: 60 }, time: 25 },
+  { id: 'smithing', name: 'Smithing',        desc: 'Lets the workshop forge fire axes and war blades: heavy weapons for people with a trained arm (melee level 3 and 4).', cost: { m: 160, fuel: 6 }, time: 60 },
   { id: 'hands',   name: 'Fast Hands',       desc: 'Stabbing is 35% harder and 15% faster.',             cost: { m: 100 },         time: 40 },
   { id: 'watch',   name: 'Watch Network',    desc: 'Lookouts see 50% farther and reveal more map.',      cost: { m: 130 },         time: 45 },
   { id: 'scav',    name: 'Scavenging Kit',   desc: 'Loot yields +35% and takes 30% less time.',          cost: { m: 90, f: 40 },   time: 35 },
@@ -253,6 +254,9 @@ const FACILITIES = {
   battery:    { label: 'Battery',    level: 3, cost: { m: 40 }, desc: 'Stores up to 30 power; smooths brownouts. Generators run full to charge it.' },
   mine:       { label: 'Mine',       level: 2, cost: { m: 50 }, desc: 'Digs raw materials without end: +0.3 materials/s. A little noisy.' },
   solar:      { label: 'Solar array', level: 3, cost: { m: 90 }, desc: 'Gives 2 power with no fuel and no noise. Keeps workshops, lights and turrets running for good.' },
+  yard:       { label: 'Training yard', level: 1, cost: { m: 35 }, desc: 'Dummies and a firing line. Training here is about twice as fast and the only way past level 3. Shooting practice still costs ammo and is loud.' },
+  bunkhouse:  { label: 'Bunkhouse',  level: 1, cost: { m: 50 }, desc: 'Beds for 5 more people. Build it on ground you cleared or on any free tile in the camp.' },
+  barracks:   { label: 'Barracks',   level: 3, cost: { m: 140 }, desc: 'Beds for 14 more people.' },
   garagebay:  { label: 'Garage bay', level: 3, cost: { m: 80 }, desc: 'Lets you build a Truck: needed to reach other towns.' },
 };
 const TIER = { hp: [1, 1.8, 3], press: [1, 0.6, 0.3], cost: [0, 6, 14], names: ['Timber', 'Reinforced', 'Concrete'] };
@@ -282,9 +286,21 @@ const RECIPES = {
   ammo:  { label: 'Ammo',          in: { m: 2 },            out: { a: 1 },     time: 5 },
   ap:    { label: 'AP rounds',     in: { m: 3, fuel: 1 },   out: { ap: 2 },    time: 8 },
   inc:   { label: 'Incendiary',    in: { m: 2, fuel: 1 },   out: { inc: 2 },   time: 8 },
-  blade: { label: 'Combat blade',  in: { m: 12 },           out: { blade: 1 }, time: 15 },
 };
 const BLADE = { dur: 160, dmg: 1.5 };
+// Melee weapons are made at the workshop and handed out. A better one needs a trained arm (need = melee level): below that it
+// hits weaker and wears the user out. rank orders them for auto-arming.
+const MW = {
+  knife:    { label: 'Knife',       rank: 0,   dmg: 1,    cd: 1,    sta: 1,    reach: 1.6,  pierce: 1, need: 0, art: 'knife' },
+  club:     { label: 'Spiked club', rank: 1,   dmg: 1.3,  cd: 1.08, sta: 1.1,  reach: 1.7,  pierce: 1, need: 0, art: 'club',     cost: { m: 18 },            time: 12 },
+  spear:    { label: 'Spear',       rank: 1.5, dmg: 0.9,  cd: 1,    sta: 0.7,  reach: 2.7,  pierce: 2, need: 0, art: 'spear',    cost: { m: 24 },            time: 14, tech: 'spears' },
+  machete:  { label: 'Machete',     rank: 2,   dmg: 1.6,  cd: 0.82, sta: 0.95, reach: 1.75, pierce: 1, need: 1, art: 'machete',  cost: { m: 36 },            time: 20 },
+  axe:      { label: 'Fire axe',    rank: 3,   dmg: 2.3,  cd: 1.2,  sta: 1.5,  reach: 1.8,  pierce: 2, need: 3, art: 'axe',      cost: { m: 70, fuel: 2 },   time: 30, tech: 'smithing' },
+  warblade: { label: 'War blade',   rank: 4,   dmg: 3.0,  cd: 0.95, sta: 1.3,  reach: 2.0,  pierce: 2, need: 4, art: 'warblade', cost: { m: 140, fuel: 4 },  time: 48, tech: 'smithing' },
+};
+for (const k in MW) if (MW[k].cost) RECIPES['mw_' + k] = { label: MW[k].label, in: MW[k].cost, out: { mw: k }, time: MW[k].time, tech: MW[k].tech, weapon: k };
+// Training: people who are not on guard practise on their own when told to. Shooting costs ammo and is loud.
+const TRAIN = { melee: 1.1, shoot: 3.0, shootGap: 1.4, yardMelee: 2.2, yardShoot: 1.5, noCapLevel: 3, minAmmo: 25 };
 const KEYS = { breachFuel: 2, breachTime: 9, keyTime: 1.3, houseChance: 0.03 };
 const SEWER = { count: 6, minD: 10, maxD: 30, from: 4, base: 0.1, per: 0.02, max: 0.3, found: 3 };
 const HERD = { gapMin: 420, gapMax: 720, min: 20, max: 50, cap: 2, attackR: 14 };

@@ -59,6 +59,7 @@ function drawWorld(cam, cw, ch, z) {
 
   // scavenged / crewed buildings
   for (const b of buildings) {
+    if (b.razed) continue;
     if (b.looted) { ctx.fillStyle = 'rgba(0,0,0,0.36)'; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T - 9); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(b.x * T + b.w * T / 2 - 3, b.y * T + (b.h * T - 9) / 2 - 1, 6, 2); }
     if (b.locked && !b.looted) { const lx = b.x * T + b.w * T / 2, ly = b.y * T + (b.h * T - 9) / 2; ctx.fillStyle = '#0008'; ctx.fillRect(lx - 5, ly - 5, 10, 12); ctx.fillStyle = '#e8c547'; ctx.fillRect(lx - 3, ly - 1, 6, 5); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 1; ctx.strokeRect(lx - 2.5, ly - 5.5, 5, 5); }
     if (b.crew) {
@@ -128,7 +129,7 @@ function drawWorld(cam, cw, ch, z) {
     if (n.hp < NEST.hp) { ctx.fillStyle = '#000a'; ctx.fillRect(bx + 2, by + bh - 6, bw - 4, 3); ctx.fillStyle = '#ff8a22'; ctx.fillRect(bx + 2, by + bh - 6, (bw - 4) * Math.max(0, n.hp) / NEST.hp, 3); }
   }
   // facilities
-  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay', 'mine', 'solar'];
+  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay', 'mine', 'solar', 'yard', 'bunkhouse', 'barracks'];
   for (const f of facilities) (NEWFAC.includes(f.type) ? Art.drawFacility2 : Art.drawFacility)(ctx, f, t);
   // sewer accesses you know about
   for (const s of sewers) {
@@ -475,7 +476,7 @@ function renderMini() {
   }
   // buildings of interest
   const poiCol = { pharmacy: '#3ee07a', gas: '#e8884a', police: '#5a8aff', junkyard: '#b0a070', farmstead: '#d8e86a', bunker: '#c070ff' };
-  for (const b of buildings) if (b.poi && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) {
+  for (const b of buildings) if (b.poi && !b.razed && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]) {
     const x = (b.x + b.w / 2) * S, y = (b.y + b.h / 2) * S;
     g.fillStyle = '#000a'; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill();
     g.fillStyle = poiCol[b.type] || '#fff'; g.beginPath(); g.moveTo(x, y - 4.5); g.lineTo(x + 4.5, y); g.lineTo(x, y + 4.5); g.lineTo(x - 4.5, y); g.closePath(); g.fill();

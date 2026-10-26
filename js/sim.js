@@ -63,6 +63,27 @@ function newSurvivor(role) {
 }
 const findSurvivor = id => allPeople().find(s => s.id === id);
 // ---- skills (level up with use) ---------------------------------------------------------------
+// ---- melee weapons: what people carry, handed out from the workshop's stock ---------------------------------------------------
+const defaultMw = s => (has('spears') || (s && s.role === 'fighter')) ? 'spear' : 'knife';
+const mwOf = s => (s && s.mw && MW[s.mw]) ? s.mw : defaultMw(s);
+function mwStock() { return G.mstock || (G.mstock = {}); }
+function equipMw(s, id, lock) {                    // swap what s carries with the stock; the old weapon goes back on the rack
+  const st = mwStock(), old = s.mw;
+  if (id && id !== 'auto' && id !== old) { if (!(st[id] > 0) && id !== defaultMw(s)) return false; if (st[id] > 0) st[id]--; }
+  if (old && old !== id && MW[old] && old !== defaultMw(s)) st[old] = (st[old] || 0) + 1;
+  s.mw = (id === 'auto' || !id) ? null : id; s.mwLock = !!lock && id !== 'auto';
+  return true;
+}
+function autoArm() {                               // everyone not locked gets the best weapon in stock their arm can handle
+  const st = mwStock(), people = allPeople().slice().sort((a, b) => skillLv(b, 'melee') - skillLv(a, 'melee'));
+  for (const s of people) {
+    if (s.mwLock) continue;
+    const lv = skillLv(s, 'melee'), cur = MW[mwOf(s)];
+    let best = null;
+    for (const id in st) if (st[id] > 0 && MW[id].need <= lv && MW[id].rank > cur.rank && (!best || MW[id].rank > MW[best].rank)) best = id;
+    if (best) { equipMw(s, best, false); log(who(s) + ' takes up a ' + MW[best].label.toLowerCase()); }
+  }
+}
 function skillLv(s, k) { const x = (s.xp && s.xp[k]) || 0; let l = 0; for (let i = 1; i < SKILL_XP.length; i++) if (x >= SKILL_XP[i]) l = i; return l; }
 const skillMul = (s, k) => { const l = skillLv(s, k); return 1 + 0.05 * l + (l >= 5 ? 0.1 : 0); };
 function addXp(s, k, n) {
@@ -147,7 +168,8 @@ function addRecruit(s, why) {
   log(intro(s) + ' ' + why);
 }
 // how many people the camp can hold: the level's base, plus room for one more per 12 tiles of walled-in ground beyond the open-ground limit
-const popCap = g => { g = g || G; const L = LEVELS[g.level - 1]; return Math.min(160, L.defs + (g.sealed ? Math.floor(Math.max(0, g.territory - L.cap) / 12) : 0)); };
+const housing = g => { let n = 0; if (g === G) { for (const f of facilities) if (f.type === 'bunkhouse') n += 5; else if (f.type === 'barracks') n += 14; } return n; };
+const popCap = g => { g = g || G; const L = LEVELS[g.level - 1]; return Math.min(200, L.defs + (g.sealed ? Math.floor(Math.max(0, g.territory - L.cap) / 12) : 0) + housing(g)); };
 const roomForPerson = () => people() < popCap();
 
 // ---- effects helpers ---------------------------------------------------------------
@@ -594,7 +616,8 @@ function fight(e, dt, o) {
   e.cd -= dt; e.mcd -= dt; e.shot -= dt; e.noiseT -= dt; if (e.aimT > 0) e.aimT -= dt;
   e.st = 'idle';
   if (!zombies.length) return;
-  const spear = !!o.spear, reach = (spear ? SPEAR.reach : MELEE.range), hasSta = e.sta !== undefined;
+  const wp = MW[e === P ? (P.mw && MW[P.mw] ? P.mw : 'knife') : mwOf(e.s)], spear = wp.reach >= 2.5, reach = Math.max(MELEE.range, wp.reach), hasSta = e.sta !== undefined;
+  const mlv = e.s ? skillLv(e.s, 'melee') : 3, under = mlv < wp.need;      // too heavy for an untrained arm
   let near = null, second = null, nd = reach * reach, sd = nd;
   for (let j = 0; j < zombies.length; j++) {
     const z = zombies[j], dx = z.x - e.px, dy = z.y - e.py, q = dx * dx + dy * dy;
@@ -612,11 +635,10 @@ function fight(e, dt, o) {
     if (hasSta && e.sta < STAMINA.max) e.sta = Math.min(STAMINA.max, e.sta + STAMINA.fightRegen * (1 + 0.12 * (e.s ? skillLv(e.s, 'melee') : 0)) * dt);
     e.face = near.x >= e.px ? 1 : -1; e.st = 'stab'; e.aimA = Math.atan2(near.y - 0.4 - (e.py - 0.5), near.x - e.px); e.aimT = 0.5;
     if (e.mcd <= 0) {
-      e.mcd = MELEE.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1) * (e.tired ? STAMINA.tiredCd : 1);
-      let bl = 1; if (e.blade && e.blade.dur > 0) { bl = BLADE.dmg; if (--e.blade.dur <= 0) { e.blade = null; if (e.s) log(who(e.s) + '\'s blade snapped'); } }
-      const dm = MELEE.dmg * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * bl * (spear ? SPEAR.dmg : 1) * (e.tired ? STAMINA.tiredDmg : 1);
-      if (hasSta) e.sta = Math.max(0, e.sta - (spear ? STAMINA.spearSwing : STAMINA.swing) / (o.meleeMul > 0 ? Math.max(0.6, o.meleeMul) : 1));
-      const hit = spear && second ? [near, second] : [near];
+      e.mcd = MELEE.cd * wp.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1) * (e.tired ? STAMINA.tiredCd : 1);
+      const dm = MELEE.dmg * wp.dmg * (under ? 0.6 + 0.1 * mlv : 1) * (has('hands') ? 1.35 : 1) * (o.meleeMul || 1) * (e.tired ? STAMINA.tiredDmg : 1);
+      if (hasSta) e.sta = Math.max(0, e.sta - STAMINA.swing * wp.sta * (under ? 1.3 : 1) / (o.meleeMul > 0 ? Math.max(0.6, o.meleeMul) : 1));
+      const hit = wp.pierce >= 2 && second ? [near, second] : [near];
       for (const t of hit) {
         t.hp -= dm; t.by = e.s || null;
         addBurst(t.x, t.y - 0.3, '#9ad06a', 2);
@@ -669,7 +691,6 @@ function updateDefenders(dt) {
     if (d.hurt) d.hurt -= dt;
     if (d.act > 0) d.act -= dt;
     const wk = wall[d.y * W + d.x], tower = wk === K.TOWER || wk === K.OUTPOST, sn = d.s.role === 'sniper';
-    if (!d.blade && G.blades > 0) { G.blades--; d.blade = { dur: BLADE.dur }; }
     const rel = { dmg: 1, cd: 1 };                                 // lovers fight harder side by side, rivals bicker
     if (d.s.lover) { const l = defenders.find(o => o.s.id === d.s.lover); if (l && (l.px - d.px) ** 2 + (l.py - d.py) ** 2 < 49) { rel.dmg = REL.loverDmg; rel.cd = 0.95; } }
     if (d.s.rival) { const r = defenders.find(o => o.s.id === d.s.rival); if (r && (r.px - d.px) ** 2 + (r.py - d.py) ** 2 < 25) rel.cd *= REL.rivalCd; }
@@ -1112,6 +1133,12 @@ function tryBuild(tx, ty) {
     pay(HEAT.siren); lureHorde('siren'); return;
   }
   if (tool === 'molotov') return Outside.throwMolotov(tx, ty);              // can be thrown at buildings (nests)
+  if (tool === 'erase') { const bp = Build.at(tx, ty) || (G.blue || []).find(q => q.fw && tx >= q.x && tx < q.x + q.fw && ty >= q.y && ty < q.y + q.fh); if (bp) { Build.cancel(bp); return; } }
+  if (tool === 'demolish') {
+    if (bld[i] < 0 || isCoreTile(tx, ty)) return warn('Click a building to pull it down');
+    if (!inBuildRange(tx, ty)) return warn('Too far - walk closer');
+    return Build.demolish(buildings[bld[i]]);
+  }
   if (bld[i] >= 0 || isCoreTile(tx, ty)) { if (tool === 'crew' && bld[i] >= 0) sendCrew(buildings[bld[i]]); return; }
   if (tool === 'crew') return;
   if (!G.completing && !inBuildRange(tx, ty)) return warn('Too far - walk closer to build there');
@@ -1177,7 +1204,7 @@ function tryBuild(tx, ty) {
     if (!s) return warn('No healthy idle survivors. Scavenge for them, or seal your camp to draw refugees.');
     Units.post(s, tx, ty, false); Snd.click();
   } else if (tool === 'erase') {
-    { const bp = Build.at(tx, ty); if (bp) { Build.cancel(bp); return; } }
+    { const bp = Build.at(tx, ty) || (G.blue || []).find(q => q.fw && tx >= q.x && tx < q.x + q.fw && ty >= q.y && ty < q.y + q.fh); if (bp) { Build.cancel(bp); return; } }
     if (defAt[i]) { Units.standDown(defAt[i]); return; }
     if (trapAt[i]) { const t = trapAt[i]; traps.splice(traps.indexOf(t), 1); trapAt[i] = null; G.mat += refund(t.type); Snd.demolish(); return; }
     if (facAt[i]) { Base.remove(facAt[i]); Snd.demolish(); return; }
@@ -1237,6 +1264,7 @@ function simulate(dt) {
   Outside.update(dt); Base.update(dt); Survival.update(dt);
   updateDefenders(dt);
   Units.update(dt);
+  G.armT = (G.armT || 0) - dt; if (G.armT <= 0) { G.armT = 5; autoArm(); }
   Build.update(dt);
   if (G.intro) Intro.update(dt);
   Hints.update(dt);

@@ -87,22 +87,23 @@ const Combat = (() => {
   function melee(a) {
     if (P.mcd > 0 || P.dead > 0) return;
     a = a || aim();
-    P.mcd = MEL.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1; P.aimA = Math.atan2(a.dy, a.dx); P.aimT = 0.4;
-    P.sta = Math.max(0, P.sta - MEL.sta); if (P.sta <= 0) P.tired = true;
+    const wp = MW[P.mw && MW[P.mw] ? P.mw : 'knife'], reach = Math.max(MEL.reach, wp.reach + 0.35), cap = wp.pierce >= 2 ? 4 : 3;
+    P.mcd = MEL.cd * wp.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1; P.aimA = Math.atan2(a.dy, a.dx); P.aimT = 0.4;
+    P.sta = Math.max(0, P.sta - MEL.sta * wp.sta); if (P.sta <= 0) P.tired = true;
     const ang = Math.atan2(a.dy, a.dx); let hit = 0;
-    const dm = MELEE.dmg * 1.15 * (P.tired ? STAMINA.tiredDmg : 1) * (has('hands') ? 1.35 : 1);
+    const dm = MELEE.dmg * 1.15 * wp.dmg * (P.tired ? STAMINA.tiredDmg : 1) * (has('hands') ? 1.35 : 1);
     for (const z of zombies) {
-      if (z.hp <= 0 || hit >= 3) continue;
+      if (z.hp <= 0 || hit >= cap) continue;
       const rx = z.x - P.px, ry = z.y - P.py, d = Math.hypot(rx, ry);
-      if (d > MEL.reach + radiusOf(z) * 0.5) continue;
+      if (d > reach + radiusOf(z) * 0.5) continue;
       let da = Math.atan2(ry, rx) - ang; da = Math.atan2(Math.sin(da), Math.cos(da));
-      if (Math.abs(da) > MEL.arc) continue;
+      if (Math.abs(da) > (wp.reach >= 2.5 ? 0.35 : MEL.arc)) continue;
       z.hp -= dm; z.hit = 0.12; z.by = null; hit++;
       if (z.mode === 0 || z.mode === 3) { z.mode = 1; z.lose = 0; }
       const kx = z.x + rx / (d || 1) * MEL.shove, ky = z.y + ry / (d || 1) * MEL.shove; if (free2(kx, ky)) { z.x = kx; z.y = ky; }            // a shove that buys a moment
       addBurst(z.x, z.y - 0.3, '#9ad06a', 3); tracers.push({ x1: z.x - 0.25, y1: z.y - 0.5, x2: z.x + 0.25, y2: z.y - 0.1, life: 0.12, slash: true });
     }
-    Snd.stab(P.px + a.dx, P.py + a.dy); if (!hit) tracers.push({ x1: P.px + a.dx * 0.5, y1: P.py - 0.5 + a.dy * 0.3, x2: P.px + a.dx * 1.8, y2: P.py - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
+    Snd.stab(P.px + a.dx, P.py + a.dy); if (!hit) tracers.push({ x1: P.px + a.dx * 0.5, y1: P.py - 0.5 + a.dy * 0.3, x2: P.px + a.dx * (wp.reach + 0.2), y2: P.py - 0.5 + a.dy * 1.2, life: 0.1, slash: true });
   }
   const free2 = (x, y) => inb(x | 0, y | 0) && bld[(y | 0) * W + (x | 0)] < 0 && !isCoreTile(x | 0, y | 0);
   C.melee = melee;

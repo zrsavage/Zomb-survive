@@ -326,7 +326,7 @@ Art.renderTerrain = function () {
     else if (v < 0.265) { R('#5a4228', px - 4, py + 1, 9, 2); R('#3a2a18', px - 4, py + 3, 1, 2); R('#3a2a18', px + 4, py + 3, 1, 2); }
   }
   // buildings (roof + facade)
-  for (const b of buildings) drawBuilding(g, b);
+  for (const b of buildings) { if (b.razed) drawRubble(g, b); else drawBuilding(g, b); }
   // lamp posts
   for (const l of lamps) {
     const px = l.x * T, py = l.y * T;
@@ -349,6 +349,22 @@ Art.renderTerrain = function () {
   Art.fogTex = noiseTex();
 };
 
+function drawRubble(g, b) {                                          // what is left of a building that was pulled down
+  const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, r = mulberry32(b.seed + 77), R = (c, a, bb, cc, d) => { g.fillStyle = pq(c); g.fillRect(a, bb, cc, d); };
+  g.globalAlpha = 0.55; R('#3a362e', x + 1, y + 1, w - 2, h - 2); g.globalAlpha = 1;
+  for (let i = 0; i < b.w * b.h * 9; i++) {
+    const px = x + 1 + (r() * (w - 4) | 0), py = y + 1 + (r() * (h - 4) | 0), v = r();
+    if (v < 0.35) R(['#6a665c', '#807a6c', '#58544a'][r() * 3 | 0], px, py, 2 + (r() * 3 | 0), 1 + (r() * 2 | 0));      // broken concrete
+    else if (v < 0.55) R(['#8a4a3a', '#a05a44'][r() * 2 | 0], px, py, 2, 1);                                          // brick
+    else if (v < 0.7) R('#6a4a28', px, py, 4 + (r() * 4 | 0), 1);                                                     // a splintered plank
+    else if (v < 0.76) R('#2a2824', px, py, 3, 2);
+  }
+  for (let k = 0; k < 2 + b.w; k++) { const px = x + 3 + (r() * (w - 12) | 0), py = y + 3 + (r() * (h - 10) | 0); R('#7a766a', px, py, 5, 3); R('#9a968a', px, py, 5, 1); R('#4a463e', px + 1, py + 3, 4, 1); }
+}
+Art.rebakeTerrain = function () {                                    // repaint the ground after a building falls, keeping blood, claim and fog layers
+  const d = Art.decals, c = Art.claim, f = Art.fogTex;
+  Art.renderTerrain(); Art.decals = d; Art.claim = c; Art.fogTex = f;
+};
 function drawBuilding(g, b) {
   const x = b.x * T, y = b.y * T, w = b.w * T, h = b.h * T, FH = 9;
   const r = mulberry32(b.seed), R = (c, a, bb, cc, d) => { g.fillStyle = pq(c); g.fillRect(a, bb, cc, d); };
@@ -615,6 +631,15 @@ Art.drawFacility2 = function (g, f, t) {
     R('#2a2c30', px + 7, py + 11, 2, 4); R('#1c2a4a', px + 1, py + 3, 14, 9); R('#2f4f8a', px + 2, py + 4, 12, 7);
     for (let q = 0; q < 3; q++) { R('#4a74b8', px + 2 + q * 4, py + 4, 3, 3); R('#4a74b8', px + 2 + q * 4, py + 8, 3, 3); }
     R('#9ad0ff', px + 3, py + 4, 1, 1); R('#9ad0ff', px + 11, py + 8, 1, 1); R('#8a94a8', px + 1, py + 3, 14, 1);
+  } else if (f.type === 'yard') {
+    g.globalAlpha = 0.5; R('#5a4a30', px + 1, py + 11, 14, 4); g.globalAlpha = 1;
+    R('#5a4228', px + 7, py + 5, 2, 10); R('#c8b070', px + 4, py + 6, 8, 6); R('#a89050', px + 4, py + 6, 8, 1); R('#d8c488', px + 6, py + 2, 4, 4); R('#6a5232', px + 1, py + 7, 14, 2);
+    R('#c8302a', px + 7, py + 8, 2, 2); if (G.time % 1 < 0.1) R('#fff', px + 13, py + 5, 1, 1);
+  } else if (f.type === 'bunkhouse') {
+    R('#5a4a38', px + 1, py + 6, 14, 9); R('#7a6248', px + 1, py + 6, 14, 2); R('#8a3a2a', px, py + 2, 16, 5); R('#a04a38', px, py + 2, 16, 2); R('#2a2018', px + 6, py + 9, 4, 6); R('#e8c860', px + 3, py + 9, 2, 2); R('#e8c860', px + 11, py + 9, 2, 2);
+  } else if (f.type === 'barracks') {
+    R('#4e5a4a', px, py + 5, T, 10); R('#6a7a64', px, py + 5, T, 2); R('#3a4a34', px - 1, py + 1, T + 2, 5); R('#566a4e', px - 1, py + 1, T + 2, 2);
+    for (let q = 0; q < 3; q++) R('#e8c860', px + 2 + q * 5, py + 9, 3, 3); R('#2a2018', px + 7, py + 12, 2, 3); R('#c8302a', px + 13, py - 3, 1, 5); R('#e8e0c0', px + 14, py - 3, 2, 2);
   } else if (f.type === 'garagebay') {
     R('#5a5c60', px, py + 2, T, 13); R('#e8c020', px, py + 3, T, 1); R('#e8c020', px, py + 13, T, 1);
     if (Campaign.truck) { R('#3a5a8a', px + 1, py + 6, 11, 6); R('#5a80b0', px + 1, py + 6, 11, 2); R('#8ab0d8', px + 9, py + 7, 3, 2); R('#1a1a1e', px + 3, py + 12, 3, 3); R('#1a1a1e', px + 9, py + 12, 3, 3); }

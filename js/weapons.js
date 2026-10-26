@@ -19,6 +19,10 @@ const Weapons = (() => {
     rifle: () => mk('rifle', 17, 5, [R('#1a1c20', 3, 1, 14, 2), R('#4a4f58', 3, 1, 14, 1), R('#5a3a1a', 0, 1, 5, 3), R('#7a5226', 0, 1, 5, 1), R('#101114', 9, 3, 2, 2), R('#2a8ad0', 7, 0, 3, 1), R('#8a909a', 12, 1, 5, 1)]),
     knife: () => mk('knife', 8, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#d8dde2', 3, 0, 5, 2), R('#fff', 3, 0, 5, 1), R('#8a909a', 6, 1, 2, 1)]),
     spear: () => mk('spear', 22, 3, [R('#6a4a22', 0, 1, 17, 1), R('#8a6a3a', 0, 1, 17, 0), R('#c8ccd2', 17, 0, 5, 3), R('#fff', 17, 0, 5, 1), R('#e8e0c0', 15, 0, 2, 3)]),
+    club: () => mk('club', 9, 4, [R('#5a3a1a', 0, 1, 6, 2), R('#7a5226', 0, 1, 6, 1), R('#6a4a22', 5, 0, 4, 4), R('#9aa0a8', 6, 0, 1, 1), R('#9aa0a8', 8, 1, 1, 1), R('#9aa0a8', 7, 3, 1, 1)]),
+    machete: () => mk('machete', 11, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#c8ccd2', 3, 0, 8, 2), R('#fff', 3, 0, 8, 1), R('#8a909a', 9, 1, 2, 1)]),
+    axe: () => mk('axe', 14, 6, [R('#6a4a22', 0, 2, 12, 1), R('#8a6a3a', 0, 2, 12, 0), R('#b02a2a', 9, 0, 5, 5), R('#d8dde2', 11, 0, 3, 5), R('#fff', 12, 1, 2, 1)]),
+    warblade: () => mk('warblade', 18, 5, [R('#2a2a30', 0, 2, 4, 2), R('#c8a030', 4, 1, 1, 4), R('#d8dde4', 5, 1, 13, 3), R('#fff', 5, 1, 13, 1), R('#8a909a', 5, 3, 13, 1), R('#e8f0ff', 14, 2, 4, 1)]),
     flash: () => mk('flash', 11, 9, [R('#fff6c0', 0, 4, 11, 1), R('#ffe27a', 1, 3, 9, 3), R('#ffb040', 3, 2, 5, 5), R('#fff', 4, 3, 3, 3), R('#ffe27a', 5, 0, 1, 9), R('#ff8a22', 2, 1, 1, 1), R('#ff8a22', 8, 7, 1, 1)]),
   };
   const spr = n => cache[n] || SPR[n]();
@@ -36,9 +40,9 @@ const Weapons = (() => {
     const swinging = o.stab > 0, reloading = o === P && P.reloadT > 0;
     let a, kind = kindOf(o), recoil = 0;
     if (swinging) {
-      kind = (o.s && o.s.role === 'fighter') || has('spears') ? 'spear' : 'knife';
+      kind = MW[o === P ? (P.mw && MW[P.mw] ? P.mw : 'knife') : mwOf(o.s)].art;
       const k = o.stab / 0.2, base = o.aimA !== undefined && o.aimT > 0 ? o.aimA : (face > 0 ? 0 : Math.PI);
-      a = base + (kind === 'spear' ? 0 : (k - 0.5) * 2.2 * (face > 0 ? -1 : 1));
+      a = base + (kind === 'spear' || kind === 'warblade' ? (k - 0.5) * 0.5 : (k - 0.5) * 2.2 * (face > 0 ? -1 : 1));
       recoil = kind === 'spear' ? (1 - k) * 5 : 0;
     } else if (reloading) { a = face > 0 ? 1.1 : Math.PI - 1.1; }
     else if (o.aimT > 0 && o.aimA !== undefined) { a = o.aimA; recoil = o.shot > 0 ? -2 : 0; }
