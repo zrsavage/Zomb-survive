@@ -83,6 +83,9 @@
   #pack .bar{height:5px;background:#0008;border-radius:3px;overflow:hidden;margin-top:2px}#pack .bar i{display:block;height:100%}
   .res img{width:14px;height:14px;image-rendering:pixelated;vertical-align:-3px;margin-right:4px}
   #packChip{cursor:pointer}
+  #hint{display:none;left:50%;bottom:64px;transform:translateX(-50%);width:min(460px,92vw);z-index:5;border-color:#6a5a2a}#hint.show{display:block}
+  #hint .hh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.14em;margin-bottom:2px}#hint .hh a{color:var(--dim);letter-spacing:0}
+  #hint b{font-size:14px}#hint .ht{margin-top:3px;line-height:1.45;font-size:13px}
   #obj{display:none;left:50%;top:92px;transform:translateX(-50%);width:min(440px,92vw);z-index:5}#obj.show{display:block}
   #obj .oh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.12em;margin-bottom:3px}#obj .oh a{color:var(--dim);letter-spacing:0}
   #obj b{font-size:15px}#obj .ot{color:var(--txt);margin-top:3px;line-height:1.45;font-size:13px}#obj kbd{background:#0007;border:1px solid #fff3;border-radius:3px;padding:0 5px;margin:0 2px;color:#ffe9b0}
@@ -235,6 +238,7 @@
 <div id="research" class="panel modal"></div>
 <div id="loot" class="panel modal" style="z-index:9"></div>
 <div id="obj" class="panel"></div>
+<div id="hint" class="panel"></div>
 <div id="introCard"></div>
 <div id="jobs" class="panel modal" style="width:min(600px,96vw)"></div>
 <div id="pack" class="panel modal" style="width:min(560px,96vw)"></div>
@@ -477,9 +481,9 @@ const MORALE = {
 
 // ---- storyteller, camp rules, skills, noise -----------------------------------------------
 const STORYTELLERS = {
-  cassandra: { label: 'Cassandra', desc: 'Steady pressure that grows with time and your strength, easing off when you are in trouble.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45, press: 1 },
-  phoebe:    { label: 'Phoebe',    desc: 'Chill. A thinner trickle, smaller hordes, more help arriving when you struggle.',           gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70, press: 0.7 },
-  randy:     { label: 'Randy',     desc: 'Chaos. The trickle surges and dries up at random, and so do the rare hordes.',               gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0,  press: 1 },
+  cassandra: { label: 'The Tide',   desc: 'Steady pressure that rises with time and your strength, easing off when you are in trouble.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45, press: 1 },
+  phoebe:    { label: 'The Lull',   desc: 'Quiet. A thinner trickle, smaller hordes, and help arriving when you struggle.',           gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70, press: 0.7 },
+  randy:     { label: 'Wildfire',   desc: 'Chaos. The trickle surges and dries up at random, and so do the rare hordes.',               gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0,  press: 1 },
 };
 const RULES = {
   ration:    { label: 'Rationing',            level: 1, desc: 'Food upkeep -40%. People grumble.',                                            morale: -6, upkeep: 0.6, excl: ['feast'] },
@@ -2946,6 +2950,7 @@ function simulate(dt) {
   Units.update(dt);
   Build.update(dt);
   if (G.intro) Intro.update(dt);
+  Hints.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
   Director.tick(dt); Radio.update(dt); G.ruleCd = Math.max(0, G.ruleCd - dt); G.nfT -= dt;
@@ -5086,6 +5091,71 @@ const Weapons = (() => {
   return W_;
 })();
 
+/* js/hints.js */
+'use strict';
+/* hints.js - the game explains itself one thing at a time, the first time each system matters.
+   One short card at a time, never during the intro, never twice. Settings can switch them off. */
+const Hints = (() => {
+  const H = {};
+  const KEY = 'gravel-hints-seen';
+  let seen = {}; try { seen = JSON.parse(store.get(KEY) || '{}') || {}; } catch (e) { seen = {}; }
+  const on = () => store.get('gravel-hints') !== 'off';
+  const sick = () => G.idle.some(s => s.sick > 0) || defenders.some(d => d.s.sick > 0);
+  const near = (r, f) => { for (const b of buildings) if (f(b) && Math.hypot(b.x + b.w / 2 - P.px, b.y + b.h / 2 - P.py) < r) return true; return false; };
+  const LIST = [
+    { id: 'noise', title: 'Noise draws them', text: 'Every shot is heard. Generators, floodlights, workshops and hammering fill the <b>noise</b> meter on the right. Filled, it brings a horde. Choose what you run, and when.', when: () => G.heat >= 12 },
+    { id: 'people', title: 'Someone joined you', text: 'Survivors walk the camp on their own. <b>Select</b> them (C), then right-click: a wall to man it, a building to scavenge. <b>K</b> sets what each one does when left alone.', when: () => G.idle.length + defenders.length >= 1 },
+    { id: 'climb', title: 'They climb, they don\'t break', text: 'Walls are never smashed: the dead <b>pile up and climb</b>. Kill them as they climb, put towers where they gather, and keep people on the wall. A gap lets them walk straight in.', when: () => zombies.some(z => z.mode === 2 && z.st === 2) },
+    { id: 'horde', title: 'A horde is coming', text: 'A real horde is on its way. Get everyone to the walls, check your ammo, and hold the core. The camp is what matters: people can be replaced.', when: () => hordes.some(h => !h.minor) },
+    { id: 'lookout', title: 'You are flying blind', text: 'Build a <b>lookout</b> (4) so the fog lifts and you hear about hordes early. One on each side of camp is enough.', when: () => G.elapsed > 300 && !wall.some(k => k === K.LOOKOUT) },
+    { id: 'ammo', title: 'Running low on ammo', text: 'Rounds are the clock. Search buildings, send crews, and build a <b>workshop</b> to turn materials into ammo. Walls and towers help you spend less of it.', when: () => G.ammo < 20 && G.elapsed > 200 },
+    { id: 'food', title: 'Food is running out', text: 'People eat constantly and starving ones stop fighting. Build <b>gardens</b>, scavenge farms and stores, and watch the net rate beside the food count.', when: () => G.food < 25 && G.elapsed > 200 },
+    { id: 'water', title: 'Water matters', text: 'Everyone drinks. <b>Wells</b> and rain collectors make more. A <b>latrine</b> keeps hygiene up so people stay well.', when: () => G.water < 35 },
+    { id: 'power', title: 'Power costs noise', text: 'Generators burn <b>fuel</b> and are loud. Solar is quiet but slow. Powered things (workshop, floodlights, electric walls) stop when the power does.', when: () => facilities.some(f => f.type === 'generator' || f.type === 'floodlight') },
+    { id: 'workshop', title: 'The workshop', text: 'It turns materials into ammo and gear, but only while powered, and it is noisy. Pick what it makes in the panel on the right.', when: () => facilities.some(f => f.type === 'workshop') },
+    { id: 'research', title: 'Research', text: 'Press <b>R</b>. Better walls, faster reloads, cheaper builds. One project at a time, so choose what hurts most.', when: () => G.level >= 2 || G.elapsed > 600 },
+    { id: 'locked', title: 'A locked building', text: 'Some buildings need a <b>keycard</b>, or fuel to cut through. Cutting is loud. The vault and bunker hold the best loot.', when: () => near(8, b => b.locked && !b.looted) },
+    { id: 'trader', title: 'A trader', text: 'A trader has set up near camp for a short while. Open the trade panel on the right to swap supplies before they leave.', when: () => !!G.trader },
+    { id: 'sewer', title: 'Sewers', text: 'Zombies can climb out of manholes inside your walls. Use <b>Seal sewer</b> on the access to close it.', when: () => (typeof sewers !== 'undefined') && sewers.some(s => s.found && !s.sealed) },
+    { id: 'nest', title: 'A nest', text: 'A nest keeps spawning the dead and thickens every horde. Clearing it needs a <b>Fighter or Sniper</b> in a crew, or a Molotov (T).', when: () => G.nests && G.nests.length > 0 },
+    { id: 'sick', title: 'Someone is sick', text: 'Sickness spreads through a dirty camp. A <b>medic</b> treats it with medicine, and a clinic is faster. Keep hygiene up.', when: sick },
+    { id: 'morale', title: 'Morale is slipping', text: 'Deaths hurt morale, wins heal it. Low morale slows defenders and stops new arrivals; far enough down, people desert. Rules (P) like Feasts can lift it.', when: () => G.morale < 40 },
+    { id: 'tired', title: 'You are worn out', text: 'Swinging drains stamina. Out of it you hit weak and slow. Back off and let it recover, or shoot from range instead.', when: () => !!P.tired },
+    { id: 'down', title: 'You went down', text: 'You come back at camp after a few seconds, a little poorer for it. The camp keeps going without you, so make sure it can.', when: () => P.dead > 0 && G.deaths >= 1 },
+    { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
+    { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
+    { id: 'secure', title: 'Making a town secure', text: 'A town is <b>secured</b> when it can look after itself: walls sealed and manned, food and water growing, ammo being made. Press <b>Y</b> to see what is missing. Secure it, then move on to the next.', when: () => G.level >= 3 && G.sealed },
+    { id: 'pile', title: 'Something was dropped', text: 'The dead sometimes carry something. Walk up and press <b>E</b>: a window shows what it is. Take it, stash it at camp, or leave it.', when: () => crates.some(c => c.type === 'pile' && Math.hypot(c.x - P.px, c.y - P.py) < 7) },
+  ];
+  let cur = null, since = 25, tick = 0, el = null, shown = 0;
+  const save = () => { store.set(KEY, JSON.stringify(seen)); };
+  function show(h) {
+    cur = h; seen[h.id] = 1; save(); shown = 0;
+    el = el || document.getElementById('hint');
+    el.innerHTML = '<div class="hh"><span>TIP</span><a href="#" id="hintX">got it</a></div><b>' + h.title + '</b><div class="ht">' + h.text + '</div>';
+    el.classList.add('show');
+    document.getElementById('hintX').onclick = e => { e.preventDefault(); hide(); };
+    Snd.click && Snd.click();
+  }
+  function hide() { if (el) el.classList.remove('show'); cur = null; since = 0; }
+  H.reset = () => { if (el) el.classList.remove('show'); cur = null; since = 25; };
+  H.setOn = v => { store.set('gravel-hints', v ? 'on' : 'off'); if (!v) hide(); };
+  H.on = on;
+  H.update = function (dt) {
+    if (!G || AI.on) return;
+    since += dt;
+    if (cur) { shown += dt; if (shown > 16) hide(); return; }
+    if (!on() || G.intro || G.paused || since < 22) return;
+    tick -= dt; if (tick > 0) return; tick = 1;
+    for (const h of LIST) {
+      if (seen[h.id]) continue;
+      let ok = false; try { ok = h.when(); } catch (e) { ok = false; }
+      if (ok) { show(h); return; }
+    }
+  };
+  return H;
+})();
+
 /* js/intro.js */
 'use strict';
 /* intro.js - the way into the game: a short opening, a camp that is cold and ruined, and a chain of small jobs that teach
@@ -6344,6 +6414,7 @@ const UI = (() => {
       '<div id="storyDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + STORYTELLERS[story].desc + '</div>';
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
     const settingsHtml = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
+      '<div style="margin-top:12px">Hints</div><div class="seg" id="hintSeg"><button data-hint="on" class="' + (Hints.on() ? 'on' : '') + '">On</button><button data-hint="off" class="' + (Hints.on() ? '' : 'on') + '">Off</button></div>' +
       '<div style="margin-top:12px">Graphics</div><div class="seg" id="qualSeg">' + Object.keys(QUALITY).map(k => '<button data-q="' + k + '" class="' + (k === Q.name ? 'on' : '') + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div>' +
       '<div id="menuBtns"><button id="mFull" class="alt">Fullscreen (F)</button>' + (Save.exists() || G ? '<button id="mExport" class="alt">Export save (copy text)</button>' : '') + '<button id="mImport" class="alt">Import a save</button>' + (mode === 'settings' && settingsBack === 'pause' ? '<button id="mAbandon" class="alt">Abandon run (deletes the save)</button>' : '') + '<button id="mSetBack">Back</button></div>' +
       '<div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
@@ -6352,9 +6423,9 @@ const UI = (() => {
       h = '<h1>GRAVEL &amp; ASH</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
         '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mSettings" class="alt">Settings</button></div>';
     } else if (mode === 'new') {
-      h = '<h1>New game</h1><div class="sub">Choose how hard, and who is watching.</div>' +
+      h = '<h1>New game</h1><div class="sub">Choose how hard, and how the dead behave.</div>' +
         '<div style="margin-top:6px">Difficulty</div>' + diffBtns + '<div id="diffDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + DIFF_NOTE[diff] + '</div>' +
-        '<div style="margin-top:12px">Storyteller</div>' + storyBtns +
+        '<div style="margin-top:12px">Omen</div>' + storyBtns +
         '<div id="menuBtns"><button id="mStart">Begin</button><button id="mNewBack" class="alt">Back</button></div>';
     } else if (mode === 'settings') {
       h = '<h1>Settings</h1>' + settingsHtml;
@@ -6376,13 +6447,14 @@ const UI = (() => {
       store.set('zomb-diff', b.dataset.diff); const dd = $('diffDesc'); if (dd) dd.textContent = DIFF_NOTE[b.dataset.diff];
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
     }));
+    document.querySelectorAll('[data-hint]').forEach(b => b.addEventListener('click', () => { Hints.setOn(b.dataset.hint === 'on'); document.querySelectorAll('[data-hint]').forEach(x => x.classList.toggle('on', x === b)); }));
     const v = $('volume'); if (v) v.addEventListener('input', () => { Snd.resume(); Snd.setVolume(v.value / 100); });
     document.querySelectorAll('[data-story]').forEach(b => b.addEventListener('click', () => {
       store.set('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
       document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
     }));
     on('mNew', () => { newBack = mode; showMenu('new'); });
-    on('mStart', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mStart', () => { Hints.reset(); newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
     on('mNewBack', () => showMenu(newBack === 'new' ? 'title' : newBack));
     on('mSettings', () => { settingsBack = mode; showMenu('settings'); });
     on('mSetBack', () => showMenu(settingsBack));

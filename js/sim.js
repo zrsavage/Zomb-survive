@@ -1236,6 +1236,7 @@ function simulate(dt) {
   Units.update(dt);
   Build.update(dt);
   if (G.intro) Intro.update(dt);
+  Hints.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
   Director.tick(dt); Radio.update(dt); G.ruleCd = Math.max(0, G.ruleCd - dt); G.nfT -= dt;

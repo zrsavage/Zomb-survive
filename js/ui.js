@@ -409,6 +409,7 @@ const UI = (() => {
       '<div id="storyDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + STORYTELLERS[story].desc + '</div>';
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
     const settingsHtml = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
+      '<div style="margin-top:12px">Hints</div><div class="seg" id="hintSeg"><button data-hint="on" class="' + (Hints.on() ? 'on' : '') + '">On</button><button data-hint="off" class="' + (Hints.on() ? '' : 'on') + '">Off</button></div>' +
       '<div style="margin-top:12px">Graphics</div><div class="seg" id="qualSeg">' + Object.keys(QUALITY).map(k => '<button data-q="' + k + '" class="' + (k === Q.name ? 'on' : '') + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div>' +
       '<div id="menuBtns"><button id="mFull" class="alt">Fullscreen (F)</button>' + (Save.exists() || G ? '<button id="mExport" class="alt">Export save (copy text)</button>' : '') + '<button id="mImport" class="alt">Import a save</button>' + (mode === 'settings' && settingsBack === 'pause' ? '<button id="mAbandon" class="alt">Abandon run (deletes the save)</button>' : '') + '<button id="mSetBack">Back</button></div>' +
       '<div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
@@ -417,9 +418,9 @@ const UI = (() => {
       h = '<h1>GRAVEL &amp; ASH</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
         '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mSettings" class="alt">Settings</button></div>';
     } else if (mode === 'new') {
-      h = '<h1>New game</h1><div class="sub">Choose how hard, and who is watching.</div>' +
+      h = '<h1>New game</h1><div class="sub">Choose how hard, and how the dead behave.</div>' +
         '<div style="margin-top:6px">Difficulty</div>' + diffBtns + '<div id="diffDesc" style="color:var(--dim);font-size:12px;margin-top:4px">' + DIFF_NOTE[diff] + '</div>' +
-        '<div style="margin-top:12px">Storyteller</div>' + storyBtns +
+        '<div style="margin-top:12px">Omen</div>' + storyBtns +
         '<div id="menuBtns"><button id="mStart">Begin</button><button id="mNewBack" class="alt">Back</button></div>';
     } else if (mode === 'settings') {
       h = '<h1>Settings</h1>' + settingsHtml;
@@ -441,13 +442,14 @@ const UI = (() => {
       store.set('zomb-diff', b.dataset.diff); const dd = $('diffDesc'); if (dd) dd.textContent = DIFF_NOTE[b.dataset.diff];
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
     }));
+    document.querySelectorAll('[data-hint]').forEach(b => b.addEventListener('click', () => { Hints.setOn(b.dataset.hint === 'on'); document.querySelectorAll('[data-hint]').forEach(x => x.classList.toggle('on', x === b)); }));
     const v = $('volume'); if (v) v.addEventListener('input', () => { Snd.resume(); Snd.setVolume(v.value / 100); });
     document.querySelectorAll('[data-story]').forEach(b => b.addEventListener('click', () => {
       store.set('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
       document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
     }));
     on('mNew', () => { newBack = mode; showMenu('new'); });
-    on('mStart', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mStart', () => { Hints.reset(); newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
     on('mNewBack', () => showMenu(newBack === 'new' ? 'title' : newBack));
     on('mSettings', () => { settingsBack = mode; showMenu('settings'); });
     on('mSetBack', () => showMenu(settingsBack));

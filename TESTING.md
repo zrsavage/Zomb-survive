@@ -20,7 +20,7 @@ Open `index.html` (or serve the folder over http). Press **`** (backtick) in gam
 ## The bigger systems
 
 - **Finite town / second town:** Debug > *Drain town to 10%* triggers the "picked clean" warnings. Debug > *Truck + Expedition*, then **Tab** (world map) > *Found a town*. Switch back with *Travel there* (needs the truck and 8 fuel). Debug > *Horde now* before you travel to see the background simulation and the "horde incoming" alert on the map.
-- **Storyteller / rules / skills / noise / radio / relationships / morale / memorial:** pick the storyteller at New Game; `P` camp rules; `G` memorial; `V` decoy; hold a survivor tooltip to see skills and relationships; Debug > *Radio message now*.
+- **Omen / rules / skills / noise / radio / relationships / morale / memorial:** pick the omen at New Game; `P` camp rules; `G` memorial; `V` decoy; hold a survivor tooltip to see skills and relationships; Debug > *Radio message now*.
 - **Phone:** open in a phone (or Chrome device mode). Touch stick, SCAV button, RUN, bottom tool bar, drawer for people, world map via the camp button.
 
 ## Known rough edges to look for

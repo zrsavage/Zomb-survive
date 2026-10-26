@@ -211,9 +211,9 @@ const MORALE = {
 
 // ---- storyteller, camp rules, skills, noise -----------------------------------------------
 const STORYTELLERS = {
-  cassandra: { label: 'Cassandra', desc: 'Steady pressure that grows with time and your strength, easing off when you are in trouble.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45, press: 1 },
-  phoebe:    { label: 'Phoebe',    desc: 'Chill. A thinner trickle, smaller hordes, more help arriving when you struggle.',           gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70, press: 0.7 },
-  randy:     { label: 'Randy',     desc: 'Chaos. The trickle surges and dries up at random, and so do the rare hordes.',               gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0,  press: 1 },
+  cassandra: { label: 'The Tide',   desc: 'Steady pressure that rises with time and your strength, easing off when you are in trouble.', gap: 1,   size: 1,    evGap: 1,    adapt: 1.35, breather: 45, press: 1 },
+  phoebe:    { label: 'The Lull',   desc: 'Quiet. A thinner trickle, smaller hordes, and help arriving when you struggle.',           gap: 1.4, size: 0.85, evGap: 1.25, adapt: 1.2,  breather: 70, press: 0.7 },
+  randy:     { label: 'Wildfire',   desc: 'Chaos. The trickle surges and dries up at random, and so do the rare hordes.',               gap: 0,   size: 0,    evGap: 0,    adapt: 1,    breather: 0,  press: 1 },
 };
 const RULES = {
   ration:    { label: 'Rationing',            level: 1, desc: 'Food upkeep -40%. People grumble.',                                            morale: -6, upkeep: 0.6, excl: ['feast'] },

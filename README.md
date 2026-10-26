@@ -17,8 +17,8 @@ You are the last survivor at a ruined camp. There is no day/night cycle. A const
 
 Zombie types: walker, runner, brute, screamer (wakes the dead and enrages the horde), leaper (vaults walls), bloater (explodes). Hordes are rare, grow with the clock, and reach the hundreds.
 
-## Storyteller, rules, skills, noise, radio, relationships
-- **Storyteller** (pick at New Game): *Cassandra* (steady pressure that scales with your strength), *Phoebe* (chill, longer lulls, more help), *Randy* (chaos). A tension model decides what happens: when you struggle you get supply drops, traders and strangers; when you are comfortable you get storms, sickness and unannounced straggler groups. After heavy losses it gives you a breather.
+## Omens, rules, skills, noise, radio, relationships
+- **Omen** (pick at New Game): *The Tide* (steady pressure that scales with your strength), *The Lull* (chill, longer lulls, more help), *Wildfire* (chaos). A tension model decides what happens: when you struggle you get supply drops, traders and strangers; when you are comfortable you get storms, sickness and unannounced straggler groups. After heavy losses it gives you a breather.
 - **Camp rules** (`P`): six policies with trade-offs (Rationing, Overtime, Feasts and Music, Open Arms, Martial Law, Conscript Scavengers). One change per 90s.
 - **Skills**: shooting, melee, medicine, building and scavenging level up with use (0-5 stars); each class starts trained in its own. Max level earns a title (Marksman, Duelist, Field Surgeon, Master Builder, Pathfinder).
 - **Noise**: gunfire, hammering and sprinting carry (expanding rings show how far). Standing still makes you much harder to notice. **Decoys** (`V`) draw idle zombies and part of a horde toward them. *Suppressors* research cuts gunfire range.
