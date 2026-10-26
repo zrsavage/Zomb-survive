@@ -58,7 +58,7 @@ const UI = (() => {
   }
   function buildMenu() {
     const el = $('bmenu');
-    el.innerHTML = '<div class="tabs">' + TABS.map((t, i) => '<button data-tab="' + i + '">' + t[0] + '</button>').join('') + '<span class="grow"></span><button id="bmDone">Back to the fight <kbd>B</kbd></button></div><div class="cards" id="bcards"></div><div class="btip" id="btip">Pick something, then click the ground. Nothing is built at once: it is planned, supplied and then worked.</div>';
+    el.innerHTML = '<div class="tabs">' + TABS.map((t, i) => '<button data-tab="' + i + '">' + t[0] + '</button>').join('') + '<span class="btip" id="btip" style="margin-left:8px">Pick one, then click the ground.</span><span class="grow"></span><button id="bmDone" style="display:inline-flex">Done</button></div><div class="cards" id="bcards"></div>';
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { buildTab = +b.dataset.tab; renderCards(); Snd.click(); });
     $('bmDone').onclick = () => setTool('combat');
     renderCards();
@@ -70,10 +70,10 @@ const UI = (() => {
     for (const t of TOOLS) {
       if (!cats.includes(t.cat) || FIGHT_TOOLS.includes(t.id)) continue;
       const b = document.createElement('button'); b.className = 'bcard'; b.dataset.tool = t.id; b.title = t.tip;
-      b.innerHTML = Icons.img(t.id, 40) + '<span>' + t.label + '</span><span class="cc"></span>' + (t.key ? '<kbd>' + t.key + '</kbd>' : '');
+      b.innerHTML = Icons.img(t.id, 28) + '<span>' + t.label + '</span><span class="cc"></span>';
       b.addEventListener('click', () => setTool(t.id));
       b.addEventListener('mouseenter', () => { $('btip').textContent = t.label + ': ' + t.tip; });
-      b.addEventListener('mouseleave', () => { const s = TOOLS.find(x => x.id === G.tool); $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick something, then click the ground.'; });
+      b.addEventListener('mouseleave', () => { const s = TOOLS.find(x => x.id === G.tool); $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick one, then click the ground.'; });
       cards.appendChild(b);
     }
   }
@@ -89,7 +89,7 @@ const UI = (() => {
       if (cc.dataset.k !== key) { cc.dataset.k = key; cc.innerHTML = t.id === 'def' ? G.idle.length + ' idle' : locked ? 'camp level ' + t.lvl : Object.keys(c).filter(k => c[k]).map(k => '<span>' + Items.img(RI[k] || k, 11) + c[k] + '</span>').join('') || 'free'; }
     });
     const s = TOOLS.find(x => x.id === G.tool);
-    if (!document.querySelector('#bcards .bcard:hover')) $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick something, then click the ground. Nothing is built at once: it is planned, supplied and then worked.';
+    if (!document.querySelector('#bcards .bcard:hover')) $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick one, then click the ground.';
   }
 
   function init() {
@@ -770,7 +770,8 @@ const UI = (() => {
       const k = e.key.toLowerCase();
       if (Intro.onKey(k)) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
-      if (k === 'escape') { if (!G) return; if (!menuMode && inBuild()) { G.tool = 'combat'; Snd.click(); return; } if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
+      if (k === 'escape') { if (!G) return; if (!menuMode && (document.body.classList.contains('side-open') || document.body.classList.contains('more-open'))) { document.body.classList.remove('side-open', 'more-open'); return; }
+      if (!menuMode && inBuild()) { G.tool = 'combat'; Snd.click(); return; } if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
       if (menuMode) return;
       keys[k] = true; if (e.shiftKey) keys.shift = true;
       if (!G) return;
