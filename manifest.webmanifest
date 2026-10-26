@@ -1,6 +1,6 @@
 {
-  "name": "Zomb Survive",
-  "short_name": "Zomb Survive",
+  "name": "Holdfast",
+  "short_name": "Holdfast",
   "description": "Scavenge, fortify and hold out against thousands of zombies.",
   "start_url": "./index.html",
   "scope": "./",

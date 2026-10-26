@@ -9,6 +9,7 @@ function toast(msg) {
 
 const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) });
 const TOOLS = [
+  { cat: 'Command', id: 'combat', key: '0', label: 'Fight', cost: () => ({}), tip: 'Aim with the mouse. Hold left-click to fire, R reloads, right-click or F swings at what is close. Every shot is yours and every shot is heard.' },
   { cat: 'Command', id: 'orders', key: 'C', label: 'Select & command', cost: () => ({}), tip: 'Click or drag to select survivors. Right-click: move there, man a wall, or scavenge a building. They carry it out on their own.' },
   { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
   { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
@@ -144,8 +145,6 @@ const UI = (() => {
       pr.textContent = b.locked && !b.looted && !b.nest ? 'Locked: hold E to open (keycard, or ' + KEYS.breachFuel + ' fuel to cut through)' : b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
     } else pr.style.display = 'none';
 
-    const st = STORYTELLERS[G.story] || STORYTELLERS.cassandra;
-    $('iStory').textContent = st.label; $('iStory').title = st.desc + ' Tension: ' + Math.round(Director.tension() * 100) + '%';
     const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';
     renderPeople(); renderCrews(); renderLog(); renderTrade(); renderRadio(); renderCmd();
     if ($('work').classList.contains('show')) renderWork();
@@ -342,7 +341,7 @@ const UI = (() => {
   function showMenu(mode) {
     menuMode = mode;
     const c = $('card'), ov = $('overlay');
-    ov.classList.toggle('title', mode === 'title'); if (mode === 'title') TitleFx.start($('fxc')); else TitleFx.stop();
+    ov.classList.toggle('title', mode === 'title'); if (mode === 'title') { TitleFx.start($('fxc')); Save.setLive(false); } else TitleFx.stop();
     const diff = (store.get('zomb-diff') || 'normal');
     const story = store.get('zomb-story') || 'cassandra';
     const storyBtns = '<div class="seg" id="storySeg">' + Object.keys(STORYTELLERS).map(k => '<button data-story="' + k + '" class="' + (k === story ? 'on' : '') + '">' + STORYTELLERS[k].label + '</button>').join('') + '</div>' +
@@ -354,7 +353,7 @@ const UI = (() => {
       '<div style="margin-top:10px"><button id="mFull" style="display:inline-flex">Toggle fullscreen (F)</button></div>';
     let h = '';
     if (mode === 'title') {
-      h = '<h1>ZOMB SURVIVE</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
+      h = '<h1>HOLDFAST</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
         '<p>You are the last one left at a ruined camp. The town is full of the dead, and they never stop coming: a steady trickle that thickens with every hour. A real horde only comes when you make enough noise, or ask for one. Every survivor is a named specialist, but people can be replaced: the camp is what matters. Lose it and the run is over.</p>' +
         '<ul><li><b>Scavenge</b> (hold E), <b>scout</b> the fog and <b>send crews</b> for supplies. Some buildings hide survivors.</li>' +
         '<li><b>Fortify</b> with walls, towers, gates and traps. Zombies never break walls: they pile up and climb, so kill them as they climb.</li>' +
@@ -362,10 +361,10 @@ const UI = (() => {
         '<li><b>Recruit</b> survivors with roles: fighters, snipers, medics, builders, scavengers.</li>' +
         '<li><b>Research</b> upgrades, <b>trade</b>, and weather events. Grow food and mine materials, make your own ammo on clean power, keep the walls whole and manned: when a town can look after itself it is <b>secured</b>. Secure ' + WIN_TOWNS + ' towns to win. A <b>radio tower</b> calls in supply drops when you need a push.</li></ul>' +
         '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + vol +
-        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button></div>';
+        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mImport" class="alt">Import a save</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
     } else if (mode === 'pause') {
       h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' + vol +
-        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
+        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save now</button><button id="mExport" class="alt">Export save (copy text)</button><button id="mImport" class="alt">Import a save</button><button id="mQuit" class="alt">Save and quit to title</button><button id="mAbandon" class="alt">Abandon run (deletes the save)</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + ' The game also saves by itself every 30 seconds.</div>';
     } else {
       h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'Your towns stand on their own. The dead no longer decide anything.' : 'The dead take the town.') + '</div>' +
         '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
@@ -386,14 +385,34 @@ const UI = (() => {
       store.set('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
       document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
     }));
-    on('mNew', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); hideMenu(); });
-    on('mContinue', () => { if (Save.load()) hideMenu(); else toast('Could not load the save'); });
+    on('mNew', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mContinue', () => { if (Save.load()) { Save.setLive(true); hideMenu(); } else toast('Could not load the save'); });
+    on('mExport', async () => { if (!Save.save()) toast('Nothing to export yet'); showTransfer('export'); });
+    on('mImport', () => showTransfer('import', mode));
     on('mFull', toggleFullscreen);
     on('mResume', hideMenu);
     on('mMem', () => { hideMenu(); toggleMemorial(); });
-    on('mSave', () => { toast(Save.save() ? 'Game saved' : 'Could not save'); });
-    on('mQuit', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } showMenu('title'); });
+    on('mSave', () => { toast(Save.save() ? 'Game saved. ' + Save.status() : 'Could not save'); });
+    on('mQuit', () => { Save.save(); showMenu('title'); });
+    on('mAbandon', () => { Save.clear(); Save.setLive(false); showMenu('title'); });
   }
+  // a save as text: copy it out, paste it back in (works anywhere, even when storage is blocked)
+  async function showTransfer(kind, back) {
+    const c = $('card'); back = back || 'pause';
+    c.innerHTML = '<h1>' + (kind === 'export' ? 'Export save' : 'Import a save') + '</h1><div class="sub">' + (kind === 'export' ? 'Copy this text somewhere safe' : 'Paste a copied save here') + '</div>' +
+      '<textarea id="xfer" rows="9" spellcheck="false" style="width:100%;margin-top:8px;background:#0b0f0d;color:#d8e6d4;border:1px solid var(--line);border-radius:6px;padding:8px;font:11px monospace;user-select:text;-webkit-user-select:text"></textarea>' +
+      '<div id="menuBtns"><button id="xGo">' + (kind === 'export' ? 'Copy to clipboard' : 'Load this save') + '</button><button id="xBack" class="alt">Back</button></div><div id="xMsg" style="color:var(--dim);font-size:12px;margin-top:6px"></div>';
+    const ta = $('xfer'), msg = $('xMsg');
+    if (kind === 'export') {
+      const raw = Save.raw(); ta.value = raw ? await Cloud.pack(raw) : ''; msg.textContent = raw ? 'Select all and copy, or press the button.' : 'There is no save yet.';
+    }
+    $('xBack').addEventListener('click', () => showMenu(back));
+    $('xGo').addEventListener('click', async () => {
+      if (kind === 'export') { ta.select(); try { await navigator.clipboard.writeText(ta.value); msg.textContent = 'Copied.'; } catch (e) { msg.textContent = 'Press Ctrl+C to copy the selected text.'; } return; }
+      try { const str = await Cloud.unpack(ta.value); if (!Save.load(str)) throw new Error('That save could not be read'); Save.adopt(str); Save.setLive(true); hideMenu(); toast('Save loaded'); } catch (e) { msg.textContent = 'Could not load: ' + (e.message || e); }
+    });
+  }
+  function refreshTitle() { if (menuMode === 'title') showMenu('title'); }
   function hideMenu() { menuMode = null; $('overlay').classList.add('hidden'); TitleFx.stop(); }
   function showEnd() { showMenu('end'); }
 
@@ -514,18 +533,22 @@ const UI = (() => {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       lastMouse = { x: e.clientX, y: e.clientY };
       G.hover = screenToTile(e.clientX, e.clientY);
+      Combat.mouse.x = e.clientX; Combat.mouse.y = e.clientY;
       if (e.pointerType === 'mouse') {
         if (e.button === 1) { panning = true; G.cam.free = true; return; }
+        if (e.button === 2 && G.tool === 'combat' && !AI.on) { Combat.melee(); return; }
         if (e.button === 2) { rc = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }; return; }      // right-click orders, right-drag looks around
         if (e.button !== 0) return;
       } else if (pointers.size >= 2) {               // two fingers: pinch to zoom, drag to pan
         painting = false; G.cam.free = true; const p = pair(); pinch = { d: p.d, cx: p.cx, cy: p.cy, zoom: G.cam.zoom }; return;
       }
+      if (G.tool === 'combat') { Combat.down = true; return; }
       if (G.tool === 'orders') { selDrag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, moved: false, touch: e.pointerType === 'touch', add: e.shiftKey }; return; }
       painting = G.tool !== 'crew' && G.tool !== 'radio'; lastPaint = G.hover; tryBuild(G.hover.tx, G.hover.ty);
     });
     canvas.addEventListener('pointermove', e => {
       if (!G) return;
+      Combat.mouse.x = e.clientX; Combat.mouse.y = e.clientY;
       const p = pointers.get(e.pointerId);
       if (e.pointerType !== 'touch') G.hover = screenToTile(e.clientX, e.clientY);
       if (p) { p.x = e.clientX; p.y = e.clientY; }
@@ -551,6 +574,7 @@ const UI = (() => {
       lastMouse = { x: e.clientX, y: e.clientY };
     });
     const up = e => {
+      if (e.button === 0 || e.type !== 'pointerup') Combat.down = false;
       if (selDrag && selDrag.id === e.pointerId) { $('selbox').style.display = 'none'; finishSelect(selDrag); selDrag = null; }
       if (rc && rc.id === e.pointerId) { if (!rc.moved) rightClick(e.clientX, e.clientY); rc = null; panning = false; }
       pointers.delete(e.pointerId);
@@ -594,18 +618,18 @@ const UI = (() => {
       else if (k === 'x') { Units.standDownSelected(); lastPeople = ''; }
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
-      else if (k === 'r') toggleResearch();
+      else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();
       else if (k === 'p') toggleRules();
       else if (k === 'tab') { toggleMap(); e.preventDefault(); }
       else if (k === 'm') toast(Snd.toggleMute() ? 'Sound off' : 'Sound on');
-      else if (k === 'f') toggleFullscreen();
+      else if (k === 'f') { if (G.tool === 'combat' && !AI.on) Combat.melee(); else toggleFullscreen(); }
       else if (k === 'h') { G.holdFire = !G.holdFire; toast(G.holdFire ? 'Hold fire: the survivor stabs quietly instead of shooting' : 'Weapons free'); }
       else if (k === ' ') { G.paused = !G.paused; e.preventDefault(); }
       if (k.startsWith('arrow')) e.preventDefault();
     });
     addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (!e.shiftKey && !$('btnRun').classList.contains('on')) keys.shift = false; });
-    addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (G && !G.over && !menuMode) Save.save(); });
+    addEventListener('blur', () => { Combat.down = false; for (const k in keys) keys[k] = false; if (G && !G.over && !menuMode) Save.save(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.over) { Save.save(); if (!menuMode) showMenu('pause'); } });
     addEventListener('beforeunload', () => { if (G && !G.over) Save.save(); });
     addEventListener('resize', applyLayout);
@@ -619,5 +643,5 @@ const UI = (() => {
     else if (d.fullscreenElement) d.exitFullscreen();
   }
 
-  return { init, update, bindInput, showMenu, hideMenu, showEnd, menuOpen };
+  return { init, update, bindInput, showMenu, hideMenu, showEnd, menuOpen, refreshTitle };
 })();

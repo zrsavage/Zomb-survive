@@ -32,6 +32,7 @@ UI.init();
 UI.bindInput();
 newGame(store.get('zomb-diff') || 'normal');       // a live backdrop behind the title menu
 UI.showMenu('title');
+Cloud.init();                                   // finds the private cloud save (if any) a moment after the title appears
 requestAnimationFrame(frame);
 
 // exposed for debugging / tests

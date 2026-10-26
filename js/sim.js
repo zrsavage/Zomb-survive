@@ -175,7 +175,7 @@ function buildTown(seed, name, opts) {
     nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
     coreHp: LEVELS[0].coreHp, kills: 0, elapsed: Campaign.t, born: Campaign.t,
     hordeN: 0, hordesBeaten: 0, nextHorde: 1e9, heat: 0, pressAcc: 0, pressAlive: 0, pulse: 1, pulseT: 0, hordeId: 0, rescue: null, dropT: 0, supCd: 0, secured: false, safeT: 0, coreHurtAt: -999,
-    over: false, won: false, paused: false, speed: 1, tool: 'orders', selP: false,
+    over: false, won: false, paused: false, speed: 1, tool: 'combat', selP: false,
     territory: 0, sealed: false, income: { m: 0, f: 0, a: 0, med: 0, fuel: 0 }, held: 0, lookouts: [],
     fieldDirty: true, fieldTimer: 0, pfTimer: 0, repairT: 0, hudT: 0, visT: 0, scanT: 0, refugeeT: REFUGEE_GAP,
     ambientT: 0, visibleZ: 0, saveT: 30,
@@ -186,7 +186,7 @@ function buildTown(seed, name, opts) {
     time: 0, hover: null, deaths: 0, morale: MORALE.start, moraleTarget: MORALE.start, desertT: MORALE.desertGap, memorial: Campaign.memorial,
     story: storyKey || 'cassandra', rules: {}, ruleCd: 0, flags: Campaign.flags, radioT: 200, radioMsg: null, rescueKind: 'heli', stress: 0, stressT: 1, recentDeaths: 0, relT: REL.checkGap, noticeR: AMBIENT.notice, nfT: 0,
   };
-  P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0 };
+  P = { dead: 0, px: CORE.x + 0.5, py: CORE.y + 2.8, hp: PLAYER.hp, cd: 0, mcd: 0, face: 1, shot: 0, stab: 0, loot: 0, lootB: -1, hurt: 0, noiseT: 0, moving: false, st: 'idle', anim: 0, mag: 12, reloadT: 0, bloom: 0, sta: 100, tired: false, emptyT: 0, mcd: 0 };
   Art.renderTerrain();
   computeBaseField(); computePlayerField(); computeTerritory(); Survival.refreshIncome();
   seedAmbient(D.ambient * (opts.ambient || 1), opts.safe);
@@ -845,7 +845,8 @@ function updatePlayer(dt) {
   }
 
   const tile = wall[(P.py | 0) * W + (P.px | 0)];
-  fight(P, dt, { starving: false, noiseMode: 1, ammoCost: PLAYER.ammoCost, range: (tile === K.TOWER || tile === K.OUTPOST) ? GUN.towerRange : GUN.range, cd: GUN.cd * 0.75 });
+  if (!AI.on) Combat.update(dt);                                          // you fire and swing yourself
+  else fight(P, dt, { starving: false, noiseMode: 1, ammoCost: PLAYER.ammoCost, range: (tile === K.TOWER || tile === K.OUTPOST) ? GUN.towerRange : GUN.range, cd: GUN.cd * 0.75 });
   P.st = P.st === 'idle' && moving ? 'walk' : P.st;
 }
 function scavenge(b) {
@@ -981,7 +982,7 @@ function updateHordes(dt) {
     const h = hordes[i];
     if (h.alive === 0 && h.left === 0) {
       hordes.splice(i, 1);
-      if (!h.minor) { G.hordesBeaten++; moraleGain('horde'); if (G.recentDeaths >= 2 && G.rescue === null) { G.nextHorde += Director.breather(); log('The storyteller lets you catch your breath after the losses.'); } }
+      if (!h.minor) { G.hordesBeaten++; moraleGain('horde'); if (G.recentDeaths >= 2 && G.rescue === null) { G.nextHorde += Director.breather(); log('A lull settles over the town. Catch your breath.'); } }
       if (h.seen || h.heard) log(h.minor ? 'The stragglers are dead' : 'The horde has been destroyed');
       continue;
     }
@@ -1209,7 +1210,7 @@ function endGame(won, why) {
   if (G.over) return;
   G.over = true; G.won = won; G.endWhy = why;
   if (won) Snd.rescue();
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+  Save.clear();
   UI.showEnd();
 }
 

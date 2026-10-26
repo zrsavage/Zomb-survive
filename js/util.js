@@ -30,6 +30,7 @@ function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, n >>
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } },
+  remove(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } },
 };
 function shade(hex, f) {                      // f<1 darker, f>1 lighter
   const [r, g, b] = hexToRgb(hex);

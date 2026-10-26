@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Zomb Survive</title>
+<title>Holdfast</title>
 <style>
   :root{
     --bg:#0b0f0d; --panel:#131a16ee; --panel2:#1a231e; --line:#2b372f; --txt:#d8e6d4; --dim:#8da08a;
@@ -208,7 +208,6 @@
   <button id="btnTruck" style="display:none;margin-top:4px;justify-content:center"></button>
   <div class="row"><span>Pressure / noise</span><span id="iPress" title="Zombies drifting toward the camp each minute, and how much noise you are making. When the noise meter fills, a real horde comes."></span></div>
   <div class="row"><span>Nests</span><span id="iNests"></span></div>
-  <div class="row"><span>Storyteller</span><span id="iStory"></span></div>
   <div class="row"><span>Morale</span><span id="iMor"></span></div>
   <div class="bar"><i id="morBar" style="width:70%"></i></div>
   <button id="btnFallen" style="margin-top:4px;justify-content:center"><span><kbd>G</kbd>Memorial</span><span class="cost" id="cFallen"></span></button>
@@ -250,6 +249,7 @@
 
 <script src="js/config.js"></script>
 <script src="js/util.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/world.js"></script>
 <script src="js/art.js"></script>
 <script src="js/audio.js"></script>
@@ -261,6 +261,7 @@
 <script src="js/campaign.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/units.js"></script>
+<script src="js/combat.js"></script>
 <script src="js/titlefx.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>

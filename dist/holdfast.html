@@ -1,4 +1,4 @@
-<title>Zomb Survive</title>
+<title>Holdfast</title>
 <style>
 :root{color-scheme:dark}
 
@@ -198,7 +198,6 @@
   <button id="btnTruck" style="display:none;margin-top:4px;justify-content:center"></button>
   <div class="row"><span>Pressure / noise</span><span id="iPress" title="Zombies drifting toward the camp each minute, and how much noise you are making. When the noise meter fills, a real horde comes."></span></div>
   <div class="row"><span>Nests</span><span id="iNests"></span></div>
-  <div class="row"><span>Storyteller</span><span id="iStory"></span></div>
   <div class="row"><span>Morale</span><span id="iMor"></span></div>
   <div class="bar"><i id="morBar" style="width:70%"></i></div>
   <button id="btnFallen" style="margin-top:4px;justify-content:center"><span><kbd>G</kbd>Memorial</span><span class="cost" id="cFallen"></span></button>
@@ -573,12 +572,87 @@ function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, n >>
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } },
+  remove(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } },
 };
 function shade(hex, f) {                      // f<1 darker, f>1 lighter
   const [r, g, b] = hexToRgb(hex);
   const c = v => clamp(Math.round(v * f), 0, 255);
   return '#' + [c(r), c(g), c(b)].map(v => v.toString(16).padStart(2, '0')).join('');
 }
+
+/* js/cloud.js */
+'use strict';
+/* cloud.js - keeps the save somewhere that survives: the viewer's private database when the page runs as an artifact
+   (nothing to sign in to, nothing to set up), mirrored beside the browser's own storage. Also packs a save into a text
+   string you can copy out and paste back in. All of it fails quietly: the game never depends on any of it. */
+const Cloud = (() => {
+  const C = { state: 'off', t: 0 };            // off | connecting | ready | error
+  let db = null, uid = null, busy = false, pending = null;
+  const CHUNK = 150000;
+
+  async function pack(str) {                   // text -> gzip -> base64 (falls back to plain text when the browser cannot compress)
+    try {
+      if (typeof CompressionStream === 'undefined') throw new Error('nogz');
+      const cs = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+      const buf = new Uint8Array(await new Response(cs).arrayBuffer());
+      let s = ''; for (let i = 0; i < buf.length; i += 8192) s += String.fromCharCode.apply(null, buf.subarray(i, i + 8192));
+      return 'HF1:' + btoa(s);
+    } catch (e) { return 'HF0:' + btoa(unescape(encodeURIComponent(str))); }
+  }
+  async function unpack(txt) {
+    txt = (txt || '').trim();
+    if (txt.startsWith('HF0:')) return decodeURIComponent(escape(atob(txt.slice(4))));
+    if (!txt.startsWith('HF1:')) throw new Error('That does not look like a save');
+    const s = atob(txt.slice(4)), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+    const ds = new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return await new Response(ds).text();
+  }
+  C.pack = pack; C.unpack = unpack;
+
+  C.init = async function () {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      C.state = 'connecting';
+      db = await claude.use('db'); const user = await claude.use('user');
+      uid = user && user.id ? await user.id() : null;
+      if (!db || !uid) { db = null; C.state = 'off'; return; }
+      const meta = await db.doc('data/users/' + uid + '/hf_meta').get();
+      C.state = 'ready';
+      if (meta.exists && meta.data().n > 0) {
+        const m = meta.data(), local = +(store.get('hf-save-t') || 0);
+        if (!Save.raw() || (m.t || 0) > local) { const txt = await C.pull(m); if (txt) { Save.adopt(txt, m.t || Date.now()); if (typeof UI !== 'undefined' && UI.refreshTitle) UI.refreshTitle(); } }
+      } else if (Save.raw() && !(meta.exists && meta.data().n === 0)) C.push(Save.raw());                         // first run with a browser save already: mirror it
+    } catch (e) { C.state = 'error'; }
+  };
+  C.pull = async function (m) {
+    try {
+      let packed = '';
+      for (let i = 0; i < m.n; i++) { const d = await db.doc('data/users/' + uid + '/hf_' + i).get(); if (!d.exists) return null; packed += d.data().d; }
+      return await unpack(packed);
+    } catch (e) { return null; }
+  };
+  C.clear = function () {                      // a finished run leaves no save behind
+    if (!db || !uid) return;
+    pending = null; db.doc('data/users/' + uid + '/hf_meta').set({ n: 0, t: Date.now(), v: 1 }).catch(() => {});
+  };
+  C.push = function (jsonStr) {                // fire and forget; only the newest save waits its turn
+    if (!db || !uid) return; pending = jsonStr; if (busy) return;
+    busy = true;
+    (async () => {
+      while (pending) {
+        const cur = pending; pending = null;
+        try {
+          const packed = await pack(cur), n = Math.ceil(packed.length / CHUNK), t = Date.now();
+          for (let i = 0; i < n; i++) await db.doc('data/users/' + uid + '/hf_' + i).set({ d: packed.slice(i * CHUNK, (i + 1) * CHUNK) });
+          await db.doc('data/users/' + uid + '/hf_meta').set({ n, t, v: 1 });
+          store.set('hf-save-t', String(t)); C.t = t; C.state = 'ready';
+        } catch (e) { C.state = 'error'; }
+      }
+      busy = false;
+    })();
+  };
+  return C;
+})();
 
 /* js/world.js */
 'use strict';
@@ -2592,7 +2666,7 @@ function updateHordes(dt) {
     const h = hordes[i];
     if (h.alive === 0 && h.left === 0) {
       hordes.splice(i, 1);
-      if (!h.minor) { G.hordesBeaten++; moraleGain('horde'); if (G.recentDeaths >= 2 && G.rescue === null) { G.nextHorde += Director.breather(); log('The storyteller lets you catch your breath after the losses.'); } }
+      if (!h.minor) { G.hordesBeaten++; moraleGain('horde'); if (G.recentDeaths >= 2 && G.rescue === null) { G.nextHorde += Director.breather(); log('A lull settles over the town. Catch your breath.'); } }
       if (h.seen || h.heard) log(h.minor ? 'The stragglers are dead' : 'The horde has been destroyed');
       continue;
     }
@@ -2820,7 +2894,7 @@ function endGame(won, why) {
   if (G.over) return;
   G.over = true; G.won = won; G.endWhy = why;
   if (won) Snd.rescue();
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+  Save.clear();
   UI.showEnd();
 }
 
@@ -5074,11 +5148,20 @@ const Save = (() => {
     return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
       P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp) }, towns: c.towns.map(serializeTown) };
   }
+  // where the save lives: the browser's storage, a copy in memory for this visit, and the private cloud copy
+  let mem = null;
+  const raw = () => store.get(SAVE_KEY) || mem;
+  function adopt(str, t) { mem = str; store.set(SAVE_KEY, str); store.set('hf-save-t', String(t || Date.now())); }
   function save() {
-    if (!G || G.over) return false;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); return true; } catch (e) { return false; }
+    if (!live || !G || G.over) return false;          // never save the title-screen backdrop over a real game
+    let str; try { str = JSON.stringify(snapshot()); } catch (e) { return false; }
+    adopt(str, Date.now()); Cloud.push(str);
+    return true;
   }
-  const exists = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } };
+  const exists = () => !!raw();
+  function clear() { mem = null; store.remove(SAVE_KEY); store.remove('hf-save-t'); Cloud.clear(); }
+  let live = false;
+  function status() { return (Cloud.state === 'ready' ? 'Saved to your private cloud and this browser.' : Cloud.state === 'connecting' ? 'Connecting your cloud save...' : 'Saved in this browser only (use Export to keep a copy).'); }
 
   // apply one town's saved data to the globals (which buildTown has just freshly generated)
   function applyTown(td) {
@@ -5111,9 +5194,9 @@ const Save = (() => {
     td.scalars.townName = 'Home Camp';
     return { v: 2, campaign: { t: s.elapsed || 0, res: s.res, memorial: s.memorial || [], flags: s.flags || {}, sid: s.sid || 1, story: s.story, diff: s.diff, truck: d.truck || null, convoys: [], nextId: 2, activeId: 1 }, P: d.P, towns: [td] };
   }
-  function load() {
+  function load(text) {
     let d;
-    try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return false; }
+    try { d = JSON.parse(text || raw()); } catch (e) { return false; }
     if (!d) return false;
     if (d.v === 1) d = upgradeV1(d);
     if (d.v !== 2) return false;
@@ -5139,7 +5222,7 @@ const Save = (() => {
     log('Game loaded');
     return true;
   }
-  return { save, load, exists };
+  return { save, load, exists, clear, raw, adopt, status, setLive(v) { live = v; } };
 })();
 
 /* js/ui.js */
@@ -5289,8 +5372,6 @@ const UI = (() => {
       pr.textContent = b.locked && !b.looted && !b.nest ? 'Locked: hold E to open (keycard, or ' + KEYS.breachFuel + ' fuel to cut through)' : b.nest ? 'Infested! Burn it out with a Molotov or send a crew with a fighter' : b.crew ? 'A crew is working here' : b.looted ? BUILDING_TYPES[b.type].label + ' - already scavenged' : 'Hold E to scavenge the ' + BUILDING_TYPES[b.type].label;
     } else pr.style.display = 'none';
 
-    const st = STORYTELLERS[G.story] || STORYTELLERS.cassandra;
-    $('iStory').textContent = st.label; $('iStory').title = st.desc + ' Tension: ' + Math.round(Director.tension() * 100) + '%';
     const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';
     renderPeople(); renderCrews(); renderLog(); renderTrade(); renderRadio(); renderCmd();
     if ($('work').classList.contains('show')) renderWork();
@@ -5487,7 +5568,7 @@ const UI = (() => {
   function showMenu(mode) {
     menuMode = mode;
     const c = $('card'), ov = $('overlay');
-    ov.classList.toggle('title', mode === 'title'); if (mode === 'title') TitleFx.start($('fxc')); else TitleFx.stop();
+    ov.classList.toggle('title', mode === 'title'); if (mode === 'title') { TitleFx.start($('fxc')); Save.setLive(false); } else TitleFx.stop();
     const diff = (store.get('zomb-diff') || 'normal');
     const story = store.get('zomb-story') || 'cassandra';
     const storyBtns = '<div class="seg" id="storySeg">' + Object.keys(STORYTELLERS).map(k => '<button data-story="' + k + '" class="' + (k === story ? 'on' : '') + '">' + STORYTELLERS[k].label + '</button>').join('') + '</div>' +
@@ -5499,7 +5580,7 @@ const UI = (() => {
       '<div style="margin-top:10px"><button id="mFull" style="display:inline-flex">Toggle fullscreen (F)</button></div>';
     let h = '';
     if (mode === 'title') {
-      h = '<h1>ZOMB SURVIVE</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
+      h = '<h1>HOLDFAST</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
         '<p>You are the last one left at a ruined camp. The town is full of the dead, and they never stop coming: a steady trickle that thickens with every hour. A real horde only comes when you make enough noise, or ask for one. Every survivor is a named specialist, but people can be replaced: the camp is what matters. Lose it and the run is over.</p>' +
         '<ul><li><b>Scavenge</b> (hold E), <b>scout</b> the fog and <b>send crews</b> for supplies. Some buildings hide survivors.</li>' +
         '<li><b>Fortify</b> with walls, towers, gates and traps. Zombies never break walls: they pile up and climb, so kill them as they climb.</li>' +
@@ -5507,10 +5588,10 @@ const UI = (() => {
         '<li><b>Recruit</b> survivors with roles: fighters, snipers, medics, builders, scavengers.</li>' +
         '<li><b>Research</b> upgrades, <b>trade</b>, and weather events. Grow food and mine materials, make your own ammo on clean power, keep the walls whole and manned: when a town can look after itself it is <b>secured</b>. Secure ' + WIN_TOWNS + ' towns to win. A <b>radio tower</b> calls in supply drops when you need a push.</li></ul>' +
         '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + vol +
-        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button></div>';
+        '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button><button id="mImport" class="alt">Import a save</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
     } else if (mode === 'pause') {
       h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' + vol +
-        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
+        '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save now</button><button id="mExport" class="alt">Export save (copy text)</button><button id="mImport" class="alt">Import a save</button><button id="mQuit" class="alt">Save and quit to title</button><button id="mAbandon" class="alt">Abandon run (deletes the save)</button></div><div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + ' The game also saves by itself every 30 seconds.</div>';
     } else {
       h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'Your towns stand on their own. The dead no longer decide anything.' : 'The dead take the town.') + '</div>' +
         '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
@@ -5531,14 +5612,34 @@ const UI = (() => {
       store.set('zomb-story', b.dataset.story); $('storyDesc').textContent = STORYTELLERS[b.dataset.story].desc;
       document.querySelectorAll('[data-story]').forEach(x => x.classList.toggle('on', x === b));
     }));
-    on('mNew', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); hideMenu(); });
-    on('mContinue', () => { if (Save.load()) hideMenu(); else toast('Could not load the save'); });
+    on('mNew', () => { newGame(store.get('zomb-diff') || 'normal', undefined, store.get('zomb-story') || 'cassandra'); Save.setLive(true); hideMenu(); if (typeof Intro !== 'undefined') Intro.begin(); });
+    on('mContinue', () => { if (Save.load()) { Save.setLive(true); hideMenu(); } else toast('Could not load the save'); });
+    on('mExport', async () => { if (!Save.save()) toast('Nothing to export yet'); showTransfer('export'); });
+    on('mImport', () => showTransfer('import', mode));
     on('mFull', toggleFullscreen);
     on('mResume', hideMenu);
     on('mMem', () => { hideMenu(); toggleMemorial(); });
-    on('mSave', () => { toast(Save.save() ? 'Game saved' : 'Could not save'); });
-    on('mQuit', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } showMenu('title'); });
+    on('mSave', () => { toast(Save.save() ? 'Game saved. ' + Save.status() : 'Could not save'); });
+    on('mQuit', () => { Save.save(); showMenu('title'); });
+    on('mAbandon', () => { Save.clear(); Save.setLive(false); showMenu('title'); });
   }
+  // a save as text: copy it out, paste it back in (works anywhere, even when storage is blocked)
+  async function showTransfer(kind, back) {
+    const c = $('card'); back = back || 'pause';
+    c.innerHTML = '<h1>' + (kind === 'export' ? 'Export save' : 'Import a save') + '</h1><div class="sub">' + (kind === 'export' ? 'Copy this text somewhere safe' : 'Paste a copied save here') + '</div>' +
+      '<textarea id="xfer" rows="9" spellcheck="false" style="width:100%;margin-top:8px;background:#0b0f0d;color:#d8e6d4;border:1px solid var(--line);border-radius:6px;padding:8px;font:11px monospace;user-select:text;-webkit-user-select:text"></textarea>' +
+      '<div id="menuBtns"><button id="xGo">' + (kind === 'export' ? 'Copy to clipboard' : 'Load this save') + '</button><button id="xBack" class="alt">Back</button></div><div id="xMsg" style="color:var(--dim);font-size:12px;margin-top:6px"></div>';
+    const ta = $('xfer'), msg = $('xMsg');
+    if (kind === 'export') {
+      const raw = Save.raw(); ta.value = raw ? await Cloud.pack(raw) : ''; msg.textContent = raw ? 'Select all and copy, or press the button.' : 'There is no save yet.';
+    }
+    $('xBack').addEventListener('click', () => showMenu(back));
+    $('xGo').addEventListener('click', async () => {
+      if (kind === 'export') { ta.select(); try { await navigator.clipboard.writeText(ta.value); msg.textContent = 'Copied.'; } catch (e) { msg.textContent = 'Press Ctrl+C to copy the selected text.'; } return; }
+      try { const str = await Cloud.unpack(ta.value); if (!Save.load(str)) throw new Error('That save could not be read'); Save.adopt(str); Save.setLive(true); hideMenu(); toast('Save loaded'); } catch (e) { msg.textContent = 'Could not load: ' + (e.message || e); }
+    });
+  }
+  function refreshTitle() { if (menuMode === 'title') showMenu('title'); }
   function hideMenu() { menuMode = null; $('overlay').classList.add('hidden'); TitleFx.stop(); }
   function showEnd() { showMenu('end'); }
 
@@ -5764,7 +5865,7 @@ const UI = (() => {
     else if (d.fullscreenElement) d.exitFullscreen();
   }
 
-  return { init, update, bindInput, showMenu, hideMenu, showEnd, menuOpen };
+  return { init, update, bindInput, showMenu, hideMenu, showEnd, menuOpen, refreshTitle };
 })();
 
 /* js/debug.js */
@@ -5864,6 +5965,7 @@ UI.init();
 UI.bindInput();
 newGame(store.get('zomb-diff') || 'normal');       // a live backdrop behind the title menu
 UI.showMenu('title');
+Cloud.init();                                   // finds the private cloud save (if any) a moment after the title appears
 requestAnimationFrame(frame);
 
 // exposed for debugging / tests

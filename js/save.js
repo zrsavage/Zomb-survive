@@ -36,11 +36,20 @@ const Save = (() => {
     return { v: 2, dims: [W, H], campaign: { t: c.t, res: c.res, memorial: c.memorial, flags: c.flags, sid: c.sid, story: c.story, diff: c.diff, truck: c.truck, convoys: c.convoys, nextId: c.nextId, activeId: c.active.id },
       P: { px: r2(P.px), py: r2(P.py), hp: r2(P.hp) }, towns: c.towns.map(serializeTown) };
   }
+  // where the save lives: the browser's storage, a copy in memory for this visit, and the private cloud copy
+  let mem = null;
+  const raw = () => store.get(SAVE_KEY) || mem;
+  function adopt(str, t) { mem = str; store.set(SAVE_KEY, str); store.set('hf-save-t', String(t || Date.now())); }
   function save() {
-    if (!G || G.over) return false;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); return true; } catch (e) { return false; }
+    if (!live || !G || G.over) return false;          // never save the title-screen backdrop over a real game
+    let str; try { str = JSON.stringify(snapshot()); } catch (e) { return false; }
+    adopt(str, Date.now()); Cloud.push(str);
+    return true;
   }
-  const exists = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } };
+  const exists = () => !!raw();
+  function clear() { mem = null; store.remove(SAVE_KEY); store.remove('hf-save-t'); Cloud.clear(); }
+  let live = false;
+  function status() { return (Cloud.state === 'ready' ? 'Saved to your private cloud and this browser.' : Cloud.state === 'connecting' ? 'Connecting your cloud save...' : 'Saved in this browser only (use Export to keep a copy).'); }
 
   // apply one town's saved data to the globals (which buildTown has just freshly generated)
   function applyTown(td) {
@@ -73,9 +82,9 @@ const Save = (() => {
     td.scalars.townName = 'Home Camp';
     return { v: 2, campaign: { t: s.elapsed || 0, res: s.res, memorial: s.memorial || [], flags: s.flags || {}, sid: s.sid || 1, story: s.story, diff: s.diff, truck: d.truck || null, convoys: [], nextId: 2, activeId: 1 }, P: d.P, towns: [td] };
   }
-  function load() {
+  function load(text) {
     let d;
-    try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return false; }
+    try { d = JSON.parse(text || raw()); } catch (e) { return false; }
     if (!d) return false;
     if (d.v === 1) d = upgradeV1(d);
     if (d.v !== 2) return false;
@@ -101,5 +110,5 @@ const Save = (() => {
     log('Game loaded');
     return true;
   }
-  return { save, load, exists };
+  return { save, load, exists, clear, raw, adopt, status, setLive(v) { live = v; } };
 })();

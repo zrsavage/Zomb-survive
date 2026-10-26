@@ -1,4 +1,4 @@
-# Zomb Survive
+# Holdfast
 
 A top-down pixel-art survival / base-defence game that runs in the browser. Open `index.html` (no build step, no dependencies, all audio is synthesised).
 
