@@ -404,7 +404,7 @@ const SURNAMES = ['Reyes', 'Okafor', 'Lindqvist', 'Tanaka', 'Moreau', 'Kowalski'
 // ---- research ---------------------------------------------------------------
 const RESEARCH = [
   { id: 'walls',   name: 'Reinforced Walls', desc: 'Walls, towers and gates have 35% more health.',     cost: { m: 150 },         time: 40 },
-  { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster.',                         cost: { m: 90, a: 80 },   time: 45 },
+  { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster, and so do you (15%).',                         cost: { m: 90, a: 80 },   time: 45 },
   { id: 'ap',      name: 'AP Rounds',        desc: 'Bullets deal 30% more damage.',                      cost: { m: 120, a: 120 }, time: 50 },
   { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less.', cost: { m: 60 }, time: 25 },
   { id: 'hands',   name: 'Fast Hands',       desc: 'Stabbing is 35% harder and 15% faster.',             cost: { m: 100 },         time: 40 },
@@ -414,6 +414,8 @@ const RESEARCH = [
   { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
+  { id: 'smg',      name: 'Machine Pistol',   desc: 'A full-auto conversion for your pistol: hold to spray about 11 rounds a second from a 24-round clip. Weaker rounds, a lot of ammo, a lot of noise. Switch guns with B.', cost: { m: 160, a: 70 }, time: 70 },
+  { id: 'marksman', name: 'Marksman Rifle',  desc: 'A scoped rifle for you: twice the range, heavy rounds that punch through three zombies, and a clean headshot on anything. Slow to cycle. Switch guns with B.', cost: { m: 220, a: 90 }, time: 90 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 
@@ -888,21 +890,30 @@ function computeTerritory() {
   claimed.fill(0);
   for (const b of buildings) b.claimed = false;
   const cap = LEVELS[G.level - 1].cap;
-  const q = [];
-  const start = (x, y) => { const i = y * W + x; if (inb(x, y) && !claimed[i] && !isCoreTile(x, y) && bld[i] < 0 && !wall[i]) { claimed[i] = 1; q.push(i); } };
-  for (let d = -2; d <= 2; d++) { start(CORE.x + d, CORE.y - 2); start(CORE.x + d, CORE.y + 2); start(CORE.x - 2, CORE.y + d); start(CORE.x + 2, CORE.y + d); }
-  let count = q.length, sealed = true;
-  for (let h = 0; h < q.length; h++) {
-    const i = q[h], x = i % W, y = (i / W) | 0;
-    for (const [dx, dy] of N4) {
-      const nx = x + dx, ny = y + dy;
-      if (!inb(nx, ny)) { sealed = false; continue; }
-      const ni = ny * W + nx;
-      if (claimed[ni] || bld[ni] >= 0 || wall[ni] || isCoreTile(nx, ny)) continue;
-      if (count >= cap) { sealed = false; continue; }
-      claimed[ni] = 1; q.push(ni); count++;
+  // Flood outward from the core. Walls and buildings stop it. If the walls really do close a loop, everything inside is yours
+  // however big (a block, a district, the whole town); if there is a gap, the camp only holds the ground nearest the core.
+  const run = limit => {
+    claimed.fill(0);
+    const q = [];
+    const start = (x, y) => { const i = y * W + x; if (inb(x, y) && !claimed[i] && !isCoreTile(x, y) && bld[i] < 0 && !wall[i]) { claimed[i] = 1; q.push(i); } };
+    for (let d = -2; d <= 2; d++) { start(CORE.x + d, CORE.y - 2); start(CORE.x + d, CORE.y + 2); start(CORE.x - 2, CORE.y + d); start(CORE.x + 2, CORE.y + d); }
+    let count = q.length, sealed = true;
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % W, y = (i / W) | 0;
+      for (const [dx, dy] of N4) {
+        const nx = x + dx, ny = y + dy;
+        if (!inb(nx, ny)) { sealed = false; if (limit > cap) return { q, count, sealed }; continue; }
+        const ni = ny * W + nx;
+        if (claimed[ni] || bld[ni] >= 0 || wall[ni] || isCoreTile(nx, ny)) continue;
+        if (count >= limit) { sealed = false; continue; }
+        claimed[ni] = 1; q.push(ni); count++;
+      }
     }
-  }
+    return { q, count, sealed };
+  };
+  let r = run(W * H);
+  if (!r.sealed) r = run(cap);
+  const q = r.q, count = r.count, sealed = r.sealed;
   const inc = { m: 0, f: 0, a: 0, med: 0, fuel: 0 };
   let held = 0;
   const mult = 1 + 0.15 * (G.level - 1);
@@ -2646,7 +2657,7 @@ function updateEconomy(dt) {
 
   // a sealed, fed camp draws refugees
   if (G.sealed && G.territory >= 20 && G.food >= 20 && G.morale >= MORALE.noRefugeesBelow && roomForPerson()) {
-    G.refugeeT -= dt * (1 + G.territory / 150) * ruleMul('refugee');
+    G.refugeeT -= dt * (1 + Math.min(G.territory, 450) / 150) * ruleMul('refugee');
     if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; addRecruit(newSurvivor(), 'saw your walls and joined the camp'); moraleGain('refugee'); Snd.pickup(); }
   }
 }
@@ -2907,7 +2918,7 @@ function upgradeCore() {
   G.coreHp = LEVELS[G.level - 1].coreHp;
   for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = Math.max(wallHp[i], maxHp(wall[i], i) * 0.8);
   G.fieldDirty = true;
-  log('Camp upgraded to level ' + G.level + ' - territory limit ' + LEVELS[G.level - 1].cap);
+  log('Camp upgraded to level ' + G.level + ' - open ground limit ' + LEVELS[G.level - 1].cap + ' (ground you wall in is yours however large)');
   Snd.upgrade();
 }
 
@@ -3814,7 +3825,7 @@ const Bg = {
     g.hygiene = clamp(g.hygiene + (this.fac(t, 'latrine') * HYGIENE.latrine - HYGIENE.decay * people.length) * dt, 0, 100);
     // refugees
     if (g.sealed && g.territory >= 20 && g.food >= 20 && g.morale >= MORALE.noRefugeesBelow && people.length < LEVELS[g.level - 1].defs) {
-      g.refugeeT -= dt * (1 + g.territory / 150);
+      g.refugeeT -= dt * (1 + Math.min(g.territory, 450) / 150);
       if (g.refugeeT <= 0) { g.refugeeT = REFUGEE_GAP; const s = newSurvivor(); g.idle.push(s); Campaign.notify(t.name + ': ' + who(s) + ' joined the camp.'); }
     }
     // the core repairs slowly
@@ -4564,7 +4575,22 @@ const Units = (() => {
    magazine runs dry. The posted defenders still shoot for themselves. */
 const Combat = (() => {
   const C = { mouse: { x: 0, y: 0 }, down: false, aimX: 0, aimY: 0, over: null, ptype: 'mouse' };
-  const GP = { mag: 12, reload: 1.5, cd: 0.27, spread: 0.028, moveSpread: 0.06, bloomPer: 0.016, range: 10, headR: 0.15 };
+  const WEAPONS = {
+    pistol: { label: 'Pistol',         mag: 12, reload: 1.5, cd: 0.27,  spread: 0.028, move: 0.06, bloom: 0.016, bloomMax: 0.09, range: 10, dmg: 1,    pen: 1, heat: 1,   sniper: false, headR: 0.15, headX: 1.9, need: null },
+    smg:    { label: 'Machine pistol', mag: 24, reload: 2.0, cd: 0.085, spread: 0.05,  move: 0.1,  bloom: 0.012, bloomMax: 0.14, range: 9,  dmg: 0.5,  pen: 1, heat: 0.6, sniper: false, headR: 0.12, headX: 1.5, need: 'smg' },
+    rifle:  { label: 'Marksman rifle', mag: 6,  reload: 2.3, cd: 0.7,   spread: 0.006, move: 0.05, bloom: 0.02,  bloomMax: 0.06, range: 20, dmg: 2.7,  pen: 3, heat: 1,   sniper: true,  headR: 0.2,  headX: 2.2, need: 'marksman' },
+  };
+  const unlocked = () => Object.keys(WEAPONS).filter(k => !WEAPONS[k].need || has(WEAPONS[k].need));
+  const wid = () => (P.weapon && unlocked().includes(P.weapon)) ? P.weapon : 'pistol';
+  const WP = () => WEAPONS[wid()];
+  C.weapon = wid; C.unlocked = unlocked; C.WP = WP;
+  C.swap = function () {
+    const u = unlocked(); if (u.length < 2) { toast('Only a pistol so far. Research better guns (R).'); return; }
+    P.mags = P.mags || {}; P.mags[wid()] = P.mag;
+    P.weapon = u[(u.indexOf(wid()) + 1) % u.length]; P.reloadT = 0;
+    P.mag = P.mags[P.weapon] !== undefined ? P.mags[P.weapon] : WP().mag;
+    toast(WP().label + ' (' + P.mag + ' loaded)'); Snd.click && Snd.click();
+  };
   const MEL = { reach: 1.95, arc: 0.75, cd: 0.42, sta: 9, shove: 0.45 };
 
   const manual = () => !AI.on && G.tool === 'combat' && !UI.menuOpen();
@@ -4578,45 +4604,49 @@ const Combat = (() => {
   const radiusOf = z => z.type === 'brute' || z.type === 'tyrant' ? 0.72 : z.type === 'bloater' ? 0.62 : 0.4;
 
   function startReload() {
-    if (P.reloadT > 0 || P.mag >= GP.mag || G.ammo < 1) return;
-    P.reloadT = GP.reload; Snd.click && Snd.click();
+    if (P.reloadT > 0 || P.mag >= WP().mag || G.ammo < 1) return;
+    P.reloadT = WP().reload; Snd.click && Snd.click();
   }
   C.reload = startReload;
-  function finishReload() { const take = Math.min(GP.mag - P.mag, Math.floor(G.ammo)); G.ammo -= take; P.mag += take; }
+  function finishReload() { const take = Math.min(WP().mag - P.mag, Math.floor(G.ammo)); G.ammo -= take; P.mag += take; }
 
   function shoot(a) {
+    const w = WP();
     if (P.mag < 1) { if (G.ammo >= 1) startReload(); else if (P.emptyT <= 0) { P.emptyT = 0.5; floatText(P.px, P.py - 1.2, 'NO AMMO', '#e8524a'); Snd.error && Snd.error(); } return; }
-    P.cd = GP.cd; P.mag--;
-    const sp = GP.spread + (P.moving ? GP.moveSpread : 0) + P.bloom;
-    P.bloom = Math.min(0.09, P.bloom + GP.bloomPer);
+    P.cd = w.cd * (has('rapid') ? 0.85 : 1); P.mag--;
+    const sp = w.spread + (P.moving ? w.move : 0) + P.bloom;
+    P.bloom = Math.min(w.bloomMax, P.bloom + w.bloom);
     const ang = Math.atan2(a.dy, a.dx) + (rng() + rng() - 1) * sp, dx = Math.cos(ang), dy = Math.sin(ang);
     const ox = P.px + dx * 0.35, oy = P.py + dy * 0.35;
     // how far the round flies: stops at buildings
-    let reach = GP.range;
-    for (let s = 0.4; s < GP.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (!inb(x | 0, y | 0)) { reach = s; break; } const b = bld[(y | 0) * W + (x | 0)]; if (b >= 0 || isCoreTile(x | 0, y | 0)) { reach = s; break; } }
-    let best = null, bt = reach, bp = 1;
+    let reach = w.range;
+    for (let s = 0.4; s < w.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (!inb(x | 0, y | 0)) { reach = s; break; } const b = bld[(y | 0) * W + (x | 0)]; if (b >= 0 || isCoreTile(x | 0, y | 0)) { reach = s; break; } }
+    const hits = [];
     for (const z of zombies) {
       if (z.hp <= 0) continue;
       const rx = z.x - ox, ry = z.y - oy, t = rx * dx + ry * dy;
-      if (t < 0 || t > bt) continue;
+      if (t < 0 || t > reach) continue;
       const perp = Math.abs(rx * dy - ry * dx);
-      if (perp < radiusOf(z)) { best = z; bt = t; bp = perp; }
+      if (perp < radiusOf(z)) hits.push({ z, t, perp });
     }
+    hits.sort((p, q) => p.t - q.t);
+    const n = Math.min(w.pen, hits.length), bt = n === w.pen ? hits[n - 1].t : reach;
     const ex = ox + dx * bt, ey = oy + dy * bt;
-    tracers.push({ x1: P.px + dx * 0.5, y1: P.py - 0.5, x2: ex, y2: ey - 0.4, life: 0.09, ap: false });
+    tracers.push({ x1: P.px + dx * 0.5, y1: P.py - 0.5, x2: ex, y2: ey - 0.4, life: w.sniper ? 0.16 : 0.09, ap: w.sniper });
     if (flashes.length < 40) flashes.push({ x: P.px + dx * 0.6, y: P.py - 0.5, life: 0.09 });
-    Snd.shot(P.px, P.py, false); addHeat(HEAT.gun); shake(0.5);
+    Snd.shot(P.px, P.py, w.sniper); addHeat(HEAT.gun * w.heat); shake(w.sniper ? 1 : 0.5 * Math.min(1, w.heat + 0.3));
     P.face = dx >= 0 ? 1 : -1; P.st = 'shoot'; P.aimA = ang; P.aimT = 0.7; P.shot = 0.09;
     if (parts.length < Q.parts) parts.push({ x: P.px, y: P.py - 0.5, vx: -P.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
-    if (best) {
-      const head = bp < GP.headR && ZTYPES[best.type].boss !== true;
-      const dm = GUN.dmg * (has('ap') ? 1.3 : 1) * armorF(best) * (head ? 1.9 : 1);
-      best.hp -= dm; best.hit = 0.1; best.by = null; if (best.mode === 0 || best.mode === 3) { best.mode = 1; best.lose = 0; }
-      addBurst(best.x, best.y - 0.4, head ? '#e8d870' : '#a02020', head ? 5 : 3, { grav: 3 });
-      if (head) floatText(best.x, best.y - 1.1, 'HEADSHOT', '#ffe27a');
-      Snd.hit && Snd.hit(best.x, best.y);
+    for (let k = 0; k < n; k++) {
+      const { z, perp } = hits[k];
+      const head = perp < w.headR && ZTYPES[z.type].boss !== true;
+      const dm = GUN.dmg * w.dmg * (1 - 0.28 * k) * (has('ap') ? 1.3 : 1) * armorF(z) * (head ? w.headX : 1);
+      z.hp -= dm; z.hit = 0.1; z.by = null; if (z.mode === 0 || z.mode === 3) { z.mode = 1; z.lose = 0; }
+      addBurst(z.x, z.y - 0.4, head ? '#e8d870' : '#a02020', head ? 5 : 3, { grav: 3 });
+      if (head) floatText(z.x, z.y - 1.1, 'HEADSHOT', '#ffe27a');
+      Snd.hit && Snd.hit(z.x, z.y);
     }
-    P.noiseT -= 0; if (P.noiseT <= 0) { P.noiseT = 0.6; alertNoise(P.px, P.py, gunRadius(false), 3); if (rings.length < 24) rings.push({ x: P.px, y: P.py, r: gunRadius(false), t: 0, max: NOISE.ring }); }
+    P.noiseT -= 0; if (P.noiseT <= 0) { P.noiseT = 0.6; alertNoise(P.px, P.py, gunRadius(w.sniper), 3); if (rings.length < 24) rings.push({ x: P.px, y: P.py, r: gunRadius(w.sniper), t: 0, max: NOISE.ring }); }
   }
 
   function melee(a) {
@@ -4643,7 +4673,7 @@ const Combat = (() => {
   C.melee = melee;
 
   C.update = function (dt) {
-    if (P.mag === undefined) { P.mag = GP.mag; P.reloadT = 0; P.bloom = 0; P.sta = STAMINA.max; P.tired = false; P.emptyT = 0; P.mcd = 0; }
+    if (P.mag === undefined) { P.mag = WP().mag; P.reloadT = 0; P.bloom = 0; P.sta = STAMINA.max; P.tired = false; P.emptyT = 0; P.mcd = 0; }
     P.cd -= dt; P.mcd -= dt; P.emptyT -= dt; P.shot -= dt; if (P.aimT > 0) P.aimT -= dt; P.bloom = Math.max(0, P.bloom - dt * 0.12);
     if (P.reloadT > 0) { P.reloadT -= dt; if (P.reloadT <= 0) finishReload(); }
     P.sta = Math.min(STAMINA.max, P.sta + (P.mcd > -0.5 ? 6 : 16) * dt); if (P.tired && P.sta >= STAMINA.recover) P.tired = false;
@@ -4657,7 +4687,7 @@ const Combat = (() => {
 
   C.draw = function (ctx) {                                         // the sight, drawn in the world
     if (!G || !manual() || P.dead > 0) return;
-    const a = aim(), sp = GP.spread + (P.moving ? GP.moveSpread : 0) + (P.bloom || 0), dist = Math.min(a.d, GP.range), r = Math.max(3, Math.tan(sp) * dist * T);
+    const w = WP(), a = aim(), sp = w.spread + (P.moving ? w.move : 0) + (P.bloom || 0), dist = Math.min(a.d, w.range), r = Math.max(3, Math.tan(sp) * dist * T);
     const px = P.px * T, py = (P.py - 0.45) * T, ax = C.aimX * T, ay = C.aimY * T, hot = !!C.over;
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + a.dx * dist * T, py + a.dy * dist * T); ctx.stroke(); ctx.setLineDash([]);
@@ -4668,8 +4698,9 @@ const Combat = (() => {
     // magazine, reload ring and what the sight is on
     ctx.font = '7px monospace'; ctx.textBaseline = 'middle';
     const lowMag = P.mag <= 3;
-    if (P.reloadT > 0) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, r + 9, -1.57, -1.57 + 6.283 * (1 - P.reloadT / GP.reload)); ctx.stroke(); ctx.fillStyle = '#ffd27a'; ctx.fillText('RELOAD', ax + r + 12, ay); }
-    else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
+    if (P.reloadT > 0) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, r + 9, -1.57, -1.57 + 6.283 * (1 - P.reloadT / w.reload)); ctx.stroke(); ctx.fillStyle = '#ffd27a'; ctx.fillText('RELOAD', ax + r + 12, ay); }
+    else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(w.label + ' ' + P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
+    if (unlocked().length > 1) { ctx.fillStyle = '#8fa890'; ctx.fillText('B: switch gun', ax + r + 10, ay + 15); }
     if (hot) { Weapons.drawTarget(ctx, C.over); const z = C.over; ctx.fillStyle = '#ffd7d0'; ctx.fillText(ZTYPES[z.type].label + ' ' + Math.ceil(z.hp), ax + r + 10, ay + (P.mag < 1 ? 10 : 5)); }
     ctx.restore();
   };
@@ -5025,6 +5056,7 @@ const Weapons = (() => {
   const R = (c, x, y, w, h) => [c, x, y, w, h];
   const SPR = {
     pistol: () => mk('pistol', 9, 6, [R('#1a1c20', 0, 1, 7, 2), R('#3a3f48', 0, 1, 7, 1), R('#8a909a', 1, 1, 5, 1), R('#1a1c20', 5, 3, 3, 3), R('#2a2d33', 5, 3, 2, 2), R('#101114', 7, 1, 2, 1), R('#5a3a1a', 4, 3, 2, 3)]),
+    smg: () => mk('smg', 11, 7, [R('#1a1c20', 0, 1, 9, 2), R('#4a4f58', 0, 1, 9, 1), R('#101114', 8, 1, 3, 2), R('#2a2d33', 3, 3, 2, 4), R('#d8a030', 3, 5, 2, 1), R('#5a3a1a', 0, 3, 3, 3), R('#8a909a', 5, 0, 3, 1)]),
     rifle: () => mk('rifle', 17, 5, [R('#1a1c20', 3, 1, 14, 2), R('#4a4f58', 3, 1, 14, 1), R('#5a3a1a', 0, 1, 5, 3), R('#7a5226', 0, 1, 5, 1), R('#101114', 9, 3, 2, 2), R('#2a8ad0', 7, 0, 3, 1), R('#8a909a', 12, 1, 5, 1)]),
     knife: () => mk('knife', 8, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#d8dde2', 3, 0, 5, 2), R('#fff', 3, 0, 5, 1), R('#8a909a', 6, 1, 2, 1)]),
     spear: () => mk('spear', 22, 3, [R('#6a4a22', 0, 1, 17, 1), R('#8a6a3a', 0, 1, 17, 0), R('#c8ccd2', 17, 0, 5, 3), R('#fff', 17, 0, 5, 1), R('#e8e0c0', 15, 0, 2, 3)]),
@@ -5034,7 +5066,7 @@ const Weapons = (() => {
 
   // which weapon is this person using right now
   function kindOf(o) {
-    if (o === P) return 'pistol';
+    if (o === P) return P.dead > 0 ? 'pistol' : ({ rifle: 'rifle', smg: 'smg' }[Combat.weapon()] || 'pistol');
     const r = o.s && o.s.role;
     return r === 'sniper' ? 'rifle' : 'pistol';
   }
@@ -5125,6 +5157,8 @@ const Hints = (() => {
     { id: 'morale', title: 'Morale is slipping', text: 'Deaths hurt morale, wins heal it. Low morale slows defenders and stops new arrivals; far enough down, people desert. Rules (P) like Feasts can lift it.', when: () => G.morale < 40 },
     { id: 'tired', title: 'You are worn out', text: 'Swinging drains stamina. Out of it you hit weak and slow. Back off and let it recover, or shoot from range instead.', when: () => !!P.tired },
     { id: 'down', title: 'You went down', text: 'You come back at camp after a few seconds, a little poorer for it. The camp keeps going without you, so make sure it can.', when: () => P.dead > 0 && G.deaths >= 1 },
+    { id: 'weapon', title: 'A new gun', text: 'Your research unlocked a second weapon. Press <b>B</b> to switch: the machine pistol sprays, the marksman rifle reaches twice as far and punches through three of the dead. Each keeps its own clip.', when: () => Combat.unlocked().length > 1 },
+    { id: 'walledin', title: 'Wall in more ground', text: 'Your camp is sealed. Walls can close off far more than the camp: whole blocks, a district, the town. Everything inside a closed loop is yours. Add a second and third layer where they press hardest, and remember every wall you hold needs people and towers behind it.', when: () => G.sealed && G.elapsed > 400 },
     { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
     { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
     { id: 'secure', title: 'Making a town secure', text: 'A town is <b>secured</b> when it can look after itself: walls sealed and manned, food and water growing, ammo being made. Press <b>Y</b> to see what is missing. Secure it, then move on to the next.', when: () => G.level >= 3 && G.sealed },
@@ -6164,7 +6198,7 @@ const UI = (() => {
 
     $('iLvl').textContent = G.level + ' / ' + LEVELS.length;
     $('iCore').textContent = Math.max(0, G.coreHp | 0) + ' / ' + L.coreHp;
-    $('iTerr').textContent = G.territory + ' / ' + L.cap;
+    $('iTerr').textContent = G.sealed ? G.territory + ' (walled in)' : G.territory + ' / ' + L.cap;
     const seal = $('iSeal'); seal.textContent = G.sealed ? 'Sealed' : 'OPEN'; seal.className = G.sealed ? 'ok' : 'warn';
     $('iBld').textContent = G.held;
     $('iPpl').textContent = people() + '/' + L.defs + ' · ' + defenders.length + ' posted · ' + G.lookouts.length + ' lookouts' + (G.food <= 0 ? ' (starving)' : '');
@@ -6715,6 +6749,7 @@ const UI = (() => {
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
       else if (k === 'i') togglePack();
+      else if (k === 'b' && G.tool === 'combat' && !AI.on) Combat.swap();
       else if (k === 'j') toggleJobs();
       else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();

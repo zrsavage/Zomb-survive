@@ -932,7 +932,7 @@ function updateEconomy(dt) {
 
   // a sealed, fed camp draws refugees
   if (G.sealed && G.territory >= 20 && G.food >= 20 && G.morale >= MORALE.noRefugeesBelow && roomForPerson()) {
-    G.refugeeT -= dt * (1 + G.territory / 150) * ruleMul('refugee');
+    G.refugeeT -= dt * (1 + Math.min(G.territory, 450) / 150) * ruleMul('refugee');
     if (G.refugeeT <= 0) { G.refugeeT = REFUGEE_GAP; addRecruit(newSurvivor(), 'saw your walls and joined the camp'); moraleGain('refugee'); Snd.pickup(); }
   }
 }
@@ -1193,7 +1193,7 @@ function upgradeCore() {
   G.coreHp = LEVELS[G.level - 1].coreHp;
   for (let i = 0; i < W * H; i++) if (wall[i]) wallHp[i] = Math.max(wallHp[i], maxHp(wall[i], i) * 0.8);
   G.fieldDirty = true;
-  log('Camp upgraded to level ' + G.level + ' - territory limit ' + LEVELS[G.level - 1].cap);
+  log('Camp upgraded to level ' + G.level + ' - open ground limit ' + LEVELS[G.level - 1].cap + ' (ground you wall in is yours however large)');
   Snd.upgrade();
 }
 

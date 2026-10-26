@@ -202,21 +202,30 @@ function computeTerritory() {
   claimed.fill(0);
   for (const b of buildings) b.claimed = false;
   const cap = LEVELS[G.level - 1].cap;
-  const q = [];
-  const start = (x, y) => { const i = y * W + x; if (inb(x, y) && !claimed[i] && !isCoreTile(x, y) && bld[i] < 0 && !wall[i]) { claimed[i] = 1; q.push(i); } };
-  for (let d = -2; d <= 2; d++) { start(CORE.x + d, CORE.y - 2); start(CORE.x + d, CORE.y + 2); start(CORE.x - 2, CORE.y + d); start(CORE.x + 2, CORE.y + d); }
-  let count = q.length, sealed = true;
-  for (let h = 0; h < q.length; h++) {
-    const i = q[h], x = i % W, y = (i / W) | 0;
-    for (const [dx, dy] of N4) {
-      const nx = x + dx, ny = y + dy;
-      if (!inb(nx, ny)) { sealed = false; continue; }
-      const ni = ny * W + nx;
-      if (claimed[ni] || bld[ni] >= 0 || wall[ni] || isCoreTile(nx, ny)) continue;
-      if (count >= cap) { sealed = false; continue; }
-      claimed[ni] = 1; q.push(ni); count++;
+  // Flood outward from the core. Walls and buildings stop it. If the walls really do close a loop, everything inside is yours
+  // however big (a block, a district, the whole town); if there is a gap, the camp only holds the ground nearest the core.
+  const run = limit => {
+    claimed.fill(0);
+    const q = [];
+    const start = (x, y) => { const i = y * W + x; if (inb(x, y) && !claimed[i] && !isCoreTile(x, y) && bld[i] < 0 && !wall[i]) { claimed[i] = 1; q.push(i); } };
+    for (let d = -2; d <= 2; d++) { start(CORE.x + d, CORE.y - 2); start(CORE.x + d, CORE.y + 2); start(CORE.x - 2, CORE.y + d); start(CORE.x + 2, CORE.y + d); }
+    let count = q.length, sealed = true;
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % W, y = (i / W) | 0;
+      for (const [dx, dy] of N4) {
+        const nx = x + dx, ny = y + dy;
+        if (!inb(nx, ny)) { sealed = false; if (limit > cap) return { q, count, sealed }; continue; }
+        const ni = ny * W + nx;
+        if (claimed[ni] || bld[ni] >= 0 || wall[ni] || isCoreTile(nx, ny)) continue;
+        if (count >= limit) { sealed = false; continue; }
+        claimed[ni] = 1; q.push(ni); count++;
+      }
     }
-  }
+    return { q, count, sealed };
+  };
+  let r = run(W * H);
+  if (!r.sealed) r = run(cap);
+  const q = r.q, count = r.count, sealed = r.sealed;
   const inc = { m: 0, f: 0, a: 0, med: 0, fuel: 0 };
   let held = 0;
   const mult = 1 + 0.15 * (G.level - 1);

@@ -4,7 +4,22 @@
    magazine runs dry. The posted defenders still shoot for themselves. */
 const Combat = (() => {
   const C = { mouse: { x: 0, y: 0 }, down: false, aimX: 0, aimY: 0, over: null, ptype: 'mouse' };
-  const GP = { mag: 12, reload: 1.5, cd: 0.27, spread: 0.028, moveSpread: 0.06, bloomPer: 0.016, range: 10, headR: 0.15 };
+  const WEAPONS = {
+    pistol: { label: 'Pistol',         mag: 12, reload: 1.5, cd: 0.27,  spread: 0.028, move: 0.06, bloom: 0.016, bloomMax: 0.09, range: 10, dmg: 1,    pen: 1, heat: 1,   sniper: false, headR: 0.15, headX: 1.9, need: null },
+    smg:    { label: 'Machine pistol', mag: 24, reload: 2.0, cd: 0.085, spread: 0.05,  move: 0.1,  bloom: 0.012, bloomMax: 0.14, range: 9,  dmg: 0.5,  pen: 1, heat: 0.6, sniper: false, headR: 0.12, headX: 1.5, need: 'smg' },
+    rifle:  { label: 'Marksman rifle', mag: 6,  reload: 2.3, cd: 0.7,   spread: 0.006, move: 0.05, bloom: 0.02,  bloomMax: 0.06, range: 20, dmg: 2.7,  pen: 3, heat: 1,   sniper: true,  headR: 0.2,  headX: 2.2, need: 'marksman' },
+  };
+  const unlocked = () => Object.keys(WEAPONS).filter(k => !WEAPONS[k].need || has(WEAPONS[k].need));
+  const wid = () => (P.weapon && unlocked().includes(P.weapon)) ? P.weapon : 'pistol';
+  const WP = () => WEAPONS[wid()];
+  C.weapon = wid; C.unlocked = unlocked; C.WP = WP;
+  C.swap = function () {
+    const u = unlocked(); if (u.length < 2) { toast('Only a pistol so far. Research better guns (R).'); return; }
+    P.mags = P.mags || {}; P.mags[wid()] = P.mag;
+    P.weapon = u[(u.indexOf(wid()) + 1) % u.length]; P.reloadT = 0;
+    P.mag = P.mags[P.weapon] !== undefined ? P.mags[P.weapon] : WP().mag;
+    toast(WP().label + ' (' + P.mag + ' loaded)'); Snd.click && Snd.click();
+  };
   const MEL = { reach: 1.95, arc: 0.75, cd: 0.42, sta: 9, shove: 0.45 };
 
   const manual = () => !AI.on && G.tool === 'combat' && !UI.menuOpen();
@@ -18,45 +33,49 @@ const Combat = (() => {
   const radiusOf = z => z.type === 'brute' || z.type === 'tyrant' ? 0.72 : z.type === 'bloater' ? 0.62 : 0.4;
 
   function startReload() {
-    if (P.reloadT > 0 || P.mag >= GP.mag || G.ammo < 1) return;
-    P.reloadT = GP.reload; Snd.click && Snd.click();
+    if (P.reloadT > 0 || P.mag >= WP().mag || G.ammo < 1) return;
+    P.reloadT = WP().reload; Snd.click && Snd.click();
   }
   C.reload = startReload;
-  function finishReload() { const take = Math.min(GP.mag - P.mag, Math.floor(G.ammo)); G.ammo -= take; P.mag += take; }
+  function finishReload() { const take = Math.min(WP().mag - P.mag, Math.floor(G.ammo)); G.ammo -= take; P.mag += take; }
 
   function shoot(a) {
+    const w = WP();
     if (P.mag < 1) { if (G.ammo >= 1) startReload(); else if (P.emptyT <= 0) { P.emptyT = 0.5; floatText(P.px, P.py - 1.2, 'NO AMMO', '#e8524a'); Snd.error && Snd.error(); } return; }
-    P.cd = GP.cd; P.mag--;
-    const sp = GP.spread + (P.moving ? GP.moveSpread : 0) + P.bloom;
-    P.bloom = Math.min(0.09, P.bloom + GP.bloomPer);
+    P.cd = w.cd * (has('rapid') ? 0.85 : 1); P.mag--;
+    const sp = w.spread + (P.moving ? w.move : 0) + P.bloom;
+    P.bloom = Math.min(w.bloomMax, P.bloom + w.bloom);
     const ang = Math.atan2(a.dy, a.dx) + (rng() + rng() - 1) * sp, dx = Math.cos(ang), dy = Math.sin(ang);
     const ox = P.px + dx * 0.35, oy = P.py + dy * 0.35;
     // how far the round flies: stops at buildings
-    let reach = GP.range;
-    for (let s = 0.4; s < GP.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (!inb(x | 0, y | 0)) { reach = s; break; } const b = bld[(y | 0) * W + (x | 0)]; if (b >= 0 || isCoreTile(x | 0, y | 0)) { reach = s; break; } }
-    let best = null, bt = reach, bp = 1;
+    let reach = w.range;
+    for (let s = 0.4; s < w.range; s += 0.3) { const x = ox + dx * s, y = oy + dy * s; if (!inb(x | 0, y | 0)) { reach = s; break; } const b = bld[(y | 0) * W + (x | 0)]; if (b >= 0 || isCoreTile(x | 0, y | 0)) { reach = s; break; } }
+    const hits = [];
     for (const z of zombies) {
       if (z.hp <= 0) continue;
       const rx = z.x - ox, ry = z.y - oy, t = rx * dx + ry * dy;
-      if (t < 0 || t > bt) continue;
+      if (t < 0 || t > reach) continue;
       const perp = Math.abs(rx * dy - ry * dx);
-      if (perp < radiusOf(z)) { best = z; bt = t; bp = perp; }
+      if (perp < radiusOf(z)) hits.push({ z, t, perp });
     }
+    hits.sort((p, q) => p.t - q.t);
+    const n = Math.min(w.pen, hits.length), bt = n === w.pen ? hits[n - 1].t : reach;
     const ex = ox + dx * bt, ey = oy + dy * bt;
-    tracers.push({ x1: P.px + dx * 0.5, y1: P.py - 0.5, x2: ex, y2: ey - 0.4, life: 0.09, ap: false });
+    tracers.push({ x1: P.px + dx * 0.5, y1: P.py - 0.5, x2: ex, y2: ey - 0.4, life: w.sniper ? 0.16 : 0.09, ap: w.sniper });
     if (flashes.length < 40) flashes.push({ x: P.px + dx * 0.6, y: P.py - 0.5, life: 0.09 });
-    Snd.shot(P.px, P.py, false); addHeat(HEAT.gun); shake(0.5);
+    Snd.shot(P.px, P.py, w.sniper); addHeat(HEAT.gun * w.heat); shake(w.sniper ? 1 : 0.5 * Math.min(1, w.heat + 0.3));
     P.face = dx >= 0 ? 1 : -1; P.st = 'shoot'; P.aimA = ang; P.aimT = 0.7; P.shot = 0.09;
     if (parts.length < Q.parts) parts.push({ x: P.px, y: P.py - 0.5, vx: -P.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
-    if (best) {
-      const head = bp < GP.headR && ZTYPES[best.type].boss !== true;
-      const dm = GUN.dmg * (has('ap') ? 1.3 : 1) * armorF(best) * (head ? 1.9 : 1);
-      best.hp -= dm; best.hit = 0.1; best.by = null; if (best.mode === 0 || best.mode === 3) { best.mode = 1; best.lose = 0; }
-      addBurst(best.x, best.y - 0.4, head ? '#e8d870' : '#a02020', head ? 5 : 3, { grav: 3 });
-      if (head) floatText(best.x, best.y - 1.1, 'HEADSHOT', '#ffe27a');
-      Snd.hit && Snd.hit(best.x, best.y);
+    for (let k = 0; k < n; k++) {
+      const { z, perp } = hits[k];
+      const head = perp < w.headR && ZTYPES[z.type].boss !== true;
+      const dm = GUN.dmg * w.dmg * (1 - 0.28 * k) * (has('ap') ? 1.3 : 1) * armorF(z) * (head ? w.headX : 1);
+      z.hp -= dm; z.hit = 0.1; z.by = null; if (z.mode === 0 || z.mode === 3) { z.mode = 1; z.lose = 0; }
+      addBurst(z.x, z.y - 0.4, head ? '#e8d870' : '#a02020', head ? 5 : 3, { grav: 3 });
+      if (head) floatText(z.x, z.y - 1.1, 'HEADSHOT', '#ffe27a');
+      Snd.hit && Snd.hit(z.x, z.y);
     }
-    P.noiseT -= 0; if (P.noiseT <= 0) { P.noiseT = 0.6; alertNoise(P.px, P.py, gunRadius(false), 3); if (rings.length < 24) rings.push({ x: P.px, y: P.py, r: gunRadius(false), t: 0, max: NOISE.ring }); }
+    P.noiseT -= 0; if (P.noiseT <= 0) { P.noiseT = 0.6; alertNoise(P.px, P.py, gunRadius(w.sniper), 3); if (rings.length < 24) rings.push({ x: P.px, y: P.py, r: gunRadius(w.sniper), t: 0, max: NOISE.ring }); }
   }
 
   function melee(a) {
@@ -83,7 +102,7 @@ const Combat = (() => {
   C.melee = melee;
 
   C.update = function (dt) {
-    if (P.mag === undefined) { P.mag = GP.mag; P.reloadT = 0; P.bloom = 0; P.sta = STAMINA.max; P.tired = false; P.emptyT = 0; P.mcd = 0; }
+    if (P.mag === undefined) { P.mag = WP().mag; P.reloadT = 0; P.bloom = 0; P.sta = STAMINA.max; P.tired = false; P.emptyT = 0; P.mcd = 0; }
     P.cd -= dt; P.mcd -= dt; P.emptyT -= dt; P.shot -= dt; if (P.aimT > 0) P.aimT -= dt; P.bloom = Math.max(0, P.bloom - dt * 0.12);
     if (P.reloadT > 0) { P.reloadT -= dt; if (P.reloadT <= 0) finishReload(); }
     P.sta = Math.min(STAMINA.max, P.sta + (P.mcd > -0.5 ? 6 : 16) * dt); if (P.tired && P.sta >= STAMINA.recover) P.tired = false;
@@ -97,7 +116,7 @@ const Combat = (() => {
 
   C.draw = function (ctx) {                                         // the sight, drawn in the world
     if (!G || !manual() || P.dead > 0) return;
-    const a = aim(), sp = GP.spread + (P.moving ? GP.moveSpread : 0) + (P.bloom || 0), dist = Math.min(a.d, GP.range), r = Math.max(3, Math.tan(sp) * dist * T);
+    const w = WP(), a = aim(), sp = w.spread + (P.moving ? w.move : 0) + (P.bloom || 0), dist = Math.min(a.d, w.range), r = Math.max(3, Math.tan(sp) * dist * T);
     const px = P.px * T, py = (P.py - 0.45) * T, ax = C.aimX * T, ay = C.aimY * T, hot = !!C.over;
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + a.dx * dist * T, py + a.dy * dist * T); ctx.stroke(); ctx.setLineDash([]);
@@ -108,8 +127,9 @@ const Combat = (() => {
     // magazine, reload ring and what the sight is on
     ctx.font = '7px monospace'; ctx.textBaseline = 'middle';
     const lowMag = P.mag <= 3;
-    if (P.reloadT > 0) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, r + 9, -1.57, -1.57 + 6.283 * (1 - P.reloadT / GP.reload)); ctx.stroke(); ctx.fillStyle = '#ffd27a'; ctx.fillText('RELOAD', ax + r + 12, ay); }
-    else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
+    if (P.reloadT > 0) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, r + 9, -1.57, -1.57 + 6.283 * (1 - P.reloadT / w.reload)); ctx.stroke(); ctx.fillStyle = '#ffd27a'; ctx.fillText('RELOAD', ax + r + 12, ay); }
+    else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(w.label + ' ' + P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
+    if (unlocked().length > 1) { ctx.fillStyle = '#8fa890'; ctx.fillText('B: switch gun', ax + r + 10, ay + 15); }
     if (hot) { Weapons.drawTarget(ctx, C.over); const z = C.over; ctx.fillStyle = '#ffd7d0'; ctx.fillText(ZTYPES[z.type].label + ' ' + Math.ceil(z.hp), ax + r + 10, ay + (P.mag < 1 ? 10 : 5)); }
     ctx.restore();
   };

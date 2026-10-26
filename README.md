@@ -81,3 +81,7 @@ WASD move (Shift sprint) - hold E scavenge - click/drag build (within range of y
 | `main.js` | boot and frame loop |
 
 `window.__game` exposes state and helpers for debugging.
+
+## Your own guns, and walling in more ground
+- Research **Machine Pistol** (full auto, ~11 rounds/s, noisy) and **Marksman Rifle** (20 tiles, punches through 3, big headshots). **B** switches guns in Fight mode; each keeps its own clip.
+- Ground you wall in is yours however large: a closed loop of walls (any number of layers) claims everything inside. If there is a gap, the camp only holds ground near the core (the level's open-ground limit).

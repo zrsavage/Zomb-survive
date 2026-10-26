@@ -141,7 +141,7 @@ const UI = (() => {
 
     $('iLvl').textContent = G.level + ' / ' + LEVELS.length;
     $('iCore').textContent = Math.max(0, G.coreHp | 0) + ' / ' + L.coreHp;
-    $('iTerr').textContent = G.territory + ' / ' + L.cap;
+    $('iTerr').textContent = G.sealed ? G.territory + ' (walled in)' : G.territory + ' / ' + L.cap;
     const seal = $('iSeal'); seal.textContent = G.sealed ? 'Sealed' : 'OPEN'; seal.className = G.sealed ? 'ok' : 'warn';
     $('iBld').textContent = G.held;
     $('iPpl').textContent = people() + '/' + L.defs + ' · ' + defenders.length + ' posted · ' + G.lookouts.length + ' lookouts' + (G.food <= 0 ? ' (starving)' : '');
@@ -692,6 +692,7 @@ const UI = (() => {
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
       else if (k === 'i') togglePack();
+      else if (k === 'b' && G.tool === 'combat' && !AI.on) Combat.swap();
       else if (k === 'j') toggleJobs();
       else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();

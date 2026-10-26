@@ -134,7 +134,7 @@ const SURNAMES = ['Reyes', 'Okafor', 'Lindqvist', 'Tanaka', 'Moreau', 'Kowalski'
 // ---- research ---------------------------------------------------------------
 const RESEARCH = [
   { id: 'walls',   name: 'Reinforced Walls', desc: 'Walls, towers and gates have 35% more health.',     cost: { m: 150 },         time: 40 },
-  { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster.',                         cost: { m: 90, a: 80 },   time: 45 },
+  { id: 'rapid',   name: 'Rapid Fire',       desc: 'Defenders fire 20% faster, and so do you (15%).',                         cost: { m: 90, a: 80 },   time: 45 },
   { id: 'ap',      name: 'AP Rounds',        desc: 'Bullets deal 30% more damage.',                      cost: { m: 120, a: 120 }, time: 50 },
   { id: 'spears', name: 'Pikes & Spears',   desc: 'Everyone carries a spear: it reaches through the fence, skewers two zombies and tires the arm less.', cost: { m: 60 }, time: 25 },
   { id: 'hands',   name: 'Fast Hands',       desc: 'Stabbing is 35% harder and 15% faster.',             cost: { m: 100 },         time: 40 },
@@ -144,6 +144,8 @@ const RESEARCH = [
   { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
+  { id: 'smg',      name: 'Machine Pistol',   desc: 'A full-auto conversion for your pistol: hold to spray about 11 rounds a second from a 24-round clip. Weaker rounds, a lot of ammo, a lot of noise. Switch guns with B.', cost: { m: 160, a: 70 }, time: 70 },
+  { id: 'marksman', name: 'Marksman Rifle',  desc: 'A scoped rifle for you: twice the range, heavy rounds that punch through three zombies, and a clean headshot on anything. Slow to cycle. Switch guns with B.', cost: { m: 220, a: 90 }, time: 90 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 

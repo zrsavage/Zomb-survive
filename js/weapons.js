@@ -13,6 +13,7 @@ const Weapons = (() => {
   const R = (c, x, y, w, h) => [c, x, y, w, h];
   const SPR = {
     pistol: () => mk('pistol', 9, 6, [R('#1a1c20', 0, 1, 7, 2), R('#3a3f48', 0, 1, 7, 1), R('#8a909a', 1, 1, 5, 1), R('#1a1c20', 5, 3, 3, 3), R('#2a2d33', 5, 3, 2, 2), R('#101114', 7, 1, 2, 1), R('#5a3a1a', 4, 3, 2, 3)]),
+    smg: () => mk('smg', 11, 7, [R('#1a1c20', 0, 1, 9, 2), R('#4a4f58', 0, 1, 9, 1), R('#101114', 8, 1, 3, 2), R('#2a2d33', 3, 3, 2, 4), R('#d8a030', 3, 5, 2, 1), R('#5a3a1a', 0, 3, 3, 3), R('#8a909a', 5, 0, 3, 1)]),
     rifle: () => mk('rifle', 17, 5, [R('#1a1c20', 3, 1, 14, 2), R('#4a4f58', 3, 1, 14, 1), R('#5a3a1a', 0, 1, 5, 3), R('#7a5226', 0, 1, 5, 1), R('#101114', 9, 3, 2, 2), R('#2a8ad0', 7, 0, 3, 1), R('#8a909a', 12, 1, 5, 1)]),
     knife: () => mk('knife', 8, 3, [R('#3a2a1a', 0, 1, 3, 2), R('#d8dde2', 3, 0, 5, 2), R('#fff', 3, 0, 5, 1), R('#8a909a', 6, 1, 2, 1)]),
     spear: () => mk('spear', 22, 3, [R('#6a4a22', 0, 1, 17, 1), R('#8a6a3a', 0, 1, 17, 0), R('#c8ccd2', 17, 0, 5, 3), R('#fff', 17, 0, 5, 1), R('#e8e0c0', 15, 0, 2, 3)]),
@@ -22,7 +23,7 @@ const Weapons = (() => {
 
   // which weapon is this person using right now
   function kindOf(o) {
-    if (o === P) return 'pistol';
+    if (o === P) return P.dead > 0 ? 'pistol' : ({ rifle: 'rifle', smg: 'smg' }[Combat.weapon()] || 'pistol');
     const r = o.s && o.s.role;
     return r === 'sniper' ? 'rifle' : 'pistol';
   }
