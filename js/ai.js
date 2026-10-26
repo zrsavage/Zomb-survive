@@ -71,8 +71,8 @@ const AI = (() => {
     const cr = crates.filter(c => c.type !== 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 40).sort((a, b) => Math.hypot(a.x - P.px, a.y - P.py) - Math.hypot(b.x - P.px, b.y - P.py))[0];
     if (cr && cr.type === 'airdrop' && zNear(cr.x, cr.y, 5) < 6) return startJob('scout', { gx: cr.x, gy: cr.y });
     if (A.want) { const w = A.want; A.want = null; return startJob('build', { gx: w[0], gy: w[1] }); }
-    { const L = (G.blue || []).slice().sort((p, q) => q.prio - p.prio || Math.hypot(p.x - P.px, p.y - P.py) - Math.hypot(q.x - P.px, q.y - P.py)); if (L.length && G.mat >= 0) { const b = L[0]; return startJob('work', { gx: b.x + 0.5, gy: b.y + 0.5, bx: b.x, by: b.y }); } }
     const lowSupplies = G.mat < 260 || G.food < 90 || G.ammo < 100 || G.water < 70 || G.fuel < 15 || G.med < 6 || !G.sealed || G.idle.length < 3;
+    { const L = (G.blue || []).slice().sort((p, q) => q.prio - p.prio || Math.hypot(p.x - P.px, p.y - P.py) - Math.hypot(q.x - P.px, q.y - P.py)); if (L.length && (!G.sealed || !lowSupplies || rng() < 0.4)) { const b = L[0]; return startJob('work', { gx: b.x + 0.5, gy: b.y + 0.5, bx: b.x, by: b.y }); } }
     if (lowSupplies || rng() < 0.3) {
       const b = pickLoot();
       if (b) { const [cx, cy] = centre(b); return startJob('loot', { b, gx: cx, gy: cy }); }
@@ -180,7 +180,7 @@ const AI = (() => {
     return out.sort((a, b) => Math.hypot(a[0] - CORE.x, a[1] - CORE.y) - Math.hypot(b[0] - CORE.x, b[1] - CORE.y));
   }
   function buildFacility(type, max) {
-    if (G.level < FACILITIES[type].level || facilities.filter(f => f.type === type).length >= (max || 1)) return false;
+    if (G.level < FACILITIES[type].level || have(type) >= (max || 1)) return false;
     if (G.mat < FACILITIES[type].cost.m + 25) return false;
     const spots = freeSpots(); if (!spots.length) return false;
     G.tool = type; const before = have(type);
@@ -191,7 +191,7 @@ const AI = (() => {
     }
     return false;
   }
-  const have = t => facilities.filter(f => f.type === t).length;
+  const have = t => facilities.filter(f => f.type === t).length + (G.blue || []).filter(b => b.tool === t).length;       // planned ones count
   function plan() {
     const lvl = G.level, L = LEVELS[lvl - 1], r = A.ring[lvl - 1];
     const sealed = G.sealed;
@@ -204,11 +204,12 @@ const AI = (() => {
       if (++built > 40) break;
     }
     // 2. put everyone healthy on the wall, spread out, with towers where there is room for one
-    if (Units.free().length && defenders.length + Units.free().length * 0 + [...Units.pendingTiles()].length < L.defs) {
+    const keep = Math.min(2, Math.floor(Build.workLeft() / 25));             // while there is a lot to build, a couple of people stay off the wall as builders
+    if (Units.free().length > keep && defenders.length + [...Units.pendingTiles()].length < L.defs) {
       const pend = Units.pendingTiles(), all = edgeWalls().filter(([x, y]) => !pend.has(y * W + x)), wt = all.filter(([x, y]) => inBuildRange(x, y) && zNear(x + 0.5, y + 0.5, 6) <= 3);      // recruits are people: do not post them into a crowd
       if (!wt.length && all.length && !A.want) { const w = all[0]; A.want = [CORE.x + (w[0] - CORE.x) * 0.6, CORE.y + (w[1] - CORE.y) * 0.6]; }
       let n = 0;
-      while (Units.free().length && wt.length && n < 6) {
+      while (Units.free().length > keep && wt.length && n < 6) {
         let best = null, bd = -1;
         for (const [x, y] of wt) { const dm = defenders.reduce((m, d) => Math.min(m, Math.hypot(d.x - x, d.y - y)), 99); if (dm > bd) { bd = dm; best = [x, y]; } }
         if (!best) break;

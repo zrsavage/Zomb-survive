@@ -6,12 +6,12 @@
 const Build = (() => {
   const B = {};
   const REACH = 2.4, PER = 2;                                        // how close a worker must be; most workers on one blueprint
-  const TIME = { wall: 5, tower: 12, gate: 7, lookout: 10, radio: 30, outpost: 24, electrify: 6, reinforce: 8, spike: 3, barrel: 5 };
+  const TIME = { wall: 3.5, tower: 9, gate: 5, lookout: 8, radio: 24, outpost: 18, electrify: 4, reinforce: 6, spike: 2.5, barrel: 4 };
   const COLORS = { wall: '#b58a52', tower: '#c8ccd2', gate: '#c8a050', lookout: '#8ad0a8', radio: '#e8e070', outpost: '#c89a62', electrify: '#7fd0ff', reinforce: '#a8a8a8', spike: '#d0d0d0', barrel: '#e8884a' };
   const PRIO = ['', 'Low', 'Normal', 'Urgent'];
   const list = () => G.blue || (G.blue = []);
   const labelOf = tool => { const t = TOOLS.find(x => x.id === tool); return t ? t.label : tool; };
-  const timeOf = (tool, i) => TIME[tool] ? TIME[tool] + (tool === 'reinforce' ? 4 * wallTier[i] : 0) : FACILITIES[tool] ? clamp(FACILITIES[tool].cost.m / 5, 10, 45) : 6;
+  const timeOf = (tool, i) => TIME[tool] ? TIME[tool] + (tool === 'reinforce' ? 3 * wallTier[i] : 0) : FACILITIES[tool] ? clamp(FACILITIES[tool].cost.m / 7, 8, 32) : 6;
   const NAMES = { m: 'wood & scrap', f: 'food', a: 'ammo', med: 'medicine', fuel: 'fuel', water: 'water' };
   const costText = c => Object.keys(c).filter(k => c[k]).map(k => c[k] + ' ' + (NAMES[k] || k)).join(', ') || 'free';
   B.at = (x, y) => list().find(b => b.x === x && b.y === y);

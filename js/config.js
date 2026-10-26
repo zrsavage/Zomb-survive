@@ -93,7 +93,7 @@ const BLOAT = { radius: 1.9, defDmg: 28, playerDmg: 22, zombieDmg: 12 };
 
 // The siege: a constant trickle of the dead walks toward the camp (it ramps with time, camp level and how loud you are).
 // A real horde is rare and only comes when the player draws it: noise (HEAT) fills up, or they sound the siren, or call for rescue.
-const PRESSURE = { start: 150, base: 2.0, ramp: 0.5, max: 80, levelMul: 0.15, group: 3, cap: 22, capPerLevel: 7, tierMin: 6 };   // per minute / alive-at-once / minutes per wave
+const PRESSURE = { start: 210, base: 1.8, ramp: 0.36, max: 80, levelMul: 0.15, group: 3, cap: 22, capPerLevel: 7, tierMin: 6 };   // per minute / alive-at-once / minutes per wave
 const HEAT = { mine: 0.02, max: 100, decay: 0.12, gun: 0.003, gen: 0.16, flood: 0.03, shop: 0.04, radio: 0.35, decoy: 7, breach: 12, vault: 10, siren: { m: 25, fuel: 1 }, after: 25 };
 // Hordes: first arrives after DIFFICULTY.first seconds (long enough to scavenge, wall in and recruit), then at random intervals, growing 1.4x each time.
 const HORDE = { gapMin: 90, gapMax: 160, base: 45, growth: 1.12, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
