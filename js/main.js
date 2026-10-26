@@ -20,12 +20,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// phones default to the cheaper quality tier; the choice is remembered
-(() => {
-  let q = null; try { q = localStorage.getItem('zomb-quality'); } catch (e) { /* ignore */ }
-  const small = matchMedia('(pointer: coarse)').matches || innerWidth < 900;
-  setQuality(QUALITY[q] ? q : small ? 'low' : 'high');
-})();
+setQuality('high');
 buildSprites();
 resize();
 UI.init();

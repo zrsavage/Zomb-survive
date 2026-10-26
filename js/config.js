@@ -168,10 +168,9 @@ const LIGHT = {
 };
 
 // ---- quality / device ---------------------------------------------------------------
-// 'low' is the default on phones: cheaper lighting, no ground fog, fewer particles and a smaller zombie cap.
+// one graphics tier: high
 const QUALITY = {
   high: { name: 'high', dprMax: 2,   light: 3, fog: true,  shadows: true,  parts: 700, maxZ: 6000 },
-  low:  { name: 'low',  dprMax: 1.5, light: 5, fog: false, shadows: false, parts: 260, maxZ: 2200 },
 };
 const Q = Object.assign({}, QUALITY.high);
 function setQuality(name) { Object.assign(Q, QUALITY[name] || QUALITY.high); try { localStorage.setItem('zomb-quality', Q.name); } catch (e) { /* ignore */ } }

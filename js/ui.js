@@ -496,7 +496,6 @@ const UI = (() => {
     const diffBtns = '<div class="seg" id="diffSeg">' + Object.keys(DIFFICULTY).map(k => '<button data-diff="' + k + '" class="' + (k === diff ? 'on' : '') + '">' + DIFFICULTY[k].label + '</button>').join('') + '</div>';
     const settingsHtml = '<div style="margin-top:12px">Volume <input id="volume" type="range" min="0" max="100" value="' + Math.round(Snd.vol * 100) + '"></div>' +
       '<div style="margin-top:12px">Hints</div><div class="seg" id="hintSeg"><button data-hint="on" class="' + (Hints.on() ? 'on' : '') + '">On</button><button data-hint="off" class="' + (Hints.on() ? '' : 'on') + '">Off</button></div>' +
-      '<div style="margin-top:12px">Graphics</div><div class="seg" id="qualSeg">' + Object.keys(QUALITY).map(k => '<button data-q="' + k + '" class="' + (k === Q.name ? 'on' : '') + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('') + '</div>' +
       '<div id="menuBtns"><button id="mFull" class="alt">Fullscreen (F)</button>' + (Save.exists() || G ? '<button id="mExport" class="alt">Export save (copy text)</button>' : '') + '<button id="mImport" class="alt">Import a save</button>' + (mode === 'settings' && settingsBack === 'pause' ? '<button id="mAbandon" class="alt">Abandon run (deletes the save)</button>' : '') + '<button id="mSetBack">Back</button></div>' +
       '<div style="color:var(--dim);font-size:12px;margin-top:8px">' + Save.status() + '</div>';
     let h = '';
@@ -521,9 +520,6 @@ const UI = (() => {
     }
     c.innerHTML = h; ov.classList.remove('hidden');
     const on = (id, fn) => { const e = $(id); if (e) e.addEventListener('click', () => { Snd.resume(); Snd.click(); fn(); }); };
-    document.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => {
-      setQuality(b.dataset.q); resize(); document.querySelectorAll('[data-q]').forEach(x => x.classList.toggle('on', x === b));
-    }));
     document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
       store.set('zomb-diff', b.dataset.diff); const dd = $('diffDesc'); if (dd) dd.textContent = DIFF_NOTE[b.dataset.diff];
       document.querySelectorAll('[data-diff]').forEach(x => x.classList.toggle('on', x === b));
