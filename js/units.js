@@ -393,6 +393,7 @@ const Units = (() => {
     const c = G.crews.find(c => c.members.includes(s)); if (c) return { out: 'walking out', work: 'scavenging', back: 'coming home' }[c.phase || 'out'];
     const u = U.get(s.id); if (u && u.order) return { move: u.order.build ? 'heading to build' : u.order.train ? 'heading to train' : 'moving', post: 'heading to a post' }[u.order.kind] || 'busy';
     if (u.working) return 'building';
+    if (u.hauling) return u.carry && u.carry.plan && u.carry.plan.length ? 'carrying supplies' : 'fetching supplies';
     if (u.tr) return { melee: 'training melee', shoot: 'training shooting', cap: 'needs a training yard', max: 'a master', noammo: 'training paused: low ammo' }[u.tr];
     return 'idle';
   }

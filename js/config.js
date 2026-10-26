@@ -145,8 +145,8 @@ const RESEARCH = [
   { id: 'expedition', name: 'Expedition Planning', desc: 'Lets you found a second town and send convoys between towns.', cost: { m: 120, f: 60 }, time: 50 },
   { id: 'concrete', name: 'Concrete Mixing', desc: 'Lets you reinforce walls to the third (concrete) tier.',  cost: { m: 150 },        time: 45 },
   { id: 'silencers', name: 'Suppressors',    desc: 'Gunfire carries 45% less far, so fewer zombies come.', cost: { m: 100, a: 60 }, time: 40 },
-  { id: 'homemade', name: 'Homemade Carbine', desc: 'Bolt, pipe and scrap wood: a crude single-shot-at-a-time carbine for you. Longer reach and harder hitting than the pistol, but slow, rough and only 8 to a load. Switch guns with B.', cost: { m: 140, a: 40 }, time: 60 },
-  { id: 'homemade2', name: 'Homemade Auto',  desc: 'A hand-built full-auto, all pipe and rubber bands: sprays about 6 rounds a second from 16, and it will never be as good as a real one. Switch guns with B.', cost: { m: 260, a: 80 }, time: 90 },
+  { id: 'homemade', name: 'Homemade Carbine', desc: 'Bolt, pipe and scrap wood: a crude single-shot-at-a-time carbine for you. Longer reach and harder hitting than the pistol, but slow, rough and only 8 to a load. Switch guns with Q.', cost: { m: 140, a: 40 }, time: 60 },
+  { id: 'homemade2', name: 'Homemade Auto',  desc: 'A hand-built full-auto, all pipe and rubber bands: sprays about 6 rounds a second from 16, and it will never be as good as a real one. Switch guns with Q.', cost: { m: 260, a: 80 }, time: 90 },
   { id: 'comms',   name: 'Ham Radio',        desc: 'Pick up transmissions: stories, offers and chances.', cost: { m: 80 },          time: 40 },
 ];
 

@@ -180,6 +180,7 @@ function drawWorld(cam, cw, ch, z) {
       if (o.tired) { ctx.fillStyle = '#e8c547'; const zx = o.px * T + 5, zy = o.py * T - 27 - ((G.time * 6 | 0) % 2); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 2, zy + 1, 1, 1); ctx.fillRect(zx + 1, zy + 2, 1, 1); ctx.fillRect(zx, zy + 3, 3, 1); }
       drawUnit(o, o.px, o.py + 0.1, o.face, o.stab > 0 && o !== P ? -1 : 0);
       if (!crowd || o === P) Weapons.drawHeld(ctx, o);
+      if (o.carry && o.carry.plan && o.carry.plan.length) { const cx2 = Math.round(o.px * T - 4 - (o.face || 1) * 3), cy2 = Math.round(o.py * T - 20 + Math.sin(o.anim * 0.8) * 0.6); ctx.fillStyle = '#5a3a1a'; ctx.fillRect(cx2, cy2, 9, 6); ctx.fillStyle = '#8a5a2a'; ctx.fillRect(cx2, cy2, 9, 2); ctx.fillStyle = '#c8b090'; ctx.fillRect(cx2 + 4, cy2, 1, 6); }
       const mhp = o === P ? PLAYER.hp : (o.maxHp || 60);
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
       if (o.sta !== undefined && o.sta < STAMINA.max - 1) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12, 2); ctx.fillStyle = o.tired ? '#c9a23a' : '#6fb0e8'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12 * o.sta / STAMINA.max, 2); }

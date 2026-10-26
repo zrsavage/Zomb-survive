@@ -21,9 +21,9 @@ const Items = (() => {
     fuel_can: { name: 'Fuel can',      desc: 'Stash at camp for 8 fuel.', stash: { fuel: 8 }, w: 12 },
     jug:      { name: 'Water jug',     desc: 'Stash at camp for 10 water.', stash: { water: 10 }, w: 14 },
     keycard:  { name: 'Keycard',       desc: 'Opens one locked building without cutting.', special: true, w: 4 },
-    gun_smg:     { name: 'Machine pistol', desc: 'A military full-auto pistol. Sprays fast, drinks ammo. Switch guns with B.', special: true, weapon: 'smg', w: 1.2 },
-    gun_assault: { name: 'Assault rifle',  desc: 'A military rifle: fast, accurate, a long clip. Switch guns with B.', special: true, weapon: 'assault', w: 1 },
-    gun_marksman:{ name: 'Marksman rifle', desc: 'A scoped rifle: twice the reach, punches through three of the dead. Switch guns with B.', special: true, weapon: 'rifle', w: 0.8 },
+    gun_smg:     { name: 'Machine pistol', desc: 'A military full-auto pistol. Sprays fast, drinks ammo. Switch guns with Q.', special: true, weapon: 'smg', w: 1.2 },
+    gun_assault: { name: 'Assault rifle',  desc: 'A military rifle: fast, accurate, a long clip. Switch guns with Q.', special: true, weapon: 'assault', w: 1 },
+    gun_marksman:{ name: 'Marksman rifle', desc: 'A scoped rifle: twice the reach, punches through three of the dead. Switch guns with Q.', special: true, weapon: 'rifle', w: 0.8 },
     blueprint:{ name: 'Blueprint',     desc: 'Unlocks a piece of research.', special: true, w: 0 },
   };
   const PACK = { slots: 10, stack: 9, campR: 9 };
@@ -123,7 +123,7 @@ const Loot = (() => {
       const f = Items.RES[e.r].field, room = Math.max(0, Math.floor(storeCap() - G[f])), t = Math.min(e.n, room);
       if (t > 0) G[f] += t; return t;
     }
-    if (ITEMS_W(e.i)) { const g = Items.ITEMS[e.i].weapon; P.guns = P.guns || {}; if (P.guns[g]) return 0; P.guns[g] = 1; log('You found a ' + Items.nameOf(e.i).toLowerCase() + '. Press B in Fight mode to switch to it.'); floatText(P.px, P.py - 1.6, Items.nameOf(e.i).toUpperCase(), '#ffe27a'); Snd.upgrade && Snd.upgrade(); return e.n; }
+    if (ITEMS_W(e.i)) { const g = Items.ITEMS[e.i].weapon; P.guns = P.guns || {}; if (P.guns[g]) return 0; P.guns[g] = 1; log('You found a ' + Items.nameOf(e.i).toLowerCase() + '. Press Q to switch to it.'); floatText(P.px, P.py - 1.6, Items.nameOf(e.i).toUpperCase(), '#ffe27a'); Snd.upgrade && Snd.upgrade(); return e.n; }
     if (e.i === 'keycard') { G.keys++; return e.n; }
     if (e.i === 'blueprint') {
       const left = RESEARCH.filter(r => !G.res.done[r.id]);

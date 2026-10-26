@@ -27,7 +27,7 @@ const TOOLS = [
   ...Object.keys(FACILITIES).map((id, n) => ({ cat: 'Facilities', id, key: '', label: FACILITIES[id].label, cost: facCost(id), lvl: FACILITIES[id].level, tip: FACILITIES[id].desc + ' (camp level ' + FACILITIES[id].level + ', inside territory)' })),
   { cat: 'People', id: 'def',     key: '7', label: 'Post survivor', cost: () => ({}),               tip: 'Put the selected idle survivor on a wall/tower/lookout.' },
   { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
-  { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
+  { cat: 'People', id: 'erase',   key: '9', label: 'Erase',         cost: () => ({}),               tip: 'Remove a wall, trap or facility you built (refunds half), cancel a plan, or take a survivor off the wall.' },
   { cat: 'Camp', id: 'siren', key: '', label: 'Sound the siren', cost: () => HEAT.siren, tip: 'Deliberately draw a real horde to the camp. Click the camp core. Rare, big, and the only way besides noise to get one.' },
   { cat: 'Camp', id: 'radio',   key: '', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
@@ -40,20 +40,64 @@ const UI = (() => {
 
   // ---- build the static parts -------------------------------------------------------------
   const RESROW = [['a', 'rAmmo'], ['m', 'rMat'], ['f', 'rFood'], ['water', 'rWater'], ['fuel', 'rFuel'], ['med', 'rMed']];
+  // ---- the two states: the fight, and the build menu ------------------------------------------------------------------
+  const FIGHT_TOOLS = ['combat', 'orders'];
+  const inBuild = () => G && !FIGHT_TOOLS.includes(G.tool);
+  const TABS = [['Defence', ['Defense']], ['Traps', ['Traps & fire']], ['Facilities', ['Facilities']], ['Land & people', ['Land', 'People']], ['Camp', ['Camp']]];
+  let buildTab = 0;
+  function setTool(id) { G.tool = id; Snd.click(); }
+  function toggleBuild() { if (!G || G.over) return; setTool(inBuild() ? 'combat' : 'none'); }
+  function buildDock() {
+    const el = $('dock');
+    const b = (id, ic, label, key) => '<button id="dk' + id + '" title="' + label + '">' + Icons.img(ic, 24) + '<span>' + label + (key ? ' <kbd>' + key + '</kbd>' : '') + '</span></button>';
+    el.innerHTML = b('Fight', 'combat', 'Fight', '0') + b('Cmd', 'orders', 'Command', 'C') + '<span class="sep"></span>' + b('Build', 'wall', 'Build', 'B') + '<span class="sep"></span>' + b('Crew', 'crew', 'Crew', 'K') + b('Pack', 'depot', 'Pack', 'I') + b('Camp', 'bunkhouse', 'Camp', '') + b('More', 'generator', 'More', '');
+    $('dkFight').onclick = () => setTool('combat'); $('dkCmd').onclick = () => setTool('orders'); $('dkBuild').onclick = toggleBuild;
+    $('dkCrew').onclick = () => toggleWork(); $('dkPack').onclick = () => togglePack();
+    $('dkCamp').onclick = () => { document.body.classList.toggle('side-open'); Snd.click(); };
+    $('dkMore').onclick = () => { document.body.classList.toggle('more-open'); Snd.click(); };
+  }
+  function buildMenu() {
+    const el = $('bmenu');
+    el.innerHTML = '<div class="tabs">' + TABS.map((t, i) => '<button data-tab="' + i + '">' + t[0] + '</button>').join('') + '<span class="grow"></span><button id="bmDone">Back to the fight <kbd>B</kbd></button></div><div class="cards" id="bcards"></div><div class="btip" id="btip">Pick something, then click the ground. Nothing is built at once: it is planned, supplied and then worked.</div>';
+    el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { buildTab = +b.dataset.tab; renderCards(); Snd.click(); });
+    $('bmDone').onclick = () => setTool('combat');
+    renderCards();
+  }
+  function renderCards() {
+    const cards = $('bcards'), cats = TABS[buildTab][1];
+    document.querySelectorAll('#bmenu [data-tab]').forEach(b => b.classList.toggle('on', +b.dataset.tab === buildTab));
+    cards.innerHTML = '';
+    for (const t of TOOLS) {
+      if (!cats.includes(t.cat) || FIGHT_TOOLS.includes(t.id)) continue;
+      const b = document.createElement('button'); b.className = 'bcard'; b.dataset.tool = t.id; b.title = t.tip;
+      b.innerHTML = Icons.img(t.id, 40) + '<span>' + t.label + '</span><span class="cc"></span>' + (t.key ? '<kbd>' + t.key + '</kbd>' : '');
+      b.addEventListener('click', () => setTool(t.id));
+      b.addEventListener('mouseenter', () => { $('btip').textContent = t.label + ': ' + t.tip; });
+      b.addEventListener('mouseleave', () => { const s = TOOLS.find(x => x.id === G.tool); $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick something, then click the ground.'; });
+      cards.appendChild(b);
+    }
+  }
+  function updateBuildMenu() {
+    const RI = { m: 'm', f: 'f', a: 'a', med: 'med', fuel: 'fuel', water: 'water' };
+    document.querySelectorAll('#bcards [data-tool]').forEach(b => {
+      const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost(), locked = t.lvl && G.level < t.lvl;
+      b.classList.toggle('on', G.tool === t.id);
+      b.style.display = t.hidden && t.hidden() ? 'none' : '';
+      const afford = !(c.m || c.f || c.a || c.med || c.fuel) || canAfford(c);
+      b.classList.toggle('dim', !!locked || !afford);
+      const cc = b.querySelector('.cc'), key = t.id + JSON.stringify(c) + locked + afford;
+      if (cc.dataset.k !== key) { cc.dataset.k = key; cc.innerHTML = t.id === 'def' ? G.idle.length + ' idle' : locked ? 'camp level ' + t.lvl : Object.keys(c).filter(k => c[k]).map(k => '<span>' + Items.img(RI[k] || k, 11) + c[k] + '</span>').join('') || 'free'; }
+    });
+    const s = TOOLS.find(x => x.id === G.tool);
+    if (!document.querySelector('#bcards .bcard:hover')) $('btip').textContent = s ? s.label + ': ' + s.tip : 'Pick something, then click the ground. Nothing is built at once: it is planned, supplied and then worked.';
+  }
+
   function init() {
     Loot.init(); $('introCard').addEventListener('click', () => Intro.onClick());
     for (const [k, id] of RESROW) { const b = $(id).parentElement.querySelector('b'); if (b) b.outerHTML = '<img src="' + Items.url(k) + '" alt="">'; }
     $('packChip').addEventListener('click', () => togglePack()); $('jobChip').addEventListener('click', () => toggleJobs());
-    const list = $('toolList');
-    let lastCat = '';
-    for (const t of TOOLS) {
-      if (t.cat !== lastCat) { lastCat = t.cat; const h = document.createElement('div'); h.className = 'cat'; h.textContent = t.cat; list.appendChild(h); }
-      const b = document.createElement('button');
-      b.className = 'tool'; b.dataset.tool = t.id; b.title = t.tip;
-      b.innerHTML = '<span class="nm">' + (t.key ? '<kbd>' + t.key + '</kbd>' : '') + t.label + '</span><span class="cost"></span>';
-      b.addEventListener('click', () => { G.tool = t.id; Snd.click(); });
-      list.appendChild(b);
-    }
+    for (const id of ['townWrap', 'rMat', 'rFood', 'rWater', 'rFuel', 'rMed', 'jobChip', 'packChip', 'morWrap']) { const e = $(id); const w = e.classList.contains('res') ? e : e.parentElement; w.classList.add('bo'); }
+    buildDock(); buildMenu();
     document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
       const s = +b.dataset.speed; if (s === 0) G.paused = !G.paused; else { G.paused = false; G.speed = s; }
     }));
@@ -71,6 +115,36 @@ const UI = (() => {
       b.textContent = RECIPES[k].label; b.title = RECIPES[k].weapon ? MW[RECIPES[k].weapon].label + ': ' + Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ', ' + RECIPES[k].time + 's. Melee weapon: damage x' + MW[RECIPES[k].weapon].dmg + ', reach ' + MW[RECIPES[k].weapon].reach + ', needs melee level ' + MW[RECIPES[k].weapon].need + (RECIPES[k].tech ? '. Needs research.' : '') : Object.entries(RECIPES[k].in).map(([a, n]) => n + ' ' + a).join(' + ') + ' -> ' + Object.entries(RECIPES[k].out).map(([a, n]) => n + ' ' + a).join(' ') + ' every ' + RECIPES[k].time + 's';
       b.addEventListener('click', () => { G.craft = k; Snd.click(); }); cs.appendChild(b);
     }
+  }
+
+  const LOWS = [['food', () => G.food < 25], ['water', () => G.water < 25], ['ammo', () => G.ammo < 20], ['medicine', () => G.med < 1 && G.idle.some(s => s.sick > 0)]];
+  function updateModeUI() {
+    const b = inBuild(), bd = document.body;
+    bd.classList.toggle('mode-build', b); bd.classList.toggle('mode-play', !b);
+    $('dkFight').classList.toggle('on', G.tool === 'combat'); $('dkCmd').classList.toggle('on', G.tool === 'orders'); $('dkBuild').classList.toggle('on', b);
+    $('dkCamp').classList.toggle('on', bd.classList.contains('side-open')); $('dkMore').classList.toggle('on', bd.classList.contains('more-open'));
+    if (b) {
+      $('modeBanner').textContent = 'BUILD MODE: you are not shooting. Press B or Esc to get back to the fight.';
+      updateBuildMenu();
+      // zombies on you? the menu gets out of the way
+      if (!AI.on && !G.over) {
+        let close = P.hurt > 0;
+        if (!close) for (const z of zombies) { if (z.mode !== 0 && z.hp > 0 && (z.x - P.px) ** 2 + (z.y - P.py) ** 2 < 49) { close = true; break; } }
+        if (close) { G.tool = 'combat'; toast('Zombies on you. Back to the fight.'); Snd.error && Snd.error(); }
+      }
+    }
+    // the fight panel: health, stamina, what is in your hands
+    const w = Combat.WP(), mw = MW[P.mw && MW[P.mw] ? P.mw : 'knife'];
+    const hp = Math.max(0, P.hp) / PLAYER.hp * 100, sta = (P.sta === undefined ? 100 : P.sta) / STAMINA.max * 100;
+    const key = [hp | 0, sta | 0, w.label, P.mag, G.ammo | 0, P.reloadT > 0, mw.label, P.tired].join('|');
+    const cb = $('cbt'); if (cb.dataset.k !== key) {
+      cb.dataset.k = key;
+      cb.innerHTML = '<div class="bars"><div class="bar2"><i style="width:' + hp + '%;background:' + (hp < 35 ? 'var(--bad)' : '#6fcf6a') + '"></i></div><div class="bar2"><i style="width:' + sta + '%;background:' + (P.tired ? '#c9a23a' : '#6fb0e8') + '"></i></div></div>' +
+        '<div class="gun"><b>' + (P.reloadT > 0 ? 'RELOADING' : P.mag + ' <span style="color:var(--dim);font-size:13px">/ ' + (G.ammo | 0) + '</span>') + '</b><small>' + w.label + (Combat.unlocked().length > 1 ? ' · Q switch' : '') + '</small></div>' +
+        '<div class="gun"><b style="font-size:13px">' + mw.label + '</b><small>melee: F or right-click</small></div>';
+    }
+    const low = LOWS.filter(([, f]) => f()).map(([n]) => n); const lc = $('lowChip');
+    lc.textContent = low.length ? 'Running low: ' + low.join(', ') : ''; lc.classList.toggle('show', low.length > 0 && !G.intro);
   }
 
   // ---- HUD ---------------------------------------------------------------
@@ -123,18 +197,12 @@ const UI = (() => {
     if (G.hordeMsg) { hd.className = 'panel ' + G.hordeMsg.cls; hd.textContent = G.hordeMsg.text; }
     else if (G.herdMsg) { hd.className = 'panel alert'; hd.textContent = G.herdMsg; }
     else if (G.intro) { hd.className = 'panel'; hd.style.display = 'none'; }
+    else if (!inBuild() && !AI.on) { hd.style.display = 'none'; }
     else { hd.style.display = ''; hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
     if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = G.rescueKind === 'convoy' ? 'Convoy arrives in ' + fmtTime(Math.max(0, G.rescue)) : 'Broadcasting for supplies: next drop in ' + fmtTime(Math.max(0, G.dropT)) + ' - ends in ' + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
 
-    document.querySelectorAll('[data-tool]').forEach(b => {
-      const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost();
-      b.classList.toggle('on', G.tool === t.id);
-      b.style.display = t.hidden && t.hidden() ? 'none' : '';
-      const locked = t.lvl && G.level < t.lvl;
-      b.querySelector('.cost').textContent = t.id === 'def' ? G.idle.length + ' idle' : costStr(c) + (locked ? ' L' + t.lvl : '');
-      b.disabled = locked || (!!(c.m || c.f || c.a || c.med || c.fuel) && !canAfford(c));
-    });
+    updateModeUI();
     document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === 0 ? G.paused : !G.paused && +b.dataset.speed === G.speed));
     $('cUp').textContent = L.up ? costStr(L.up) : 'MAX';
     $('btnUp').disabled = !L.up || !canAfford(L.up);
@@ -303,11 +371,11 @@ const UI = (() => {
       '<td><small>' + Build.costText(g.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
       '<td style="white-space:nowrap"><button data-gp="' + gi + '" data-d="1" title="Higher priority">▲</button><button data-gp="' + gi + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (g.prio === 3 ? '#ff8a6a' : g.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[g.prio] + '</b> <button data-gx="' + gi + '" title="Cancel the lot and get unused supplies back">✕</button></td></tr>').join('') :
       L.map(b => '<tr><td>' + (b.w ? '<span style="color:var(--amber)">▸</span> ' : '') + '<a href="#" data-go="' + b.id + '" style="color:inherit"><b>' + Build.label(b.tool) + '</b></a> <small style="color:var(--dim)">at ' + b.x + ',' + b.y + '</small></td>' +
-      '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(b.prog / b.work * 100) + '%;background:' + (b.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(b.work - b.prog) + 's of work</small></td>' +
+      '<td><div style="width:70px;height:5px;background:#0008;border-radius:3px"><i style="display:block;height:100%;width:' + Math.round(b.prog / b.work * 100) + '%;background:' + (b.w ? 'var(--amber)' : '#6a7a70') + '"></i></div><small style="color:var(--dim)">' + Math.ceil(b.work - b.prog) + 's of work' + ((b.have || 0) < (b.tot || 0) ? ' · supplies ' + (b.have || 0) + '/' + b.tot : '') + '</small></td>' +
       '<td><small>' + Build.costText(b.cost) + '<br><span style="color:var(--dim)">set aside</span></small></td>' +
       '<td style="white-space:nowrap"><button data-p="' + b.id + '" data-d="1" title="Higher priority">▲</button><button data-p="' + b.id + '" data-d="-1" title="Lower priority">▼</button> <b style="display:inline-block;width:52px;text-align:center;color:' + (b.prio === 3 ? '#ff8a6a' : b.prio === 1 ? '#8ab0d8' : '') + '">' + Build.PRIO[b.prio] + '</b> <button data-x="' + b.id + '" title="Cancel and get the unused supplies back">✕</button></td></tr>').join('');
     el.innerHTML = '<div class="row"><h3>Build queue</h3><button id="jbClose" style="padding:2px 8px">Close (J)</button></div>' +
-      '<div style="color:var(--dim);margin-bottom:6px">Supplies are set aside the moment you place something. It is built by <b>you</b> (stand next to it and hold still) and by free survivors with <b>Build</b> on (K). Urgent jobs are worked first. ' + (L.length ? 'About <b>' + Math.ceil(left) + ' hand-seconds</b> of work queued; hands available: <b>' + (Build.hands | 0) + '</b>, working now: <b>' + (Build.busy | 0) + '</b>.' : '') + '</div>' +
+      '<div style="color:var(--dim);margin-bottom:6px">Supplies are set aside when you plan something, but they sit in the camp stockpile: someone has to <b>carry them over</b> first (stand by the fire to load up, or free survivors do it). Then it is built by <b>you</b> (stand next to it and hold still) and by survivors with <b>Build</b> on (K). Untrained hands are slow. Urgent jobs are worked first. ' + (L.length ? 'About <b>' + Math.ceil(left) + ' hand-seconds</b> of work queued; hands available: <b>' + (Build.hands | 0) + '</b>, working now: <b>' + (Build.busy | 0) + '</b>.' : '') + '</div>' +
       (L.length ? '<table class="wk" style="width:100%">' + rows + '</table><div style="margin-top:8px"><button id="jbClear">Cancel everything (refund unused)</button></div>' : '<div style="color:var(--dim)">Nothing queued. Pick a wall or tower and click or drag on the ground to plan it.</div>');
     $('jbClose').onclick = toggleJobs;
     const find = id => (G.blue || []).find(b => b.id === +id);
@@ -702,17 +770,18 @@ const UI = (() => {
       const k = e.key.toLowerCase();
       if (Intro.onKey(k)) { e.preventDefault(); return; }
       if (Loot.isOpen()) { if (e.repeat) return; if (k === 'e' || k === 'enter') Loot.takeAll(); else if (k === 'escape') Loot.leave(); e.preventDefault(); return; }
-      if (k === 'escape') { if (!G) return; if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
+      if (k === 'escape') { if (!G) return; if (!menuMode && inBuild()) { G.tool = 'combat'; Snd.click(); return; } if (menuMode === 'pause') hideMenu(); else if (menuMode === 'settings') showMenu(settingsBack); else if (menuMode === 'new') showMenu(newBack === 'new' ? 'title' : newBack); else if (!menuMode) showMenu('pause'); return; }
       if (menuMode) return;
       keys[k] = true; if (e.shiftKey) keys.shift = true;
       if (!G) return;
-      if (toolKeys[k]) { const t = TOOLS.find(x => x.id === toolKeys[k]); if (!(t.hidden && t.hidden())) G.tool = t.id; }
+      if (toolKeys[k] && (inBuild() || k === '0' || k === 'c')) { const t = TOOLS.find(x => x.id === toolKeys[k]); if (!(t.hidden && t.hidden())) G.tool = t.id; }
+      else if (k === 'b') toggleBuild();
+      else if (k === 'q' && !inBuild() && !AI.on) Combat.swap();
       else if (k === 'u') upgradeCore();
       else if (k === 'x') { Units.standDownSelected(); lastPeople = ''; }
       else if (k === 'k') toggleWork();
       else if (k === 'y') toggleSecure();
       else if (k === 'i') togglePack();
-      else if (k === 'b' && G.tool === 'combat' && !AI.on) Combat.swap();
       else if (k === 'j') toggleJobs();
       else if (k === 'r') { if (G.tool === 'combat' && !AI.on) Combat.reload(); else toggleResearch(); }
       else if (k === 'g') toggleMemorial();

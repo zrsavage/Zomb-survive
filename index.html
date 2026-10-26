@@ -93,6 +93,42 @@
   #pack .bar{height:5px;background:#0008;border-radius:3px;overflow:hidden;margin-top:2px}#pack .bar i{display:block;height:100%}
   .res img{width:14px;height:14px;image-rendering:pixelated;vertical-align:-3px;margin-right:4px}
   #packChip{cursor:pointer}
+  /* ---- two states: the fight, and the build menu. Everything else stays out of the way until asked for. ---- */
+  #tools{display:none;left:50%;top:auto;bottom:78px;transform:translateX(-50%);width:min(520px,94vw);flex-direction:row;flex-wrap:wrap;gap:5px;max-height:60vh;z-index:5}
+  body.more-open #tools{display:flex}
+  #tools h4{width:100%;margin:2px 0 0}#tools>button{flex:1 1 46%}#tools #speed{width:100%}
+  #side{display:none}
+  body.mode-build #side,body.side-open #side{display:flex}
+  #help{display:none}
+  body.mode-play .res.bo{display:none}
+  #dock{left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:4px;z-index:4;padding:5px 6px}
+  #dock button{flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 9px;min-width:62px;font-size:11px;text-align:center}
+  #dock button img{width:24px;height:24px;image-rendering:pixelated}
+  #dock button.on{border-color:var(--amber);background:#3a3220;color:#ffe9b0}
+  #dock button kbd{margin:0;font-size:10px}
+  #dock .sep{width:1px;background:var(--line);margin:2px 3px}
+  #cbt{left:50%;bottom:84px;transform:translateX(-50%);display:flex;gap:14px;align-items:center;padding:6px 12px;white-space:nowrap;z-index:3}
+  body.mode-build #cbt{display:none}
+  #cbt .bars{display:flex;flex-direction:column;gap:3px;width:130px}
+  #cbt .bar2{height:7px;background:#0009;border-radius:3px;overflow:hidden}#cbt .bar2 i{display:block;height:100%}
+  #cbt .gun b{font-size:17px;letter-spacing:.03em}#cbt .gun small{color:var(--dim);display:block}
+  #lowChip{left:50%;top:58px;transform:translateX(-50%);display:none;color:#ffb0a0;border-color:#8a3a2a;font-size:12px;white-space:nowrap}
+  body.mode-play #lowChip.show{display:block}
+  #modeBanner{left:50%;top:8px;transform:translateX(-50%);display:none;z-index:4;border-color:#8a6a2a;color:#ffe9b0;white-space:nowrap}
+  body.mode-build #modeBanner{display:block}body.mode-build #top{top:44px}body.mode-build #horde{top:92px}
+  #bmenu{left:50%;bottom:78px;transform:translateX(-50%);width:min(1000px,96vw);display:none;z-index:4}
+  body.mode-build #bmenu{display:block}
+  #bmenu .tabs{display:flex;gap:4px;margin-bottom:6px;align-items:center}
+  #bmenu .tabs button{padding:3px 12px}#bmenu .tabs button.on{border-color:var(--amber);color:#ffe9b0;background:#3a3220}
+  #bmenu .tabs .grow{flex:1}
+  #bmenu .cards{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px}
+  .bcard{flex:0 0 auto;width:92px;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:6px 4px;text-align:center;font-size:11px;line-height:1.15}
+  .bcard img{width:40px;height:40px;image-rendering:pixelated}
+  .bcard.on{border-color:var(--amber);background:#3a3220}.bcard.dim{opacity:.5}
+  .bcard .cc{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;color:var(--dim);font-size:10px}.bcard .cc img{width:11px;height:11px;vertical-align:-2px;margin-right:1px}
+  .bcard kbd{font-size:10px;margin:0}
+  #bmenu .btip{color:var(--dim);font-size:12px;min-height:16px;margin-top:2px}
+
   #hint{display:none;left:50%;bottom:64px;transform:translateX(-50%);width:min(460px,92vw);z-index:5;border-color:#6a5a2a}#hint.show{display:block}
   #hint .hh{display:flex;justify-content:space-between;color:var(--amber);font-size:10px;letter-spacing:.14em;margin-bottom:2px}#hint .hh a{color:var(--dim);letter-spacing:0}
   #hint b{font-size:14px}#hint .ht{margin-top:3px;line-height:1.45;font-size:13px}
@@ -198,8 +234,7 @@
 <div id="rescue" class="panel"></div>
 
 <div id="tools" class="panel">
-  <h4>Build</h4>
-  <div id="toolList" style="display:flex;flex-direction:column;gap:4px"></div>
+  <div id="toolList" style="display:none"></div>
   <h4>Camp</h4>
   <button id="btnUp"><span><kbd>U</kbd>Upgrade camp</span><span class="cost" id="cUp"></span></button>
   <button id="btnRes"><span><kbd>R</kbd>Research</span><span class="cost" id="cRes"></span></button>
@@ -259,7 +294,11 @@
 <div id="radio" class="panel modal"></div>
 
 <canvas id="mini" width="528" height="396"></canvas>
-<div id="help" class="panel"><kbd>E</kbd> interact &nbsp;<kbd>I</kbd> pack &nbsp;<kbd>J</kbd> build queue &nbsp;<kbd>K</kbd> crew &nbsp;<kbd>Esc</kbd> menu</div>
+<div id="modeBanner" class="panel"></div>
+<div id="lowChip" class="panel"></div>
+<div id="cbt" class="panel"></div>
+<div id="bmenu" class="panel"></div>
+<div id="dock" class="panel"></div>
 <div id="cmdbar" class="panel"></div>
 <div id="selbox"></div>
 <div id="work" class="panel modal"></div>
@@ -293,6 +332,7 @@
 <script src="js/units.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/items.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/build.js"></script>
 <script src="js/weapons.js"></script>
 <script src="js/hints.js"></script>

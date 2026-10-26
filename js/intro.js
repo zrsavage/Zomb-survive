@@ -23,9 +23,9 @@ const Intro = (() => {
       prog: () => Math.min(1, (G.kills - I.k0) / 3), done: () => G.kills - I.k0 >= 3, start() { I.k0 = G.kills; spawnWalkers(3); } },
     { id: 'search', title: 'Search a building', text: 'The marked house may still hold food, ammo and scrap. Walk to its door and hold <kbd>E</kbd>. A window will show what you found.',
       target: () => { const b = I.house; return b ? { x: b.x + b.w / 2, y: b.y + b.h + 0.4 } : null; }, done: () => !I.house || I.house.looted, start() { I.house = pickHouse(); } },
-    { id: 'wall',   title: 'Plan a wall', text: 'Press <kbd>1</kbd> (Wall) and click the ground just outside camp, or drag to draw a line. Walls are <b>planned</b>, not built: the wood &amp; scrap is set aside and they wait for hands.',
+    { id: 'wall',   title: 'Plan a wall', text: 'Press <kbd>B</kbd> to open the build menu, pick <b>Wall</b>, then click the ground just outside camp or drag a line. Walls are <b>planned</b>, not built: the wood &amp; scrap is set aside and they wait for hands. <kbd>B</kbd> again returns you to the fight.',
       prog: () => Math.min(1, (wallCount() + (G.blue || []).length) / 4), done: () => wallCount() + (G.blue || []).length >= 4 },
-    { id: 'build',  title: 'Build it', text: 'Stand next to the blueprints and hold still. Each piece takes time, and you only have one pair of hands. <kbd>J</kbd> opens the build queue where you can set what comes first.',
+    { id: 'build',  title: 'Build it', text: 'The wood is in the camp stockpile, not on the wall. Stand by the fire to <b>load up</b>, carry it to the plan (an arrow shows the way), then stand beside it and hold still. A rookie is slow, and <kbd>J</kbd> shows the queue.',
       prog: () => Math.min(1, wallCount() / 4), done: () => wallCount() >= 4 && !(G.blue || []).length },
     { id: 'pack',   title: 'Know what you have', text: 'Press <kbd>I</kbd>. Your pack and the camp stockpile are listed with what each resource is for. Wood &amp; scrap builds, food and water keep people alive, ammo is everything.',
       done: () => I.packSeen },
@@ -105,7 +105,7 @@ const Intro = (() => {
     }
     I.cache = null;
     if (!skipped) { floatText(P.px, P.py - 1.6, 'THE CAMP STANDS', '#ffe27a'); log('The camp stands. Hold it. Others will come, and so will the dead.'); }
-    toast(skipped ? 'Tutorial skipped. Press J (build queue), I (pack), K (work) any time.' : 'You are on your own now. Hold the line.');
+    toast(skipped ? 'Tutorial skipped. B builds, K crew, I pack, J build queue.' : 'You are on your own now. Hold the line.');
   }
   I.update = function (dt) {
     const g = G.intro; if (!g || I.slidesOpen()) return;
