@@ -34,9 +34,8 @@ const WIN_TOWNS = 3;                // secure this many towns at once to win
 const BUILD_RANGE = 11;          // tiles from the survivor
 const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
-// Walls hold: zombies never break through, they pile up and climb over the heap.
-// Each zombie queued at a wall tile makes the pile higher, so the others climb faster.
-const PILE_SPEEDUP = 0.12, PILE_MAX_SPEEDUP = 6, PILE_PRESSURE = 0.02;
+// Zombies queue at a wall, claw at it and climb the heap. Weak wall sections give way, so the garrison has to thin them out.
+const PILE_SPEEDUP = 0.08, PILE_MAX_SPEEDUP = 3.5, PILE_PRESSURE = 0.02, WALL_CLAW = 0.5, CLIMB_SLOW = 1.8;
 
 const LEVELS = [   // index = camp level - 1
   { cap: 150, defs: 8,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },

@@ -345,9 +345,8 @@ const WIN_TOWNS = 3;                // secure this many towns at once to win
 const BUILD_RANGE = 11;          // tiles from the survivor
 const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
-// Walls hold: zombies never break through, they pile up and climb over the heap.
-// Each zombie queued at a wall tile makes the pile higher, so the others climb faster.
-const PILE_SPEEDUP = 0.12, PILE_MAX_SPEEDUP = 6, PILE_PRESSURE = 0.02;
+// Zombies queue at a wall, claw at it and climb the heap. Weak wall sections give way, so the garrison has to thin them out.
+const PILE_SPEEDUP = 0.08, PILE_MAX_SPEEDUP = 3.5, PILE_PRESSURE = 0.02, WALL_CLAW = 0.5, CLIMB_SLOW = 1.8;
 
 const LEVELS = [   // index = camp level - 1
   { cap: 150, defs: 8,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
@@ -2234,6 +2233,17 @@ function updateZombies(dt) {
       if (target.hp <= 0) killDefender(target);
       continue;
     }
+    // anything that gets inside ransacks the camp: stores spoil, gear is wrecked, people panic
+    if (claimed[ti] && !(wall[ti] > 0) && !G.ruins) {
+      G.ransack = (G.ransack || 0) + dt * 0.6;
+      if (G.ransack >= 1) {
+        G.ransack -= 1; const r = rng(), take = 1 + (G.level > 2 ? 1 : 0);
+        if (r < 0.3) G.food = Math.max(0, G.food - take * 2); else if (r < 0.55) G.mat = Math.max(0, G.mat - take * 3); else if (r < 0.75) G.ammo = Math.max(0, G.ammo - take); else if (r < 0.9) G.water = Math.max(0, G.water - take * 2); else G.med = Math.max(0, G.med - 1);
+        G.coreHp -= zt.dmg * 0.8; G.coreHurtAt = G.elapsed; addBurst(z.x, z.y - 0.4, '#c9a24a', 3, { spread: 2 });
+        if (G.coreHp <= 0 && !G.over) Campaign.campFell();
+      }
+      if (!G.intrudeT || G.elapsed - G.intrudeT > 20) { G.intrudeT = G.elapsed; log('The dead are inside the camp! They are tearing through the stores.'); if (G.morale !== undefined) G.morale = clamp(G.morale - 2, 0, 100); }
+    }
     if (z.mode === 2 && Math.hypot(z.x - cx, z.y - cy) < 2.2) {
       G.coreHp -= zt.dmg * dt * 0.45; G.coreHurtAt = G.elapsed; z.face = cx > z.x ? 1 : -1; z.st = 1;
       if (G.coreHp <= 0 && !G.over) Campaign.campFell();
@@ -2307,11 +2317,16 @@ function updateZombies(dt) {
       pileNow[ni]++;
       if (elec[ni] && G.power.ratio > 0) { z.hp -= POWER.zap * G.power.ratio * dt; if (rng() < dt * 8) addBurst(tcx, tcy - 0.5, '#7fd0ff', 1); }
       z.st = 2; z.lift = Math.min(15, 1 + p * 0.55 + (z.v & 3));
-      wallHp[ni] -= PILE_PRESSURE * p * dt * TIER.press[wallTier[ni]];
-      if (wallHp[ni] <= 1) wallHp[ni] = 1;                    // walls hold
+      wallHp[ni] -= zt.dmg * WALL_CLAW * (1 + p * 0.12) * dt * TIER.press[wallTier[ni]] * (elec[ni] && G.power.ratio > 0 ? 0.4 : 1);
+      if (wallHp[ni] <= 0) {                                   // the section gives way
+        wall[ni] = 0; wallHp[ni] = 0; wallTier[ni] = 0; elec[ni] = 0; G.fieldDirty = true; G.visT = 0; Snd.demolish();
+        addBurst(tcx, tcy - 0.4, '#8a7a60', 10, { spread: 3 }); shake(1.5);
+        if (!G.breachT || G.elapsed - G.breachT > 8) { G.breachT = G.elapsed; log('A wall section ' + compass(tcx - CORE.x, tcy - CORE.y) + ' has been torn down! Plug the gap.'); Snd.horn && Snd.horn(); }
+        continue;
+      }
       z.face = dx > 0 ? 1 : -1;
       z.climb += dt * Math.min(PILE_MAX_SPEEDUP, 1 + p * PILE_SPEEDUP);
-      if (z.climb >= zt.climb) { z.climb = 0; z.lift = 0; z.x = tcx + (rng() - 0.5) * 0.3; z.y = tcy + (rng() - 0.5) * 0.3; }
+      if (z.climb >= zt.climb * CLIMB_SLOW) { z.climb = 0; z.lift = 0; z.x = tcx + (rng() - 0.5) * 0.3; z.y = tcy + (rng() - 0.5) * 0.3; }
       separate(k, z, dt);
       continue;
     }
@@ -5453,7 +5468,7 @@ const Interior = (() => {
     locker: { a: 5, m: 2, med: 1 }, safe: { a: 4, med: 2, m: 2, fuel: 1 }, scrap: { m: 6, fuel: 1 }, sack: { f: 5 },
   };
   const NAMEOF = { cabinet: 'cabinet', fridge: 'fridge', drawer: 'drawers', wardrobe: 'wardrobe', shelf: 'shelves', register: 'till', toolbox: 'toolbox', tires: 'tyre stack', crate: 'crate', pallet: 'pallet', medcab: 'medicine cabinet', locker: 'locker', safe: 'safe', scrap: 'scrap pile', sack: 'sacks' };
-  const ZCOUNT = { house: [0, 3], store: [2, 5], garage: [1, 3], warehouse: [3, 6], pharmacy: [1, 3], gas: [1, 3], police: [3, 6], junkyard: [2, 4], bunker: [4, 7], farmstead: [1, 3] };
+  const ZCOUNT = { house: [8, 14], store: [20, 28], garage: [10, 16], warehouse: [24, 30], pharmacy: [14, 20], gas: [10, 16], police: [22, 30], junkyard: [16, 24], bunker: [26, 30], farmstead: [10, 16] };
   const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   const FL = 0, WALL = 1, FURN = 2, CONT = 3, DOOR = 4;
 
@@ -5555,10 +5570,13 @@ const Interior = (() => {
     }
   }
   function spawnZombies(b, lay, ent) {
-    if (b.zleft === undefined) { const [a, c] = ZCOUNT[b.type] || [0, 2]; b.zleft = a + ((rng() * (c - a + 1)) | 0); if (b.looted) b.zleft = Math.min(b.zleft, 1); }
+    if (b.zleft === undefined) { const [a, c] = ZCOUNT[b.type] || [0, 2]; b.zleft = a + ((rng() * (c - a + 1)) | 0); if (b.looted) b.zleft = Math.min(b.zleft, 2); }
     const zs = [], far = lay.floor.filter(i => { const x = i % lay.w, y = (i / lay.w) | 0; return Math.hypot(x - ent.x, y - ent.y) > 6; });
+    let cx = 0, cy = 0;
     for (let k = 0; k < b.zleft && far.length; k++) {
-      const i = far[(rng() * far.length) | 0], z = makeZombie((i % lay.w) + 0.5, ((i / lay.w) | 0) + 0.5, 0, 0, pickType(Math.max(1, waveNow() - 1)));
+      if (k % 4 === 0) { const i = far[(rng() * far.length) | 0]; cx = (i % lay.w) + 0.5; cy = ((i / lay.w) | 0) + 0.5; }      // they sleep in knots of four or so
+      let x = cx + (rng() - 0.5) * 1.8, y = cy + (rng() - 0.5) * 1.8; if (solidAt(lay, x, y)) { x = cx; y = cy; }
+      const z = makeZombie(x, y, 0, 0, pickType(Math.max(1, waveNow() - 1)));
       z.mode = 0; z.cd = 0; z.hit = 0; zs.push(z);
     }
     return zs;
@@ -5636,7 +5654,7 @@ const Interior = (() => {
       const z = c.zs[k];
       if (z.hp <= 0) { c.zs.splice(k, 1); b.zleft = Math.max(0, (b.zleft || 0) - 1); G.kills++; addBurst(z.x, z.y - 0.3, '#7a1c1c', 4, { grav: 3 }); continue; }
       const d = Math.hypot(c.p.x - z.x, c.p.y - z.y); z.hit = Math.max(0, (z.hit || 0) - dt); z.anim += dt * 4;
-      if (z.mode === 0) { if (d < 4.5 + (keys.shift ? 2 : 0)) z.mode = 1; else continue; }
+      if (z.mode === 0) { if (d < 3.6 + (keys.shift ? 2 : 0) + (P.shot > 0 ? 5 : 0)) { z.mode = 1; for (const o of c.zs) if (o.mode === 0 && Math.hypot(o.x - z.x, o.y - z.y) < 1.6) o.wake = 0.4 + rng() * 0.8; } else if (z.wake > 0) { z.wake -= dt; if (z.wake <= 0) z.mode = 1; continue; } else continue; }
       const zt = ZTYPES[z.type], spd = zt.speed * 1.8;
       if (d < 0.75) { z.st = 1; P.hp -= zt.dmg * dt; P.hurt = 1.2; Snd.hurt && Snd.hurt(); if (P.hp <= 0) { killPlayer(); return; } continue; }
       z.st = 0;
@@ -5647,6 +5665,7 @@ const Interior = (() => {
       const dx = gx - z.x, dy = gy - z.y, dd = Math.hypot(dx, dy) || 1, s = spd * dt;
       const nx = z.x + dx / dd * s, ny = z.y + dy / dd * s;
       if (!solidAt(lay, nx, z.y)) z.x = nx; if (!solidAt(lay, z.x, ny)) z.y = ny; z.face = dx >= 0 ? 1 : -1;
+      for (const o of c.zs) { if (o === z || o.hp <= 0) continue; const ox = z.x - o.x, oy = z.y - o.y, q = ox * ox + oy * oy; if (q < 0.16 && q > 0.0001) { const f = (0.4 - Math.sqrt(q)) * 2 * dt; const sx = z.x + ox * f, sy = z.y + oy * f; if (!solidAt(lay, sx, z.y)) z.x = sx; if (!solidAt(lay, z.x, sy)) z.y = sy; } }
     }
     // the crowd outside pours in through a door they are packed against
     c.sT = (c.sT || 0) - dt;
@@ -5932,7 +5951,7 @@ const Intro = (() => {
     { id: 'fight',  title: 'They followed you', text: 'Walkers are coming up the road. <b>Aim with the mouse</b> and hold the <b>left button</b> to fire. <kbd>R</kbd> reloads. <kbd>F</kbd> or right-click swings at anything close. Every shot is heard. Put down 3.',
       prog: () => Math.min(1, (G.kills - I.k0) / 3), done: () => G.kills - I.k0 >= 3, start() { I.k0 = G.kills; spawnWalkers(3); } },
     { id: 'search', title: 'Search a building', text: 'The marked house may still hold food, ammo and scrap. Walk to a door and press <kbd>E</kbd> to go inside, then <kbd>E</kbd> at the cabinets and drawers. Every building has more than one way out.',
-      target: () => { const b = I.house; if (!b || P.inside) return null; const e = Interior.exitsOf(b)[0].out; return { x: e.x, y: e.y }; }, done: () => !I.house || I.house.looted || (G.intro && G.intro.opened), start() { I.house = pickHouse(); } },
+      target: () => { const b = I.house; if (!b || P.inside) return null; const e = Interior.exitsOf(b)[0].out; return { x: e.x, y: e.y }; }, done: () => !I.house || I.house.looted || (G.intro && G.intro.opened), start() { I.house = pickHouse(); if (I.house && I.house.zleft === undefined) I.house.zleft = 2; } },
     { id: 'wall',   title: 'Plan a wall', text: 'Press <kbd>B</kbd> to open the build menu, pick <b>Wall</b>, then click the ground just outside camp or drag a line. Walls are <b>planned</b>, not built: the wood &amp; scrap is set aside and they wait for hands. <kbd>B</kbd> again returns you to the fight.',
       prog: () => Math.min(1, (wallCount() + (G.blue || []).length) / 4), done: () => wallCount() + (G.blue || []).length >= 4 },
     { id: 'build',  title: 'Build it', text: 'The wood is in the camp stockpile, not on the wall. Stand by the fire to <b>load up</b>, carry it to the plan (an arrow shows the way), then stand beside it and hold still. A rookie is slow, and <kbd>J</kbd> shows the queue.',

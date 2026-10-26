@@ -420,6 +420,17 @@ function updateZombies(dt) {
       if (target.hp <= 0) killDefender(target);
       continue;
     }
+    // anything that gets inside ransacks the camp: stores spoil, gear is wrecked, people panic
+    if (claimed[ti] && !(wall[ti] > 0) && !G.ruins) {
+      G.ransack = (G.ransack || 0) + dt * 0.6;
+      if (G.ransack >= 1) {
+        G.ransack -= 1; const r = rng(), take = 1 + (G.level > 2 ? 1 : 0);
+        if (r < 0.3) G.food = Math.max(0, G.food - take * 2); else if (r < 0.55) G.mat = Math.max(0, G.mat - take * 3); else if (r < 0.75) G.ammo = Math.max(0, G.ammo - take); else if (r < 0.9) G.water = Math.max(0, G.water - take * 2); else G.med = Math.max(0, G.med - 1);
+        G.coreHp -= zt.dmg * 0.8; G.coreHurtAt = G.elapsed; addBurst(z.x, z.y - 0.4, '#c9a24a', 3, { spread: 2 });
+        if (G.coreHp <= 0 && !G.over) Campaign.campFell();
+      }
+      if (!G.intrudeT || G.elapsed - G.intrudeT > 20) { G.intrudeT = G.elapsed; log('The dead are inside the camp! They are tearing through the stores.'); if (G.morale !== undefined) G.morale = clamp(G.morale - 2, 0, 100); }
+    }
     if (z.mode === 2 && Math.hypot(z.x - cx, z.y - cy) < 2.2) {
       G.coreHp -= zt.dmg * dt * 0.45; G.coreHurtAt = G.elapsed; z.face = cx > z.x ? 1 : -1; z.st = 1;
       if (G.coreHp <= 0 && !G.over) Campaign.campFell();
@@ -493,11 +504,16 @@ function updateZombies(dt) {
       pileNow[ni]++;
       if (elec[ni] && G.power.ratio > 0) { z.hp -= POWER.zap * G.power.ratio * dt; if (rng() < dt * 8) addBurst(tcx, tcy - 0.5, '#7fd0ff', 1); }
       z.st = 2; z.lift = Math.min(15, 1 + p * 0.55 + (z.v & 3));
-      wallHp[ni] -= PILE_PRESSURE * p * dt * TIER.press[wallTier[ni]];
-      if (wallHp[ni] <= 1) wallHp[ni] = 1;                    // walls hold
+      wallHp[ni] -= zt.dmg * WALL_CLAW * (1 + p * 0.12) * dt * TIER.press[wallTier[ni]] * (elec[ni] && G.power.ratio > 0 ? 0.4 : 1);
+      if (wallHp[ni] <= 0) {                                   // the section gives way
+        wall[ni] = 0; wallHp[ni] = 0; wallTier[ni] = 0; elec[ni] = 0; G.fieldDirty = true; G.visT = 0; Snd.demolish();
+        addBurst(tcx, tcy - 0.4, '#8a7a60', 10, { spread: 3 }); shake(1.5);
+        if (!G.breachT || G.elapsed - G.breachT > 8) { G.breachT = G.elapsed; log('A wall section ' + compass(tcx - CORE.x, tcy - CORE.y) + ' has been torn down! Plug the gap.'); Snd.horn && Snd.horn(); }
+        continue;
+      }
       z.face = dx > 0 ? 1 : -1;
       z.climb += dt * Math.min(PILE_MAX_SPEEDUP, 1 + p * PILE_SPEEDUP);
-      if (z.climb >= zt.climb) { z.climb = 0; z.lift = 0; z.x = tcx + (rng() - 0.5) * 0.3; z.y = tcy + (rng() - 0.5) * 0.3; }
+      if (z.climb >= zt.climb * CLIMB_SLOW) { z.climb = 0; z.lift = 0; z.x = tcx + (rng() - 0.5) * 0.3; z.y = tcy + (rng() - 0.5) * 0.3; }
       separate(k, z, dt);
       continue;
     }

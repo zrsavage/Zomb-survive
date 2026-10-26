@@ -16,7 +16,7 @@ const Interior = (() => {
     locker: { a: 5, m: 2, med: 1 }, safe: { a: 4, med: 2, m: 2, fuel: 1 }, scrap: { m: 6, fuel: 1 }, sack: { f: 5 },
   };
   const NAMEOF = { cabinet: 'cabinet', fridge: 'fridge', drawer: 'drawers', wardrobe: 'wardrobe', shelf: 'shelves', register: 'till', toolbox: 'toolbox', tires: 'tyre stack', crate: 'crate', pallet: 'pallet', medcab: 'medicine cabinet', locker: 'locker', safe: 'safe', scrap: 'scrap pile', sack: 'sacks' };
-  const ZCOUNT = { house: [0, 3], store: [2, 5], garage: [1, 3], warehouse: [3, 6], pharmacy: [1, 3], gas: [1, 3], police: [3, 6], junkyard: [2, 4], bunker: [4, 7], farmstead: [1, 3] };
+  const ZCOUNT = { house: [8, 14], store: [20, 28], garage: [10, 16], warehouse: [24, 30], pharmacy: [14, 20], gas: [10, 16], police: [22, 30], junkyard: [16, 24], bunker: [26, 30], farmstead: [10, 16] };
   const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   const FL = 0, WALL = 1, FURN = 2, CONT = 3, DOOR = 4;
 
@@ -118,10 +118,13 @@ const Interior = (() => {
     }
   }
   function spawnZombies(b, lay, ent) {
-    if (b.zleft === undefined) { const [a, c] = ZCOUNT[b.type] || [0, 2]; b.zleft = a + ((rng() * (c - a + 1)) | 0); if (b.looted) b.zleft = Math.min(b.zleft, 1); }
+    if (b.zleft === undefined) { const [a, c] = ZCOUNT[b.type] || [0, 2]; b.zleft = a + ((rng() * (c - a + 1)) | 0); if (b.looted) b.zleft = Math.min(b.zleft, 2); }
     const zs = [], far = lay.floor.filter(i => { const x = i % lay.w, y = (i / lay.w) | 0; return Math.hypot(x - ent.x, y - ent.y) > 6; });
+    let cx = 0, cy = 0;
     for (let k = 0; k < b.zleft && far.length; k++) {
-      const i = far[(rng() * far.length) | 0], z = makeZombie((i % lay.w) + 0.5, ((i / lay.w) | 0) + 0.5, 0, 0, pickType(Math.max(1, waveNow() - 1)));
+      if (k % 4 === 0) { const i = far[(rng() * far.length) | 0]; cx = (i % lay.w) + 0.5; cy = ((i / lay.w) | 0) + 0.5; }      // they sleep in knots of four or so
+      let x = cx + (rng() - 0.5) * 1.8, y = cy + (rng() - 0.5) * 1.8; if (solidAt(lay, x, y)) { x = cx; y = cy; }
+      const z = makeZombie(x, y, 0, 0, pickType(Math.max(1, waveNow() - 1)));
       z.mode = 0; z.cd = 0; z.hit = 0; zs.push(z);
     }
     return zs;
@@ -199,7 +202,7 @@ const Interior = (() => {
       const z = c.zs[k];
       if (z.hp <= 0) { c.zs.splice(k, 1); b.zleft = Math.max(0, (b.zleft || 0) - 1); G.kills++; addBurst(z.x, z.y - 0.3, '#7a1c1c', 4, { grav: 3 }); continue; }
       const d = Math.hypot(c.p.x - z.x, c.p.y - z.y); z.hit = Math.max(0, (z.hit || 0) - dt); z.anim += dt * 4;
-      if (z.mode === 0) { if (d < 4.5 + (keys.shift ? 2 : 0)) z.mode = 1; else continue; }
+      if (z.mode === 0) { if (d < 3.6 + (keys.shift ? 2 : 0) + (P.shot > 0 ? 5 : 0)) { z.mode = 1; for (const o of c.zs) if (o.mode === 0 && Math.hypot(o.x - z.x, o.y - z.y) < 1.6) o.wake = 0.4 + rng() * 0.8; } else if (z.wake > 0) { z.wake -= dt; if (z.wake <= 0) z.mode = 1; continue; } else continue; }
       const zt = ZTYPES[z.type], spd = zt.speed * 1.8;
       if (d < 0.75) { z.st = 1; P.hp -= zt.dmg * dt; P.hurt = 1.2; Snd.hurt && Snd.hurt(); if (P.hp <= 0) { killPlayer(); return; } continue; }
       z.st = 0;
@@ -210,6 +213,7 @@ const Interior = (() => {
       const dx = gx - z.x, dy = gy - z.y, dd = Math.hypot(dx, dy) || 1, s = spd * dt;
       const nx = z.x + dx / dd * s, ny = z.y + dy / dd * s;
       if (!solidAt(lay, nx, z.y)) z.x = nx; if (!solidAt(lay, z.x, ny)) z.y = ny; z.face = dx >= 0 ? 1 : -1;
+      for (const o of c.zs) { if (o === z || o.hp <= 0) continue; const ox = z.x - o.x, oy = z.y - o.y, q = ox * ox + oy * oy; if (q < 0.16 && q > 0.0001) { const f = (0.4 - Math.sqrt(q)) * 2 * dt; const sx = z.x + ox * f, sy = z.y + oy * f; if (!solidAt(lay, sx, z.y)) z.x = sx; if (!solidAt(lay, z.x, sy)) z.y = sy; } }
     }
     // the crowd outside pours in through a door they are packed against
     c.sT = (c.sT || 0) - dt;
