@@ -146,7 +146,9 @@ function addRecruit(s, why) {
   G.idle.push(s);
   log(intro(s) + ' ' + why);
 }
-const roomForPerson = () => people() < LEVELS[G.level - 1].defs;
+// how many people the camp can hold: the level's base, plus room for one more per 12 tiles of walled-in ground beyond the open-ground limit
+const popCap = g => { g = g || G; const L = LEVELS[g.level - 1]; return Math.min(160, L.defs + (g.sealed ? Math.floor(Math.max(0, g.territory - L.cap) / 12) : 0)); };
+const roomForPerson = () => people() < popCap();
 
 // ---- effects helpers ---------------------------------------------------------------
 function addBurst(x, y, color, n, o = {}) {

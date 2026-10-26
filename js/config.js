@@ -39,11 +39,11 @@ const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, r
 const PILE_SPEEDUP = 0.12, PILE_MAX_SPEEDUP = 6, PILE_PRESSURE = 0.02;
 
 const LEVELS = [   // index = camp level - 1
-  { cap: 150, defs: 6,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
-  { cap: 260, defs: 12, store: 700,  coreHp: 900,  up: { m: 280, f: 120 } },
-  { cap: 380, defs: 20, store: 1100, coreHp: 1300, up: { m: 500, f: 200 } },
-  { cap: 540, defs: 36, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
-  { cap: 780, defs: 60, store: 2400, coreHp: 2500, up: null },
+  { cap: 150, defs: 8,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
+  { cap: 260, defs: 14, store: 700,  coreHp: 900,  up: { m: 280, f: 120 } },
+  { cap: 380, defs: 24, store: 1100, coreHp: 1300, up: { m: 500, f: 200 } },
+  { cap: 540, defs: 44, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
+  { cap: 780, defs: 80, store: 2400, coreHp: 2500, up: null },
 ];
 
 const BUILDING_TYPES = {

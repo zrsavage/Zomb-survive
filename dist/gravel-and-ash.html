@@ -211,6 +211,7 @@
   <div class="row"><span>Perimeter</span><span id="iSeal"></span></div>
   <div class="row"><span>Buildings held</span><span id="iBld"></span></div>
   <div class="row"><span>People / Lookouts</span><span id="iPpl"></span></div>
+  <div class="row"><span>New arrivals</span><span id="iRef" title="Refugees come to a camp that is walled in, fed, and in decent spirits, and has room. Searching buildings and some events also turn up survivors."></span></div>
   <div class="row"><span>Season</span><span id="iSeason"></span></div>
   <div class="row"><span>Town supplies</span><span id="iSupply"></span></div>
   <div class="bar"><i id="supBar" style="width:100%"></i></div>
@@ -309,11 +310,11 @@ const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, r
 const PILE_SPEEDUP = 0.12, PILE_MAX_SPEEDUP = 6, PILE_PRESSURE = 0.02;
 
 const LEVELS = [   // index = camp level - 1
-  { cap: 150, defs: 6,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
-  { cap: 260, defs: 12, store: 700,  coreHp: 900,  up: { m: 280, f: 120 } },
-  { cap: 380, defs: 20, store: 1100, coreHp: 1300, up: { m: 500, f: 200 } },
-  { cap: 540, defs: 36, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
-  { cap: 780, defs: 60, store: 2400, coreHp: 2500, up: null },
+  { cap: 150, defs: 8,  store: 400,  coreHp: 600,  up: { m: 140, f: 60 } },
+  { cap: 260, defs: 14, store: 700,  coreHp: 900,  up: { m: 280, f: 120 } },
+  { cap: 380, defs: 24, store: 1100, coreHp: 1300, up: { m: 500, f: 200 } },
+  { cap: 540, defs: 44, store: 1600, coreHp: 1800, up: { m: 820, f: 320 } },
+  { cap: 780, defs: 80, store: 2400, coreHp: 2500, up: null },
 ];
 
 const BUILDING_TYPES = {
@@ -1871,7 +1872,9 @@ function addRecruit(s, why) {
   G.idle.push(s);
   log(intro(s) + ' ' + why);
 }
-const roomForPerson = () => people() < LEVELS[G.level - 1].defs;
+// how many people the camp can hold: the level's base, plus room for one more per 12 tiles of walled-in ground beyond the open-ground limit
+const popCap = g => { g = g || G; const L = LEVELS[g.level - 1]; return Math.min(160, L.defs + (g.sealed ? Math.floor(Math.max(0, g.territory - L.cap) / 12) : 0)); };
+const roomForPerson = () => people() < popCap();
 
 // ---- effects helpers ---------------------------------------------------------------
 function addBurst(x, y, color, n, o = {}) {
@@ -3825,7 +3828,7 @@ const Bg = {
     g.water = Math.max(0, g.water - WATER.use * people.length * S.water * dt);
     g.hygiene = clamp(g.hygiene + (this.fac(t, 'latrine') * HYGIENE.latrine - HYGIENE.decay * people.length) * dt, 0, 100);
     // refugees
-    if (g.sealed && g.territory >= 20 && g.food >= 20 && g.morale >= MORALE.noRefugeesBelow && people.length < LEVELS[g.level - 1].defs) {
+    if (g.sealed && g.territory >= 20 && g.food >= 20 && g.morale >= MORALE.noRefugeesBelow && people.length < popCap(g)) {
       g.refugeeT -= dt * (1 + Math.min(g.territory, 450) / 150);
       if (g.refugeeT <= 0) { g.refugeeT = REFUGEE_GAP; const s = newSurvivor(); g.idle.push(s); Campaign.notify(t.name + ': ' + who(s) + ' joined the camp.'); }
     }
@@ -4093,7 +4096,7 @@ const AI = (() => {
     }
     // 2. put everyone healthy on the wall, spread out, with towers where there is room for one
     const keep = Math.min(2, Math.floor(Build.workLeft() / 25));             // while there is a lot to build, a couple of people stay off the wall as builders
-    if (Units.free().length > keep && defenders.length + [...Units.pendingTiles()].length < L.defs) {
+    if (Units.free().length > keep && defenders.length + [...Units.pendingTiles()].length < popCap()) {
       const pend = Units.pendingTiles(), all = edgeWalls().filter(([x, y]) => !pend.has(y * W + x)), wt = all.filter(([x, y]) => inBuildRange(x, y) && zNear(x + 0.5, y + 0.5, 6) <= 3);      // recruits are people: do not post them into a crowd
       if (!wt.length && all.length && !A.want) { const w = all[0]; A.want = [CORE.x + (w[0] - CORE.x) * 0.6, CORE.y + (w[1] - CORE.y) * 0.6]; }
       let n = 0;
@@ -5181,6 +5184,7 @@ const Hints = (() => {
     { id: 'tired', title: 'You are worn out', text: 'Swinging drains stamina. Out of it you hit weak and slow. Back off and let it recover, or shoot from range instead.', when: () => !!P.tired },
     { id: 'down', title: 'You went down', text: 'You come back at camp after a few seconds, a little poorer for it. The camp keeps going without you, so make sure it can.', when: () => P.dead > 0 && G.deaths >= 1 },
     { id: 'weapon', title: 'A new gun', text: 'You have another gun now. Press <b>B</b> to switch. The military ones (machine pistol, assault rifle, marksman rifle) can only be found; what you build at camp is cruder. Each gun keeps its own clip.', when: () => Combat.unlocked().length > 1 },
+    { id: 'refugees', title: 'More people', text: 'Your camp is sealed, so <b>refugees</b> will start arriving, as long as there is food, spirits are up and there is room. You also find survivors hiding in buildings you search, and strangers sometimes wander in. The "New arrivals" line on the right tells you what is holding them back.', when: () => G.sealed && G.elapsed > 120 },
     { id: 'walledin', title: 'Wall in more ground', text: 'Your camp is sealed. Walls can close off far more than the camp: whole blocks, a district, the town. Everything inside a closed loop is yours. Add a second and third layer where they press hardest, and remember every wall you hold needs people and towers behind it.', when: () => G.sealed && G.elapsed > 400 },
     { id: 'levelup', title: 'Camp level up', text: 'A higher level grows your territory, your storage and the number of people you can hold. <b>U</b> upgrades the core when you have the materials.', when: () => G.level >= 2 },
     { id: 'radio', title: 'The radio tower', text: 'Build it inside your territory and it calls in a <b>supply drop</b>. It is loud, so be ready before you press it. Grab the crate before the dead do.', when: () => G.level >= RADIO_LEVEL },
@@ -6224,7 +6228,9 @@ const UI = (() => {
     $('iTerr').textContent = G.sealed ? G.territory + ' (walled in)' : G.territory + ' / ' + L.cap;
     const seal = $('iSeal'); seal.textContent = G.sealed ? 'Sealed' : 'OPEN'; seal.className = G.sealed ? 'ok' : 'warn';
     $('iBld').textContent = G.held;
-    $('iPpl').textContent = people() + '/' + L.defs + ' · ' + defenders.length + ' posted · ' + G.lookouts.length + ' lookouts' + (G.food <= 0 ? ' (starving)' : '');
+    { const why = !G.sealed ? 'wall the camp in' : G.territory < 20 ? 'too small' : G.food < 20 ? 'needs food' : G.morale < MORALE.noRefugeesBelow ? 'morale too low' : !roomForPerson() ? 'camp full (level up or wall in more)' : null;
+      $('iRef').textContent = why ? 'none: ' + why : 'one in ~' + Math.max(1, Math.ceil(G.refugeeT / ((1 + Math.min(G.territory, 450) / 150) * ruleMul('refugee')))) + 's'; $('iRef').style.color = why ? 'var(--dim)' : 'var(--good)'; }
+    $('iPpl').textContent = people() + '/' + popCap() + ' · ' + defenders.length + ' posted · ' + G.lookouts.length + ' lookouts' + (G.food <= 0 ? ' (starving)' : '');
     let e = 0; for (let i = 0; i < W * H; i++) e += explored[i];
     $('iTime').textContent = fmtTime(G.elapsed) + ' / ' + G.hordesBeaten + ' hordes';
     $('iKills').textContent = G.kills + ' / ' + Math.round(e / (W * H) * 100) + '%';

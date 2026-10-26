@@ -295,7 +295,7 @@ const Bg = {
     g.water = Math.max(0, g.water - WATER.use * people.length * S.water * dt);
     g.hygiene = clamp(g.hygiene + (this.fac(t, 'latrine') * HYGIENE.latrine - HYGIENE.decay * people.length) * dt, 0, 100);
     // refugees
-    if (g.sealed && g.territory >= 20 && g.food >= 20 && g.morale >= MORALE.noRefugeesBelow && people.length < LEVELS[g.level - 1].defs) {
+    if (g.sealed && g.territory >= 20 && g.food >= 20 && g.morale >= MORALE.noRefugeesBelow && people.length < popCap(g)) {
       g.refugeeT -= dt * (1 + Math.min(g.territory, 450) / 150);
       if (g.refugeeT <= 0) { g.refugeeT = REFUGEE_GAP; const s = newSurvivor(); g.idle.push(s); Campaign.notify(t.name + ': ' + who(s) + ' joined the camp.'); }
     }

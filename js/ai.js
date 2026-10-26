@@ -205,7 +205,7 @@ const AI = (() => {
     }
     // 2. put everyone healthy on the wall, spread out, with towers where there is room for one
     const keep = Math.min(2, Math.floor(Build.workLeft() / 25));             // while there is a lot to build, a couple of people stay off the wall as builders
-    if (Units.free().length > keep && defenders.length + [...Units.pendingTiles()].length < L.defs) {
+    if (Units.free().length > keep && defenders.length + [...Units.pendingTiles()].length < popCap()) {
       const pend = Units.pendingTiles(), all = edgeWalls().filter(([x, y]) => !pend.has(y * W + x)), wt = all.filter(([x, y]) => inBuildRange(x, y) && zNear(x + 0.5, y + 0.5, 6) <= 3);      // recruits are people: do not post them into a crowd
       if (!wt.length && all.length && !A.want) { const w = all[0]; A.want = [CORE.x + (w[0] - CORE.x) * 0.6, CORE.y + (w[1] - CORE.y) * 0.6]; }
       let n = 0;

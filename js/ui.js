@@ -144,7 +144,9 @@ const UI = (() => {
     $('iTerr').textContent = G.sealed ? G.territory + ' (walled in)' : G.territory + ' / ' + L.cap;
     const seal = $('iSeal'); seal.textContent = G.sealed ? 'Sealed' : 'OPEN'; seal.className = G.sealed ? 'ok' : 'warn';
     $('iBld').textContent = G.held;
-    $('iPpl').textContent = people() + '/' + L.defs + ' · ' + defenders.length + ' posted · ' + G.lookouts.length + ' lookouts' + (G.food <= 0 ? ' (starving)' : '');
+    { const why = !G.sealed ? 'wall the camp in' : G.territory < 20 ? 'too small' : G.food < 20 ? 'needs food' : G.morale < MORALE.noRefugeesBelow ? 'morale too low' : !roomForPerson() ? 'camp full (level up or wall in more)' : null;
+      $('iRef').textContent = why ? 'none: ' + why : 'one in ~' + Math.max(1, Math.ceil(G.refugeeT / ((1 + Math.min(G.territory, 450) / 150) * ruleMul('refugee')))) + 's'; $('iRef').style.color = why ? 'var(--dim)' : 'var(--good)'; }
+    $('iPpl').textContent = people() + '/' + popCap() + ' · ' + defenders.length + ' posted · ' + G.lookouts.length + ' lookouts' + (G.food <= 0 ? ' (starving)' : '');
     let e = 0; for (let i = 0; i < W * H; i++) e += explored[i];
     $('iTime').textContent = fmtTime(G.elapsed) + ' / ' + G.hordesBeaten + ' hordes';
     $('iKills').textContent = G.kills + ' / ' + Math.round(e / (W * H) * 100) + '%';
