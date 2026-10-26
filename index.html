@@ -37,8 +37,9 @@
   .warn{color:var(--bad)} .ok{color:var(--good)}
   .row{display:flex;justify-content:space-between;gap:10px}
 
-  #top{top:8px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;white-space:nowrap;max-width:calc(100vw - 16px);overflow:hidden}
-  @media (max-width:1500px){#top{gap:9px;font-size:12px}#top .res small{font-size:10px}}
+  #top{top:8px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px;align-items:center;white-space:nowrap;width:max-content;max-width:calc(100vw - 500px);min-width:380px}
+  @media (max-width:1500px){#top{gap:3px 9px;font-size:12px}#top .res small{font-size:10px}}
+  @media (max-width:1380px){#top .res small{display:none}}
   .res b{display:inline-block;width:10px;height:10px;margin-right:5px;border-radius:2px;vertical-align:-1px}
   .res small{color:var(--dim)}
   #horde{top:56px;left:50%;transform:translateX(-50%);white-space:nowrap;color:var(--dim);transition:border-color .3s}
@@ -288,6 +289,7 @@
 <script src="js/combat.js"></script>
 <script src="js/items.js"></script>
 <script src="js/build.js"></script>
+<script src="js/weapons.js"></script>
 <script src="js/intro.js"></script>
 <script src="js/titlefx.js"></script>
 <script src="js/render.js"></script>

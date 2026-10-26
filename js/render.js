@@ -178,6 +178,7 @@ function drawWorld(cam, cw, ch, z) {
       }
       if (o.tired) { ctx.fillStyle = '#e8c547'; const zx = o.px * T + 5, zy = o.py * T - 27 - ((G.time * 6 | 0) % 2); ctx.fillRect(zx, zy, 3, 1); ctx.fillRect(zx + 2, zy + 1, 1, 1); ctx.fillRect(zx + 1, zy + 2, 1, 1); ctx.fillRect(zx, zy + 3, 3, 1); }
       drawUnit(o, o.px, o.py + 0.1, o.face, o.stab > 0 && o !== P ? -1 : 0);
+      if (!crowd || o === P) Weapons.drawHeld(ctx, o);
       const mhp = o === P ? PLAYER.hp : (o.maxHp || 60);
       if (o.hp < mhp) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12, 2); ctx.fillStyle = '#e8524a'; ctx.fillRect(o.px * T - 6, o.py * T - 26, 12 * Math.max(0, o.hp) / mhp, 2); }
       if (o.sta !== undefined && o.sta < STAMINA.max - 1) { ctx.fillStyle = '#000a'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12, 2); ctx.fillStyle = o.tired ? '#c9a23a' : '#6fb0e8'; ctx.fillRect(o.px * T - 6, o.py * T - 24, 12 * o.sta / STAMINA.max, 2); }
@@ -259,10 +260,10 @@ function drawWorld(cam, cw, ch, z) {
   ctx.drawImage(fogCanvas, 0, 0, W * T, H * T);
   ctx.imageSmoothingEnabled = false;
 
-  drawCursor(); Build.draw(ctx); Combat.draw(ctx); Loot.draw(ctx); Intro.draw(ctx);
+  drawCursor(); Build.draw(ctx); Combat.draw(ctx); Weapons.drawSearchables(ctx); Loot.draw(ctx); Intro.draw(ctx);
 }
 function drawCursor() {
-  if (G.hover && !G.over) {
+  if (G.hover && !G.over && !(G.tool === 'combat' && !AI.on)) {
     const { tx, ty } = G.hover, i = ty * W + tx, tool = G.tool;
     const who = inb(tx, ty) && defAt[i];                           // nameplate for a posted survivor
     if (who) {

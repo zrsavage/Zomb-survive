@@ -589,7 +589,7 @@ function alertNoise(x, y, r, mode) {           // gunfire draws idle zombies in
 
 // ---- fighting (shared by defenders and the survivor) ---------------------------------------------------------------
 function fight(e, dt, o) {
-  e.cd -= dt; e.mcd -= dt; e.shot -= dt; e.noiseT -= dt;
+  e.cd -= dt; e.mcd -= dt; e.shot -= dt; e.noiseT -= dt; if (e.aimT > 0) e.aimT -= dt;
   e.st = 'idle';
   if (!zombies.length) return;
   const spear = !!o.spear, reach = (spear ? SPEAR.reach : MELEE.range), hasSta = e.sta !== undefined;
@@ -608,7 +608,7 @@ function fight(e, dt, o) {
   }
   if (melee) {
     if (hasSta && e.sta < STAMINA.max) e.sta = Math.min(STAMINA.max, e.sta + STAMINA.fightRegen * (1 + 0.12 * (e.s ? skillLv(e.s, 'melee') : 0)) * dt);
-    e.face = near.x >= e.px ? 1 : -1; e.st = 'stab';
+    e.face = near.x >= e.px ? 1 : -1; e.st = 'stab'; e.aimA = Math.atan2(near.y - 0.4 - (e.py - 0.5), near.x - e.px); e.aimT = 0.5;
     if (e.mcd <= 0) {
       e.mcd = MELEE.cd * (has('hands') ? 0.85 : 1) * (o.starving ? 1.7 : 1) * (e.tired ? STAMINA.tiredCd : 1);
       let bl = 1; if (e.blade && e.blade.dur > 0) { bl = BLADE.dmg; if (--e.blade.dur <= 0) { e.blade = null; if (e.s) log(who(e.s) + '\'s blade snapped'); } }
@@ -650,7 +650,7 @@ function fight(e, dt, o) {
     else G.ammo = Math.max(0, G.ammo - (o.ammoCost || 1));
     addHeat(HEAT.gun); best.hp -= GUN.dmg * dm * af; best.by = e.s || null; e.shot = 0.09; e.st = 'shoot'; e.act = 0.22; e.actK = 'shoot';
     e.cd = o.cd * (o.cdMul || 1) * (has('rapid') ? 0.8 : 1) * (o.starving ? 1.8 : 1) * (0.9 + rng() * 0.2);
-    e.face = best.x >= e.px ? 1 : -1;
+    e.face = best.x >= e.px ? 1 : -1; e.aimA = Math.atan2(best.y - 0.4 - (e.py - 0.5), best.x - e.px); e.aimT = 0.7;
     tracers.push({ x1: e.px + e.face * 0.5, y1: e.py - 0.5, x2: best.x, y2: best.y - 0.4, life: 0.1, ap: kind === 'ap', inc: kind === 'inc' });
     if (flashes.length < 40) flashes.push({ x: e.px + e.face * 0.5, y: e.py - 0.5, life: 0.09 });
     if (parts.length < Q.parts) parts.push({ x: e.px, y: e.py - 0.4, vx: -e.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });

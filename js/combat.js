@@ -46,7 +46,8 @@ const Combat = (() => {
     tracers.push({ x1: P.px + dx * 0.5, y1: P.py - 0.5, x2: ex, y2: ey - 0.4, life: 0.09, ap: false });
     if (flashes.length < 40) flashes.push({ x: P.px + dx * 0.6, y: P.py - 0.5, life: 0.09 });
     Snd.shot(P.px, P.py, false); addHeat(HEAT.gun); shake(0.5);
-    P.face = dx >= 0 ? 1 : -1; P.st = 'shoot';
+    P.face = dx >= 0 ? 1 : -1; P.st = 'shoot'; P.aimA = ang; P.aimT = 0.7; P.shot = 0.09;
+    if (parts.length < Q.parts) parts.push({ x: P.px, y: P.py - 0.5, vx: -P.face * (0.8 + rng()), vy: -2 - rng(), life: 0.7, max: 0.7, color: '#d8b860', size: 1, grav: 9 });
     if (best) {
       const head = bp < GP.headR && ZTYPES[best.type].boss !== true;
       const dm = GUN.dmg * (has('ap') ? 1.3 : 1) * armorF(best) * (head ? 1.9 : 1);
@@ -61,7 +62,7 @@ const Combat = (() => {
   function melee(a) {
     if (P.mcd > 0 || P.dead > 0) return;
     a = a || aim();
-    P.mcd = MEL.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1;
+    P.mcd = MEL.cd * (P.tired ? STAMINA.tiredCd : 1); P.stab = 0.2; P.face = a.dx >= 0 ? 1 : -1; P.aimA = Math.atan2(a.dy, a.dx); P.aimT = 0.4;
     P.sta = Math.max(0, P.sta - MEL.sta); if (P.sta <= 0) P.tired = true;
     const ang = Math.atan2(a.dy, a.dx); let hit = 0;
     const dm = MELEE.dmg * 1.15 * (P.tired ? STAMINA.tiredDmg : 1) * (has('hands') ? 1.35 : 1);
@@ -83,7 +84,7 @@ const Combat = (() => {
 
   C.update = function (dt) {
     if (P.mag === undefined) { P.mag = GP.mag; P.reloadT = 0; P.bloom = 0; P.sta = STAMINA.max; P.tired = false; P.emptyT = 0; P.mcd = 0; }
-    P.cd -= dt; P.mcd -= dt; P.emptyT -= dt; P.bloom = Math.max(0, P.bloom - dt * 0.12);
+    P.cd -= dt; P.mcd -= dt; P.emptyT -= dt; P.shot -= dt; if (P.aimT > 0) P.aimT -= dt; P.bloom = Math.max(0, P.bloom - dt * 0.12);
     if (P.reloadT > 0) { P.reloadT -= dt; if (P.reloadT <= 0) finishReload(); }
     P.sta = Math.min(STAMINA.max, P.sta + (P.mcd > -0.5 ? 6 : 16) * dt); if (P.tired && P.sta >= STAMINA.recover) P.tired = false;
     if (P.dead > 0 || P.travel > 0) return;
@@ -108,8 +109,8 @@ const Combat = (() => {
     ctx.font = '7px monospace'; ctx.textBaseline = 'middle';
     const lowMag = P.mag <= 3;
     if (P.reloadT > 0) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, r + 9, -1.57, -1.57 + 6.283 * (1 - P.reloadT / GP.reload)); ctx.stroke(); ctx.fillStyle = '#ffd27a'; ctx.fillText('RELOAD', ax + r + 12, ay); }
-    else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 4); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay + 5); }
-    if (hot) { const z = C.over; ctx.fillStyle = '#ffd7d0'; ctx.fillText(ZTYPES[z.type].label + ' ' + Math.ceil(z.hp), ax + r + 10, ay + (P.mag < 1 ? 14 : 5)); }
+    else { ctx.fillStyle = P.mag < 1 ? '#ff5a48' : lowMag ? '#ffd27a' : '#e8efe4'; ctx.fillText(P.mag + ' / ' + (G.ammo | 0), ax + r + 10, ay - 9); if (P.mag < 1) ctx.fillText(G.ammo >= 1 ? 'R to reload' : 'out of ammo', ax + r + 10, ay); }
+    if (hot) { Weapons.drawTarget(ctx, C.over); const z = C.over; ctx.fillStyle = '#ffd7d0'; ctx.fillText(ZTYPES[z.type].label + ' ' + Math.ceil(z.hp), ax + r + 10, ay + (P.mag < 1 ? 10 : 5)); }
     ctx.restore();
   };
   return C;
