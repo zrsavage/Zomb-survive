@@ -72,75 +72,104 @@ function quantizeCanvas(cv) {                                 // snap every pixe
 
 // ---- sprite construction ---------------------------------------------------------------
 const DIMS = {
-  human: { cw: 16, ch: 20, tw: 8,  th: 7,  hw: 6, hh: 6, legW: 2, legH: 5, armW: 2, armLen: 6 },
-  lean:  { cw: 16, ch: 20, tw: 6,  th: 7,  hw: 6, hh: 6, legW: 2, legH: 6, armW: 2, armLen: 7 },
-  crouch:{ cw: 16, ch: 18, tw: 7,  th: 6,  hw: 6, hh: 5, legW: 2, legH: 4, armW: 2, armLen: 8 },
-  brute: { cw: 28, ch: 30, tw: 16, th: 12, hw: 9, hh: 8, legW: 4, legH: 7, armW: 4, armLen: 9 },
-  bloat: { cw: 24, ch: 24, tw: 16, th: 11, hw: 6, hh: 6, legW: 3, legH: 4, armW: 3, armLen: 6 },
+  //        canvas        torso: shoulder/waist width, height   head        legs            arms
+  human: { cw: 20, ch: 27, sw: 9,  tw: 5,  th: 9,  hw: 5, hh: 5, legW: 2, legH: 10, armW: 2, armLen: 8 },
+  lean:  { cw: 20, ch: 27, sw: 7,  tw: 4,  th: 9,  hw: 5, hh: 5, legW: 2, legH: 11, armW: 2, armLen: 9 },
+  crouch:{ cw: 20, ch: 23, sw: 7,  tw: 4,  th: 7,  hw: 5, hh: 5, legW: 2, legH: 8,  armW: 2, armLen: 10 },
+  brute: { cw: 36, ch: 40, sw: 22, tw: 9,  th: 16, hw: 9, hh: 7, legW: 4, legH: 12, armW: 5, armLen: 12 },
+  bloat: { cw: 28, ch: 29, sw: 8,  tw: 5,  th: 12, hw: 5, hh: 5, legW: 2, legH: 9,  armW: 2, armLen: 7 },
 };
 
+// A taller, narrower body than before: small head, shoulders that taper to the waist, long legs with a gap between them.
 function figure(g, d, p, pal, o) {
   const cx = d.cw >> 1, feet = d.ch - 1;
   const legTop = feet - d.legH + 1, bob = p.bob || 0, lean = p.lean || 0;
-  const tx = cx - (d.tw >> 1) + lean, ty = legTop - d.th + 1 + bob;
-  const rect = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(x | 0, y | 0, w, h); };
+  const th = d.th, ty = legTop - th + 2 + bob;                      // the torso overlaps the hips by one row
+  const rect = (c, x, y, w, h) => { g.fillStyle = pq(c); g.fillRect(Math.round(x), Math.round(y), w, h); };
+  const sh = (c, f) => shade(c, f);
+  const rowW = r => Math.round(d.sw - (d.sw - d.tw) * Math.min(1, r / Math.max(1, th * 0.8)));
+  const slouch = o.slouch || 0;
+  const torsoX = r => cx - (rowW(r) >> 1) + Math.round(lean * (1 - r / th)) + (r < 3 ? slouch : 0);
 
   // far arm (behind the torso)
-  const farC = shade(pal.shirt, 0.7);
-  if (p.arm === 'fwd' || p.arm === 'up') {
-    if (p.arm === 'fwd') rect(farC, tx + d.tw - 3, ty + 2 + (p.armDy || 0), d.armLen, d.armW);
-    else rect(farC, tx + d.tw - 4, ty - d.armLen + 4, d.armW, d.armLen);
-  } else rect(farC, tx - 1, ty + 1, d.armW, d.armLen - 1);
+  const farC = sh(pal.shirt, 0.66), shR = cx + (d.sw >> 1) - 1 + lean + slouch, shL = cx - (d.sw >> 1) + lean + slouch;
+  if (p.arm === 'fwd') rect(farC, shL + 1, ty + 2 + (p.armDy || 0), d.armLen - 1, d.armW);
+  else if (p.arm === 'up') rect(farC, shL + 1, ty - d.armLen + 4, d.armW, d.armLen - 1);
+  else rect(farC, shL - 1, ty + 1, d.armW, d.armLen - 1);
 
-  // legs
-  const s = p.swing || 0;
-  const legA = cx - (d.tw >> 1) + 1 + lean * 0.5, legB = cx + (d.tw >> 1) - 1 - d.legW + lean * 0.5;
-  const liftA = s > 0 ? 1 : 0, liftB = s < 0 ? 1 : 0;
-  rect(shade(pal.pants, 0.8), legB - s, legTop + liftB, d.legW, d.legH - liftB);
-  rect(pal.pants, legA + s, legTop + liftA, d.legW, d.legH - liftA);
-  rect(pal.shoe || '#1c1c20', legB - s, feet - liftB, d.legW + 1, 1);
-  rect(pal.shoe || '#1c1c20', legA + s, feet - liftA, d.legW + 1, 1);
+  // legs: a visible gap at the hip, knee shading, boots pointing forward
+  const s = p.swing || 0, liftA = s > 0 ? 1 : 0, liftB = s < 0 ? 1 : 0;
+  const legA = cx - d.legW - (d.legW > 3 ? 1 : 0) + Math.round(lean * 0.5), legB = cx + 1 + (d.legW > 3 ? 1 : 0) + Math.round(lean * 0.5);
+  for (const [lx, lift, c] of [[legB - s, liftB, sh(pal.pants, 0.72)], [legA + s, liftA, pal.pants]]) {
+    rect(c, lx, legTop + lift, d.legW, d.legH - lift - 1);
+    rect(sh(c, 0.7), lx, legTop + Math.floor(d.legH * 0.55), d.legW, 1);                 // knee
+    rect(sh(c, 1.18), lx, legTop + lift, 1, d.legH - lift - 2);                           // lit edge
+    if (o.torn) { rect(pal.skin, lx + d.legW - 1, legTop + Math.floor(d.legH * 0.7), 1, 2); }
+    rect(pal.shoe || '#1c1c20', lx, feet - lift - 1, d.legW + 1, 2);
+    rect(sh(pal.shoe || '#1c1c20', 1.5), lx, feet - lift - 1, d.legW + 1, 1);
+  }
 
   // backpack
-  if (o.pack) rect(o.pack, tx - 3, ty + 1, 3, d.th - 2);
+  if (o.pack) { rect(o.pack, cx - (d.sw >> 1) - 3 + lean, ty + 1, 3, th - 3); rect(sh(o.pack, 1.3), cx - (d.sw >> 1) - 3 + lean, ty + 1, 3, 1); rect(sh(o.pack, 0.7), cx - (d.sw >> 1) - 3 + lean, ty + th - 3, 3, 1); }
 
-  // torso
-  rect(pal.shirt, tx, ty, d.tw, d.th);
-  rect(shade(pal.shirt, 1.25), tx, ty, d.tw, 1);
-  rect(shade(pal.shirt, 0.75), tx + d.tw - 1, ty + 1, 1, d.th - 1);
-  rect(pal.belt || shade(pal.pants, 0.7), tx, ty + d.th - 1, d.tw, 1);
-  if (o.cross) { rect('#fff', tx + 2, ty + 2, 4, 3); rect('#d33', tx + 3, ty + 2, 2, 3); rect('#d33', tx + 2, ty + 3, 4, 1); }
-  if (o.blood) { rect('#7a1818', tx + 1 + (o.blood & 3), ty + 2, 3, 2); rect('#5a1010', tx + 3, ty + d.th - 3, 2, 2); }
-  if (o.belly) { rect(o.belly, tx - 1, ty + 1, d.tw + 2, d.th - 2); rect(shade(o.belly, 1.2), tx + 2, ty + 2, 3, 2); rect(o.pustule || '#b05a3a', tx + 8, ty + 3, 2, 2); rect(o.pustule || '#b05a3a', tx + 4, ty + 6, 2, 2); }
-  if (o.straps) { rect('#1c1c20', tx + 2, ty, 2, d.th); rect('#1c1c20', tx + d.tw - 4, ty, 2, d.th); }
+  // torso, one row at a time so it tapers from the shoulders to the waist
+  for (let r = 0; r < th; r++) {
+    const w = rowW(r), x0 = torsoX(r);
+    rect(pal.shirt, x0, ty + r, w, 1);
+    rect(sh(pal.shirt, 1.22), x0, ty + r, 1, 1);                                          // lit left edge
+    rect(sh(pal.shirt, 0.7), x0 + w - 1, ty + r, 1, 1);                                   // shaded right edge
+  }
+  rect(sh(pal.shirt, 1.3), torsoX(0) + 1, ty, rowW(0) - 2, 1);                             // shoulder line catches light
+  rect(pal.belt || sh(pal.pants, 0.7), torsoX(th - 1), ty + th - 1, rowW(th - 1), 1);
+  if (o.vest) { for (let r = 1; r < th - 2; r++) rect(o.vest, torsoX(r) + 1, ty + r, rowW(r) - 3, 1); rect(sh(o.vest, 1.3), torsoX(1) + 1, ty + 1, rowW(1) - 3, 1); rect(sh(o.vest, 0.6), torsoX(th - 3) + 1, ty + th - 3, rowW(th - 3) - 3, 1); }
+  if (o.pad) { rect(o.pad, torsoX(0) - 1, ty, 3, 2); rect(sh(o.pad, 1.35), torsoX(0) - 1, ty, 3, 1); rect(o.pad, torsoX(0) + rowW(0) - 2, ty, 3, 2); rect(sh(o.pad, 1.35), torsoX(0) + rowW(0) - 2, ty, 3, 1); }
+  if (o.cross) { rect('#fff', cx - 1 + lean, ty + 2, 3, 3); rect('#d33', cx + lean, ty + 2, 1, 3); rect('#d33', cx - 1 + lean, ty + 3, 3, 1); }
+  if (o.straps) { rect('#1c1c20', torsoX(1) + 1, ty, 1, th); rect('#1c1c20', torsoX(1) + rowW(1) - 3, ty, 1, th); }
+  if (o.torn) {                                                                              // ragged hem, ribs and a wound
+    for (let k = 0; k < rowW(th - 2); k += 2) rect(pal.skin, torsoX(th - 2) + k, ty + th - 2, 1, 1);
+    rect(sh(pal.skin, 0.75), torsoX(4) + 1, ty + 4, rowW(4) - 3, 1); rect(sh(pal.skin, 0.75), torsoX(6) + 1, ty + 6, rowW(6) - 3, 1);
+  }
+  if (o.blood) { rect('#8a1c1c', torsoX(2) + 1 + (o.blood & 1), ty + 2, 2, 3); rect('#5a1010', torsoX(5) + 1, ty + 5, 2, 2); if (o.blood > 2) rect('#8a1c1c', cx + 1, ty + th - 1, 1, 3); }
+  if (o.belly) {                                                                             // the bloater's swollen middle
+    const prof = [6, 9, 11, 12, 12, 12, 11, 9];
+    prof.forEach((w, r) => { const x0 = cx - (w >> 1) + lean; rect(o.belly, x0, ty + 1 + r, w, 1); rect(sh(o.belly, 1.2), x0, ty + 1 + r, 2, 1); rect(sh(o.belly, 0.7), x0 + w - 2, ty + 1 + r, 2, 1); });
+    rect(o.pustule || '#b05a3a', cx + 1, ty + 4, 2, 2); rect(o.pustule || '#b05a3a', cx - 3, ty + 7, 2, 2); rect(sh(o.pustule || '#b05a3a', 1.4), cx + 1, ty + 4, 1, 1);
+  }
+  if (o.muscle) { rect(pal.skin, torsoX(0) - 2, ty, 4, 4); rect(sh(pal.skin, 1.25), torsoX(0) - 2, ty, 4, 1); rect(pal.skin, torsoX(0) + rowW(0) - 2, ty, 4, 4); rect(sh(pal.skin, 0.7), torsoX(0) + rowW(0) - 2, ty + 3, 4, 1); }
+  if (o.muscle) { rect(sh(pal.skin, 1.2), torsoX(1) + 1, ty + 1, 5, 2); rect(sh(pal.skin, 1.2), torsoX(1) + rowW(1) - 7, ty + 1, 5, 2); rect(sh(pal.skin, 0.7), cx - 1 + lean, ty + 4, 1, 5); }
 
-  // head
-  const hx = cx - (d.hw >> 1) + lean + 1, hy = ty - d.hh + 1 + (p.headBob || 0);
+  // neck and head (small relative to the body, pushed forward when the figure slouches)
+  const hx = cx - (d.hw >> 1) + lean + slouch + (o.droop ? 1 : 0), hy = ty - d.hh + (o.sunk || 1) + (p.headBob || 0) + (o.droop ? 1 : 0);
+  rect(sh(pal.skin, 0.8), cx - 1 + lean + slouch, hy + d.hh - 1, 2, 2);
   rect(pal.skin, hx, hy, d.hw, d.hh);
-  rect(shade(pal.skin, 0.8), hx, hy + d.hh - 1, d.hw, 1);
+  rect(sh(pal.skin, 1.15), hx, hy, d.hw, 1); rect(sh(pal.skin, 0.78), hx, hy + d.hh - 1, d.hw, 1); rect(sh(pal.skin, 0.85), hx + d.hw - 1, hy + 1, 1, d.hh - 1);
   const hat = o.hat;
-  if (hat === 'helmet') { rect(pal.hat, hx - 1, hy - 1, d.hw + 2, 3); rect(shade(pal.hat, 1.3), hx, hy - 1, d.hw, 1); }
-  else if (hat === 'cap') { rect(pal.hat, hx, hy - 1, d.hw, 3); rect(shade(pal.hat, 0.8), hx + d.hw - 1, hy + 1, 3, 1); }
-  else if (hat === 'hard') { rect(pal.hat, hx - 1, hy - 1, d.hw + 2, 3); rect(shade(pal.hat, 1.3), hx + 1, hy - 2, d.hw - 2, 1); rect(shade(pal.hat, 0.7), hx - 1, hy + 1, d.hw + 2, 1); }
-  else if (pal.hair) { rect(pal.hair, hx, hy, d.hw, 2); rect(pal.hair, hx, hy + 2, 1, 2); }
+  if (hat === 'helmet') { rect(pal.hat, hx - 1, hy - 1, d.hw + 2, 3); rect(sh(pal.hat, 1.35), hx, hy - 1, d.hw, 1); rect(sh(pal.hat, 0.7), hx - 1, hy + 1, d.hw + 2, 1); }
+  else if (hat === 'cap') { rect(pal.hat, hx, hy - 1, d.hw, 2); rect(sh(pal.hat, 1.25), hx, hy - 1, d.hw, 1); rect(sh(pal.hat, 0.7), hx + d.hw - 1, hy + 1, 3, 1); }
+  else if (hat === 'hard') { rect(pal.hat, hx - 1, hy - 1, d.hw + 2, 2); rect(sh(pal.hat, 1.3), hx + 1, hy - 2, d.hw - 2, 1); rect(sh(pal.hat, 0.7), hx - 1, hy + 1, d.hw + 2, 1); }
+  else if (pal.hair) { rect(pal.hair, hx, hy, d.hw, 2); rect(pal.hair, hx, hy + 2, 1, 2); rect(sh(pal.hair, 1.3), hx + 1, hy, 2, 1); }
+  else if (o.sparse) { rect('#2a2018', hx + 1, hy, 2, 1); rect('#2a2018', hx, hy + 1, 1, 2); }
   const ex = hx + d.hw - 2, ey = hy + (d.hh >> 1) - (hat ? 0 : 1);
+  if (o.sockets) { rect('#1a0e0e', ex - 1, ey, 2, 2); if (o.eye2) rect('#1a0e0e', ex - 4, ey, 2, 2); }
   rect(pal.eye || '#111', ex, ey, o.bigEye ? 2 : 1, o.bigEye ? 2 : 1);
   if (o.eye2) rect(pal.eye || '#111', ex - 3, ey, 1, 1);
   if (o.mouth) { const m = o.mouth; rect('#1a0606', hx + d.hw - 2 - m, hy + d.hh - 2 - (m > 1 ? 1 : 0), m + 1, m > 1 ? 3 : 1); }
+  if (o.jaw) { rect('#3a0a0a', hx + 1, hy + d.hh - 1, d.hw - 2, 1); rect('#e8e0d0', hx + 1, hy + d.hh - 2, 1, 1); rect('#e8e0d0', hx + 3, hy + d.hh - 2, 1, 1); }
 
   // near arm + held item
-  const ax = tx + d.tw - 3, ay = ty + 1;
-  if (p.arm === 'down') rect(pal.shirt, tx + (d.tw >> 1) - 1, ay + (p.armDy || 0), d.armW, d.armLen - 1);
-  else if (p.arm === 'fwd') { rect(pal.shirt, ax, ay + (p.armDy || 0), d.armLen, d.armW); rect(pal.skin, ax + d.armLen - 2, ay + (p.armDy || 0), 2, d.armW); }
-  else if (p.arm === 'up') { rect(pal.shirt, ax + 1, ty - d.armLen + 4, d.armW, d.armLen); rect(pal.skin, ax + 1, ty - d.armLen + 3, d.armW, 2); }
+  const ax = shR, ay = ty + 1, aw = d.armW, hand = pal.skin;
+  const fist = (x, y) => { rect(hand, x, y, Math.min(aw, 3) + (aw > 3 ? 1 : 0), aw); rect(sh(hand, 0.75), x, y + aw - 1, Math.min(aw, 3) + (aw > 3 ? 1 : 0), 1); };
+  if (p.arm === 'down') { rect(pal.shirt, ax - 1, ay + (p.armDy || 0), aw, d.armLen - 3); rect(sh(pal.shirt, 1.2), ax - 1, ay + (p.armDy || 0), 1, d.armLen - 3); fist(ax - 1, ay + d.armLen - 3 + (p.armDy || 0)); }
+  else if (p.arm === 'fwd') { rect(pal.shirt, ax, ay + 1 + (p.armDy || 0), d.armLen - 2, aw); rect(sh(pal.shirt, 1.2), ax, ay + 1 + (p.armDy || 0), d.armLen - 2, 1); fist(ax + d.armLen - 2, ay + 1 + (p.armDy || 0)); }
+  else if (p.arm === 'up') { rect(pal.shirt, ax + 1, ty - d.armLen + 5, aw, d.armLen - 2); rect(sh(pal.shirt, 1.2), ax + 1, ty - d.armLen + 5, 1, d.armLen - 2); fist(ax + 1, ty - d.armLen + 3); }
   else if (p.arm === 'aim' || p.arm === 'stab') {
     const len = p.arm === 'stab' ? 6 : 4;
-    rect(pal.shirt, ax, ay + 1, len, d.armW); rect(pal.skin, ax + len - 1, ay + 1, 2, d.armW);
+    rect(pal.shirt, ax, ay + 1, len, aw); rect(sh(pal.shirt, 1.2), ax, ay + 1, len, 1); fist(ax + len - 1, ay + 1);
     if (p.arm === 'aim') {
-      const gl = o.longGun ? 9 : 5;
-      rect('#26262c', ax + len - 1, ay, gl, 2); rect('#4a4a54', ax + len - 1, ay, gl, 1);
-      if (o.longGun) rect('#8fb0c8', ax + len + 2, ay - 1, 2, 1);
-    } else { rect('#d8dde4', ax + len + 1, ay + 1, 4, 1); rect('#6a4a2a', ax + len - 1, ay + 1, 2, 2); }
+      if (o.spear) { rect('#7a5a34', ax - 3, ay - 12, 1, 22); rect('#d8dde4', ax - 3, ay - 15, 1, 3); rect('#fff', ax - 3, ay - 15, 1, 1); }      // spear held upright
+      else { const gl = o.longGun ? 11 : 6; rect('#26262c', ax + len - 1, ay, gl, 2); rect('#4a4a54', ax + len - 1, ay, gl, 1); rect('#6a4a2a', ax + len - 1, ay + 1, 2, 2); if (o.longGun) { rect('#8fb0c8', ax + len + 3, ay - 1, 2, 1); rect('#1a1a1e', ax + len + gl - 2, ay + 2, 1, 2); } }
+    } else if (o.spear) { rect('#7a5a34', ax + len - 3, ay + 1, 14, 1); rect('#d8dde4', ax + len + 10, ay, 4, 3); rect('#fff', ax + len + 11, ay + 1, 3, 1); }
+    else { rect('#d8dde4', ax + len + 1, ay + 1, 5, 1); rect('#fff', ax + len + 2, ay + 1, 3, 1); rect('#6a4a2a', ax + len - 1, ay + 1, 2, 2); }
   }
 }
 
@@ -195,33 +224,33 @@ function buildSprites() {
   const shirts = ['#6b5a7a', '#7a6a52', '#5a6f86', '#8a4a4a', '#6a7a52', '#887a6a'];
   const pants = ['#3f4a5c', '#4a4a42', '#3a4252', '#52483a', '#40404a', '#46503e'];
   for (let i = 0; i < 6; i++) {
-    S['z_walker' + i] = makeSet(DIMS.human, { skin: skins[i], shirt: shirts[i], pants: pants[i], eye: '#e84a3a', hair: i % 2 ? '#2a2018' : null }, { blood: i, eye2: true }, zWalk);
+    S['z_walker' + i] = makeSet(DIMS.human, { skin: skins[i], shirt: shirts[i], pants: pants[i], eye: '#e84a3a', hair: i % 2 ? '#2a2018' : null }, { blood: i, eye2: true, slouch: 1, droop: true, torn: i % 2 === 0, sockets: true, sparse: i % 2 === 0, jaw: i % 3 === 0 }, zWalk);
   }
-  S.z_runner = makeSet(DIMS.lean, { skin: '#b8a65c', shirt: '#a8483c', pants: '#34343a', eye: '#ff3b2a' }, { blood: 2, eye2: true },
+  S.z_runner = makeSet(DIMS.lean, { skin: '#b8a65c', shirt: '#a8483c', pants: '#34343a', eye: '#ff3b2a' }, { blood: 2, eye2: true, slouch: 2, droop: true, torn: true, sockets: true, sparse: true },
     { walkArm: 'fwd', swing: 3, lean: 2, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_brute = makeSet(DIMS.brute, { skin: '#5f7f4e', shirt: '#3a3f4a', pants: '#2a2d34', eye: '#ffcc22' }, { straps: true, blood: 1, bigEye: true },
+  S.z_brute = makeSet(DIMS.brute, { skin: '#5f7f4e', shirt: '#3a3f4a', pants: '#2a2d34', eye: '#ffcc22' }, { straps: true, blood: 1, bigEye: true, muscle: true, sunk: 2, slouch: 1, droop: true, sockets: true, jaw: true },
     { walkArm: 'fwd', swing: 2, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_screamer = makeSet(DIMS.human, { skin: '#b9c9c0', shirt: '#6a6a80', pants: '#3c3c4a', eye: '#ff5a5a' }, { mouth: 2, bigEye: true, eye2: true },
+  S.z_screamer = makeSet(DIMS.human, { skin: '#b9c9c0', shirt: '#6a6a80', pants: '#3c3c4a', eye: '#ff5a5a' }, { mouth: 2, bigEye: true, eye2: true, slouch: 1, torn: true, sockets: true },
     { walkArm: 'up', swing: 1, attack: [{ arm: 'up' }, { arm: 'up', bob: -1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_leaper = makeSet(DIMS.crouch, { skin: '#9aa860', shirt: '#5a5646', pants: '#3a3a30', eye: '#ffe14a' }, { blood: 3, eye2: true },
+  S.z_leaper = makeSet(DIMS.crouch, { skin: '#9aa860', shirt: '#5a5646', pants: '#3a3a30', eye: '#ffe14a' }, { blood: 3, eye2: true, slouch: 2, droop: true, torn: true, sockets: true, jaw: true },
     { walkArm: 'fwd', swing: 3, lean: 2, attack: [{ arm: 'fwd' }, { arm: 'up' }], climb: [{ arm: 'fwd', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_bloater = makeSet(DIMS.bloat, { skin: '#8aa05a', shirt: '#b8c47a', pants: '#4a4a3a', eye: '#d8e04a' }, { belly: '#a8b868', pustule: '#c08a4a' },
+  S.z_bloater = makeSet(DIMS.bloat, { skin: '#8aa05a', shirt: '#b8c47a', pants: '#4a4a3a', eye: '#d8e04a' }, { belly: '#a8b868', pustule: '#c08a4a', droop: true, sockets: true, sunk: 2 },
     { walkArm: 'down', swing: 1, attack: [{ arm: 'fwd' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
 
   const hum = (shirt, hat, hatC, o, hair) => makeSet(DIMS.human, { skin: '#e0b48a', shirt, pants: '#3a4658', hat: hatC, hair, eye: '#101418' }, { hat, ...o },
     { walkArm: 'aim', swing: 2, attack: [{ arm: 'stab', bob: 0 }, { arm: 'stab', bob: 0, lean: 1 }], climb: [{ arm: 'aim' }, { arm: 'aim' }] });
   S.player = hum('#e0842b', 'cap', '#7a5a3a', { pack: '#5a4228' }, '#3a2a1a');
-  S.def_fighter = hum('#3f7fb8', 'helmet', '#4a5560', {});
-  S.def_sniper = hum('#4a6a3a', 'cap', '#3a4a2a', { longGun: true });
+  S.def_fighter = hum('#3f7fb8', 'helmet', '#4a5560', { spear: true, vest: '#59636e', pad: '#8a949e' });
+  S.def_sniper = hum('#4a6a3a', 'cap', '#3a4a2a', { longGun: true, vest: '#3a4a2e', pad: '#4a5a3a' });
   S.def_medic = hum('#ececf2', 'cap', '#e8e8ee', { cross: true });
-  S.def_builder = hum('#c88a2a', 'hard', '#f0c030', {});
+  S.def_builder = hum('#c88a2a', 'hard', '#f0c030', { vest: '#d8a030' });
   S.def_scavenger = hum('#8a5a3a', 'cap', '#5a4a3a', { pack: '#3a3a44' });
   S.trader = hum('#6a3a7a', 'cap', '#d0b060', { pack: '#7a5a3a' });
-  S.z_spitter = makeSet(DIMS.human, { skin: '#a8c860', shirt: '#587a2a', pants: '#34402a', eye: '#e8ff50' }, { mouth: 2, bigEye: true, eye2: true },
+  S.z_spitter = makeSet(DIMS.human, { skin: '#a8c860', shirt: '#587a2a', pants: '#34402a', eye: '#e8ff50' }, { mouth: 2, bigEye: true, eye2: true, slouch: 1, droop: true, torn: true, sockets: true },
     { walkArm: 'fwd', swing: 1, attack: [{ arm: 'fwd' }, { arm: 'up' }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_armored = makeSet(DIMS.human, { skin: '#8a9a7a', shirt: '#26324a', pants: '#1c2230', eye: '#ff4a3a', hat: '#2a3a5a' }, { hat: 'helmet', straps: true, bigEye: true },
+  S.z_armored = makeSet(DIMS.human, { skin: '#8a9a7a', shirt: '#26324a', pants: '#1c2230', eye: '#ff4a3a', hat: '#2a3a5a' }, { hat: 'helmet', straps: true, bigEye: true, vest: '#3a4a6a', slouch: 1, sockets: true },
     { walkArm: 'fwd', swing: 1, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
-  S.z_tyrant = makeSet(DIMS.brute, { skin: '#7a4a3a', shirt: '#2a1a1a', pants: '#1a1212', eye: '#ff2a2a', hat: '#3a1a1a' }, { hat: 'helmet', straps: true, blood: 3, bigEye: true },
+  S.z_tyrant = makeSet(DIMS.brute, { skin: '#7a4a3a', shirt: '#2a1a1a', pants: '#1a1212', eye: '#ff2a2a', hat: '#3a1a1a' }, { hat: 'helmet', straps: true, blood: 3, bigEye: true, muscle: true, sunk: 2, sockets: true, jaw: true, vest: '#4a2a2a' },
     { walkArm: 'fwd', swing: 2, attack: [{ arm: 'up' }, { arm: 'fwd', lean: 1 }], climb: [{ arm: 'up', bob: -2 }, { arm: 'up', bob: -3 }] });
   // pre-mirrored copies so facing left costs nothing at draw time
   for (const k in S) {
