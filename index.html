@@ -70,6 +70,13 @@
   #toast.show{opacity:1}
   #prompt{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:6px;background:#000b;border:1px solid var(--line);display:none}
   #help{left:8px;bottom:8px;color:var(--dim);max-width:520px;font-size:12px}
+  #cmdbar{left:50%;transform:translateX(-50%);bottom:76px;display:none;font-size:12px;max-width:min(640px,60vw);z-index:4}
+  #cmdbar.show{display:block}
+  #cmdbar b{color:#bfe8c4}
+  #cmdbar button{padding:2px 8px;margin-left:6px}
+  #selbox{position:fixed;display:none;border:1px solid #7fe08a;background:rgba(127,224,138,.12);z-index:3;pointer-events:none}
+  .wk td,.wk th{padding:2px 6px;text-align:left;font-size:12px}
+  .wk button.on{background:#2f5a3a;border-color:#7fe08a}
 
   .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,94vw);display:none;z-index:6;max-height:80vh;overflow:auto}
   .modal.show{display:block}
@@ -160,6 +167,7 @@
   <h4>Camp</h4>
   <button id="btnUp"><span><kbd>U</kbd>Upgrade camp</span><span class="cost" id="cUp"></span></button>
   <button id="btnRes"><span><kbd>R</kbd>Research</span><span class="cost" id="cRes"></span></button>
+  <button id="btnWork"><span><kbd>K</kbd>Work &amp; orders</span><span class="cost" id="cWork"></span></button>
   <button id="btnRules"><span><kbd>P</kbd>Camp rules</span><span class="cost" id="cRules"></span></button>
   <button id="btnMap"><span><kbd>Tab</kbd>World map</span><span class="cost" id="cMap"></span></button>
   <h4>Time</h4>
@@ -207,7 +215,10 @@
 <div id="radio" class="panel modal"></div>
 
 <canvas id="mini" width="88" height="66"></canvas>
-<div id="help" class="panel">WASD move (Shift sprint) · hold E scavenge · click/drag build · wheel zoom · right-drag look · R research · H hold fire (quiet) · M mute · Space pause · Esc menu</div>
+<div id="help" class="panel">C command mode: click or drag to select survivors, right-click to order (move / man a wall / scavenge), X stand down · K work toggles · WASD drives the founder · wheel zoom · right-drag look · R research · H hold fire · M mute · Space pause · Esc menu</div>
+<div id="cmdbar" class="panel"></div>
+<div id="selbox"></div>
+<div id="work" class="panel modal"></div>
 <div id="prompt"></div>
 <button id="btnMenu" class="panel" aria-label="Menu">&#9776;</button>
 <button id="btnPeople" class="panel" aria-label="Survivors and log">&#9823;</button>
@@ -233,6 +244,7 @@
 <script src="js/survival.js"></script>
 <script src="js/campaign.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/units.js"></script>
 <script src="js/render.js"></script>
 <script src="js/save.js"></script>
 <script src="js/ui.js"></script>

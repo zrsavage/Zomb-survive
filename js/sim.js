@@ -175,7 +175,7 @@ function buildTown(seed, name, opts) {
     nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
     coreHp: LEVELS[0].coreHp, kills: 0, elapsed: Campaign.t,
     hordeN: 0, hordesBeaten: 0, nextHorde: D.first + (opts.grace || 0), hordeId: 0, rescue: null,
-    over: false, won: false, paused: false, speed: 1, tool: 'wall',
+    over: false, won: false, paused: false, speed: 1, tool: 'orders', selP: false,
     territory: 0, sealed: false, income: { m: 0, f: 0, a: 0, med: 0, fuel: 0 }, held: 0, lookouts: [],
     fieldDirty: true, fieldTimer: 0, pfTimer: 0, repairT: 0, hudT: 0, visT: 0, scanT: 0, refugeeT: REFUGEE_GAP,
     ambientT: 0, visibleZ: 0, saveT: 30,
@@ -563,7 +563,7 @@ function fight(e, dt, o) {
       for (const t of hit) {
         t.hp -= dm; t.by = e.s || null;
         addBurst(t.x, t.y - 0.3, '#9ad06a', 2);
-        if (t.mode === 0) { t.mode = o.noiseMode === 3 ? 2 : o.noiseMode; t.lose = 0; }
+        if (t.mode === 0 && !o.noWake) { t.mode = o.noiseMode === 3 ? 2 : o.noiseMode; t.lose = 0; }
       }
       e.stab = 0.18; e.act = 0.25; e.actK = 'stab';
       if (spear) tracers.push({ x1: e.px, y1: e.py - 0.4, x2: near.x, y2: near.y - 0.4, life: 0.1, spear: true });
@@ -720,6 +720,8 @@ function updatePlayer(dt) {
   let mag = 1;
   const jl = Math.hypot(joy.x, joy.y);
   if (jl > 0.18) { mx = joy.x; my = joy.y; mag = Math.min(1, jl); }
+  if (mx || my) { P.order = null; P.autoE = false; }                    // taking the controls cancels a standing order
+  else { const hd = Units.playerOrder(dt); if (hd) { mx = hd[0]; my = hd[1]; } }
   const moving = !!(mx || my);
   P.moving = moving;
   G.noticeR = AMBIENT.notice * (moving ? (keys.shift ? NOISE.sprint : 1) : NOISE.still) * (G.fog > 0 ? FOG.notice : 1);
@@ -741,7 +743,7 @@ function updatePlayer(dt) {
 
   // scavenging: hold E beside a building
   const b = nearBuilding();
-  if (keys.e && b && !b.looted && !b.crew && !b.nest && !moving) {
+  if ((keys.e || P.autoE) && b && !b.looted && !b.crew && !b.nest && !moving) {
     const bi = buildings.indexOf(b);
     let need = { t: lootTime() };                                         // locked buildings need a keycard or a cutting torch (fuel)
     if (b.locked) need = G.keys >= 1 ? { t: lootTime() * KEYS.keyTime, key: 1 } : G.fuel >= KEYS.breachFuel ? { t: KEYS.breachTime, fuel: KEYS.breachFuel } : null;
@@ -800,16 +802,17 @@ function scavenge(b) {
 
 // ---- survivors: crews, sickness ---------------------------------------------------------------
 function selectedIdle() {
-  const ok = G.idle.filter(s => !s.sick);
+  const ok = G.idle.filter(s => !s.sick && !Units.busy(s));
   const chosen = ok.filter(s => G.sel.includes(s.id));
   return chosen.length ? chosen : ok.slice(0, 1);
 }
-function sendCrew(b) {
+function sendCrew(b, picked) {
   if (!b || b.looted || b.crew) return warn('That building is not available');
   if (b.locked) return warn('Locked: open it yourself (keycard or fuel)');
-  if (b.nest && !selectedIdle().some(s => s.role === 'fighter' || s.role === 'sniper')) return warn('Clearing a nest needs a Fighter or Sniper in the crew');
+  const crewPool = picked || selectedIdle();
+  if (b.nest && !crewPool.some(s => s.role === 'fighter' || s.role === 'sniper')) return warn('Clearing a nest needs a Fighter or Sniper in the crew');
   if (!explored[(b.y + (b.h >> 1)) * W + b.x + (b.w >> 1)]) return warn('Scout that building first');
-  const members = selectedIdle().slice(0, 3);
+  const members = crewPool.slice(0, 3);
   if (!members.length) return warn('No healthy idle survivors to send');
   if (G.ammo < CREW.ammoCost) return warn('A crew needs ' + CREW.ammoCost + ' ammo');
   G.ammo -= CREW.ammoCost;
@@ -820,32 +823,10 @@ function sendCrew(b) {
   const risk = clamp(CREW.baseRisk + d * CREW.perTileRisk + Math.min(0.18, near * 0.012) - 0.04 * fighters + (b.nest ? NEST.crewRisk : 0) + (b.poi ? 0.08 : 0), 0.04, 0.7);
   for (const s of members) { G.idle.splice(G.idle.indexOf(s), 1); G.sel = G.sel.filter(id => id !== s.id); }
   b.crew = true;
-  G.crews.push({ bi: buildings.indexOf(b), members, t: 0, dur, risk });
+  for (const s of members) { const u = Units.get(s); if (u) Units.cancel(u); }
+  G.crews.push({ bi: buildings.indexOf(b), members, t: 0, dur, risk, phase: 'out', prog: 0 });
   log('Sent ' + members.map(who).join(', ') + ' to the ' + BUILDING_TYPES[b.type].label + ' (' + Math.round(risk * 100) + '% risk each)');
   Snd.click();
-}
-function updateCrews(dt) {
-  for (let i = G.crews.length - 1; i >= 0; i--) {
-    const c = G.crews[i]; c.t += dt;
-    if (c.t < c.dur) continue;
-    G.crews.splice(i, 1);
-    const b = buildings[c.bi], t = BUILDING_TYPES[b.type];
-    b.crew = false; b.looted = true;
-    const survivors = c.members.filter(s => rng() >= c.risk * tmul(s, 'risk') * ruleMul('crewRisk') * (1 - 0.03 * skillLv(s, 'scav'))), lost = c.members.length - survivors.length;
-    for (const s of c.members) if (!survivors.includes(s)) { memorialize(s, 'lost on a scavenging run at the ' + t.label.toLowerCase()); moraleHit('crew', s); }
-    const scav = c.members.filter(s => s.role === 'scavenger').length;
-    const mul = (CREW.lootMul + CREW.perMember * (c.members.length - 1) + CREW.scavBonus * scav + (has('scav') ? 0.35 : 0)) * (c.members.reduce((m, s) => m + tmul(s, 'loot') * skillMul(s, 'scav'), 0) / c.members.length);
-    for (const s of survivors) addXp(s, 'scav', 25);
-    const got = survivors.length ? takeLoot(b, mul * (hasTruck() ? TRUCK.crewLoot : 1)) : {};
-    addRes(got);
-    for (const s of survivors) G.idle.push(s);
-    let msg = 'Crew back from the ' + t.label + ': ' + (lootText(got) || 'nothing');
-    if (b.nest && survivors.length) { Outside.clearNest(b); msg += ' - the nest is destroyed'; }
-    if (lost) msg += ' - lost ' + c.members.filter(s => !survivors.includes(s)).map(who).join(', ');
-    if (survivors.length && rng() < 0.15 && roomForPerson()) { const s = newSurvivor(); G.idle.push(s); msg += ' - brought back ' + intro(s); }
-    log(msg);
-    if (lost) Snd.error(); else Snd.loot();
-  }
 }
 function updateSurvivors(dt) {
   const medic = G.idle.some(s => s.role === 'medic' && !s.sick) || defenders.some(d => d.s.role === 'medic') || Base.hasClinic();
@@ -1102,10 +1083,9 @@ function tryBuild(tx, ty) {
     if (!wall[i] || defAt[i] || wall[i] === K.GATE || wall[i] === K.RADIO) return;
     const s = selectedIdle()[0];
     if (!s) return warn('No healthy idle survivors. Scavenge for them, or seal your camp to draw refugees.');
-    G.idle.splice(G.idle.indexOf(s), 1); G.sel = G.sel.filter(id => id !== s.id);
-    addDefender(tx, ty, s); G.visT = 0; Snd.click();
+    Units.post(s, tx, ty, false); Snd.click();
   } else if (tool === 'erase') {
-    if (defAt[i]) { const d = defAt[i]; removeDefender(d); G.idle.push(d.s); return; }
+    if (defAt[i]) { Units.standDown(defAt[i]); return; }
     if (trapAt[i]) { const t = trapAt[i]; traps.splice(traps.indexOf(t), 1); trapAt[i] = null; G.mat += refund(t.type); Snd.demolish(); return; }
     if (facAt[i]) { Base.remove(facAt[i]); Snd.demolish(); return; }
     if (wall[i] && wall[i] !== K.RADIO) {
@@ -1163,7 +1143,7 @@ function simulate(dt) {
   updateTraps(dt);
   Outside.update(dt); Base.update(dt); Survival.update(dt);
   updateDefenders(dt);
-  updateCrews(dt);
+  Units.update(dt);
   updateSurvivors(dt);
   updateEconomy(dt);
   Director.tick(dt); Radio.update(dt); G.ruleCd = Math.max(0, G.ruleCd - dt); G.nfT -= dt;

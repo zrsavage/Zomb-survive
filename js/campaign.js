@@ -147,6 +147,7 @@ const Towns = {
     t.lists = { buildings, lamps, sewers, herds, zombies, defenders, hordes, traps, crates, decoys, facilities, fires, turning };
     t.G = G; t.art = { terrain: Art.terrain, decals: Art.decals, claim: Art.claim, mini: Art.mini };
     t.camp = { px: P.px, py: P.py };
+    for (const c of G.crews) c.t = c.dur * (c.prog || 0);               // while this town is in the background its parties are simulated abstractly
     Campaign.sid = G.sid;
   },
   load(t) {

@@ -17,11 +17,7 @@ const AI = (() => {
     return false;
   };
 
-  function setGoal(x, y) {
-    const i = clamp(y | 0, 0, H - 1) * W + clamp(x | 0, 0, W - 1);
-    if (A.goal !== i) { A.goal = i; computeField([i], A.D, A.N); }
-    A.gx = x; A.gy = y;
-  }
+  function setGoal(x, y) { Units.route(A, x, y); }                                  // flow field that routes around the camp core
   function steer(sprint) {
     const ti = (P.py | 0) * W + (P.px | 0);
     let tx = A.gx, ty = A.gy;
@@ -201,11 +197,11 @@ const AI = (() => {
       if (++built > 40) break;
     }
     // 2. put everyone healthy on the wall, spread out, with towers where there is room for one
-    if (G.idle.some(s => !s.sick) && defenders.length < L.defs) {
-      const all = edgeWalls(), wt = all.filter(([x, y]) => inBuildRange(x, y) && zNear(x + 0.5, y + 0.5, 6) <= 3);      // recruits are people: do not post them into a crowd
+    if (Units.free().length && defenders.length + Units.free().length * 0 + [...Units.pendingTiles()].length < L.defs) {
+      const pend = Units.pendingTiles(), all = edgeWalls().filter(([x, y]) => !pend.has(y * W + x)), wt = all.filter(([x, y]) => inBuildRange(x, y) && zNear(x + 0.5, y + 0.5, 6) <= 3);      // recruits are people: do not post them into a crowd
       if (!wt.length && all.length && !A.want) { const w = all[0]; A.want = [CORE.x + (w[0] - CORE.x) * 0.6, CORE.y + (w[1] - CORE.y) * 0.6]; }
       let n = 0;
-      while (G.idle.some(s => !s.sick) && wt.length && n < 6) {
+      while (Units.free().length && wt.length && n < 6) {
         let best = null, bd = -1;
         for (const [x, y] of wt) { const dm = defenders.reduce((m, d) => Math.min(m, Math.hypot(d.x - x, d.y - y)), 99); if (dm > bd) { bd = dm; best = [x, y]; } }
         if (!best) break;

@@ -24,7 +24,7 @@ const Save = (() => {
     d.facilities = L.facilities.map(f => ({ type: f.type, x: f.x, y: f.y }));
     d.buildings = L.buildings.map(b => (b.looted ? 1 : 0) | (b.crew ? 2 : 0));
     d.stock = L.buildings.map(b => b.stock); d.sewers = L.sewers.map(s => (s.found ? 1 : 0) | (s.sealed ? 2 : 0));
-    d.idle = g.idle; d.crews = g.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk }));
+    d.idle = g.idle; d.crews = g.crews.map(c => ({ bi: c.bi, members: c.members, t: c.t, dur: c.dur, risk: c.risk, phase: c.phase || 'out', prog: c.prog || 0 }));
     d.defenders = L.defenders.map(x => ({ x: x.x, y: x.y, hp: r2(x.hp), s: x.s, blade: x.blade || null }));
     d.traps = L.traps.map(x => ({ ...x })); d.crates = L.crates.map(c => ({ ...c })); d.hordes = L.hordes.map(h => ({ ...h }));
     d.zombies = L.zombies.map(z => [r2(z.x), r2(z.y), z.type, r2(z.hp), z.mode === 4 ? 0 : z.mode, z.h, z.v]);

@@ -9,6 +9,7 @@ function toast(msg) {
 
 const facCost = id => () => ({ m: Math.ceil(FACILITIES[id].cost.m * buildMul()) });
 const TOOLS = [
+  { cat: 'Command', id: 'orders', key: 'C', label: 'Select & command', cost: () => ({}), tip: 'Click or drag to select survivors. Right-click: move there, man a wall, or scavenge a building. They carry it out on their own.' },
   { cat: 'Defense', id: 'wall',    key: '1', label: 'Wall',          cost: () => effCost('wall'),    tip: 'Free-form barricade. Zombies pile up and climb it.' },
   { cat: 'Defense', id: 'tower',   key: '2', label: 'Tower',         cost: () => effCost('tower'),   tip: 'Sturdy; survivors shoot farther from it. Upgrades a wall.' },
   { cat: 'Defense', id: 'gate',    key: '3', label: 'Gate',          cost: () => effCost('gate'),    tip: 'You walk through freely. Zombies treat it as a wall.' },
@@ -53,6 +54,7 @@ const UI = (() => {
     $('btnRes').addEventListener('click', toggleResearch);
     $('btnFallen').addEventListener('click', toggleMemorial);
     $('btnRules').addEventListener('click', toggleRules);
+    $('btnWork').addEventListener('click', toggleWork);
     $('btnMap').addEventListener('click', toggleMap);
     $('btnTruck').addEventListener('click', () => Base.buildTruck());
     const cs = $('craftSeg');
@@ -142,7 +144,8 @@ const UI = (() => {
     const st = STORYTELLERS[G.story] || STORYTELLERS.cassandra;
     $('iStory').textContent = st.label; $('iStory').title = st.desc + ' Tension: ' + Math.round(Director.tension() * 100) + '%';
     const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';
-    renderPeople(); renderCrews(); renderLog(); renderTrade(); renderRadio();
+    renderPeople(); renderCrews(); renderLog(); renderTrade(); renderRadio(); renderCmd();
+    if ($('work').classList.contains('show')) renderWork();
     if ($('rules').classList.contains('show')) renderRules();
     if ($('research').classList.contains('show')) renderResearch();
   }
@@ -166,12 +169,12 @@ const UI = (() => {
     }
   }
   function renderCrews() {
-    const key = G.crews.map(c => c.bi + ':' + (c.t / c.dur * 20 | 0)).join('|');
+    const key = G.crews.map(c => c.bi + ':' + ((c.prog !== undefined ? c.prog : c.t / c.dur) * 20 | 0) + (c.phase || '')).join('|');
     if (key === lastCrews) return; lastCrews = key;
     $('crewsH').style.display = G.crews.length ? '' : 'none';
     $('crews').innerHTML = G.crews.map(c => {
       const b = buildings[c.bi];
-      return '<div>' + c.members.map(who).join(', ') + ' → ' + BUILDING_TYPES[b.type].label + ' · risk ' + Math.round(c.risk * 100) + '%<div class="bar"><i style="width:' + (c.t / c.dur * 100) + '%"></i></div></div>';
+      return '<div>' + c.members.map(who).join(', ') + ' → ' + BUILDING_TYPES[b.type].label + ' · ' + ({ out: 'walking out', work: 'scavenging', back: 'coming home' }[c.phase || 'out']) + '<div class="bar"><i style="width:' + ((c.prog !== undefined ? c.prog : c.t / c.dur) * 100) + '%"></i></div></div>';
     }).join('');
   }
   function renderLog() {
@@ -391,6 +394,7 @@ const UI = (() => {
   // ---- input (pointer events: mouse, touch and pen share one path) -----------------------------------------------
   const pointers = new Map();
   let pinch = null, panning = false, painting = false, lastPaint = null, lastMouse = { x: 0, y: 0 };
+  let selDrag = null, rc = null;
   function screenToTile(sx, sy) {
     const z = G.cam.zoom;
     const wx = (sx - innerWidth / 2) / z / T + G.cam.x, wy = (sy - innerHeight / 2) / z / T + G.cam.y;
@@ -418,6 +422,69 @@ const UI = (() => {
   function setTouchMode(on) { document.body.classList.toggle('touch', on); applyLayout(); }
   function applyLayout() { document.body.classList.toggle('compact', innerWidth < 900 || document.body.classList.contains('touch')); document.body.classList.toggle('portrait', innerHeight > innerWidth); }
 
+  // ---- selecting and ordering survivors (RimWorld-style) ----
+  const toWorld = (sx, sy) => { const z = G.cam.zoom; return { x: (sx - innerWidth / 2) / z / T + G.cam.x, y: (sy - innerHeight / 2) / z / T + G.cam.y }; };
+  const clearSel = () => { G.sel = []; G.selP = false; };
+  const hasSel = () => G.selP || G.sel.length > 0;
+  function pickAt(w) {
+    let best = null, bd = 0.7 * 0.7;
+    const consider = (o, x, y) => { const d = (x - w.x) ** 2 + (y - 0.35 - w.y) ** 2; if (d < bd) { bd = d; best = o; } };
+    if (P.dead <= 0) consider({ p: true }, P.px, P.py);
+    for (const u of Units.all()) consider({ s: u.s }, u.px, u.py);
+    for (const d of defenders) consider({ s: d.s }, d.px, d.py);
+    return best;
+  }
+  function finishSelect(sd) {
+    const add = sd.add;
+    if (sd.moved && !sd.touch) {                                   // box select
+      const a = toWorld(Math.min(sd.x0, sd.x1), Math.min(sd.y0, sd.y1)), b = toWorld(Math.max(sd.x0, sd.x1), Math.max(sd.y0, sd.y1));
+      const inBox = (x, y) => x >= a.x && x <= b.x && y - 0.35 >= a.y && y - 0.35 <= b.y;
+      if (!add) clearSel();
+      if (P.dead <= 0 && inBox(P.px, P.py)) G.selP = true;
+      for (const u of Units.all()) if (inBox(u.px, u.py) && !G.sel.includes(u.s.id)) G.sel.push(u.s.id);
+      for (const d of defenders) if (inBox(d.px, d.py) && !G.sel.includes(d.s.id)) G.sel.push(d.s.id);
+      Snd.click(); lastPeople = ''; return;
+    }
+    const w = toWorld(sd.x1, sd.y1), hit = pickAt(w);
+    if (hit) {
+      if (!add && !(sd.touch && ((hit.p && G.selP) || (hit.s && G.sel.includes(hit.s.id))))) clearSel();
+      if (hit.p) G.selP = !G.selP || !add; else { const i = G.sel.indexOf(hit.s.id); if (i >= 0 && add) G.sel.splice(i, 1); else if (i < 0) G.sel.push(hit.s.id); }
+      Snd.click(); lastPeople = ''; return;
+    }
+    if (sd.touch && hasSel()) { rightClick(sd.x1, sd.y1); return; }   // on a phone a tap on the ground gives the order
+    clearSel(); lastPeople = '';
+  }
+  function rightClick(sx, sy) {
+    if (!G || !hasSel()) return;
+    const t = screenToTile(sx, sy);
+    if (Units.orderAt(t.tx, t.ty)) { G.orderFx = { x: t.tx + 0.5, y: t.ty + 0.5, t: 1 }; Snd.click(); lastPeople = ''; }
+  }
+  function renderCmd() {
+    const el = $('cmdbar'), sel = Units.selected(), n = sel.length + (G.selP ? 1 : 0);
+    if (!n) { el.classList.remove('show'); el.dataset.k = ''; return; }
+    const names = [...(G.selP ? ['You'] : []), ...sel.map(e => who(e.s) + ' (' + Units.statusOf(e.s) + ')')];
+    const k = names.join('|') + G.crews.length; if (el.dataset.k === k) return; el.dataset.k = k;
+    el.classList.add('show');
+    el.innerHTML = '<b>' + n + ' selected</b> · ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) : '') + '<br><span style="color:var(--dim)">Right-click: ground to move · wall to man it · building to scavenge</span> <button id="cbDown">Stand down (X)</button><button id="cbWork">Work (K)</button><button id="cbClr">Deselect</button>';
+    $('cbDown').onclick = () => { Units.standDownSelected(); lastPeople = ''; };
+    $('cbWork').onclick = toggleWork; $('cbClr').onclick = () => { clearSel(); lastPeople = ''; };
+  }
+  let lastWork = '';
+  function toggleWork() { const el = $('work'); el.classList.toggle('show'); lastWork = ''; if (el.classList.contains('show')) renderWork(); Snd.click(); }
+  function renderWork() {
+    const rows = [...G.idle.map(s => ({ s })), ...defenders.map(d => ({ s: d.s })), ...G.crews.flatMap(c => c.members.map(s => ({ s })))];
+    const key = rows.map(r => r.s.id + Units.statusOf(r.s) + JSON.stringify(Units.workOf(r.s)) + (G.sel.includes(r.s.id) ? '*' : '')).join('|');
+    if (key === lastWork) return; lastWork = key;
+    const el = $('work');
+    let h = '<div class="row"><h3>Work &amp; orders</h3><button id="wkClose" style="padding:2px 8px">Close (K)</button></div><div style="color:var(--dim);margin-bottom:4px">Anyone you are not ordering decides for themselves. <b>Guard</b>: man a wall when a horde comes (and step down afterwards). <b>Scavenge</b>: go out for loot on their own when the camp is calm and has ammo to spare.</div><table class="wk" style="width:100%"><tr><th>Survivor</th><th>Doing</th><th>Guard</th><th>Scavenge</th></tr>';
+    rows.forEach((r, i) => { const w = Units.workOf(r.s); h += '<tr data-i="' + i + '"><td>' + (G.sel.includes(r.s.id) ? '▸ ' : '') + '<a href="#" data-sel="' + i + '" style="color:inherit">' + r.s.name + '</a> <small style="color:var(--dim)">' + ROLES[r.s.role].label + '</small></td><td><small>' + Units.statusOf(r.s) + '</small></td><td><button data-w="guard" data-i="' + i + '" class="' + (w.guard ? 'on' : '') + '">' + (w.guard ? 'On' : 'Off') + '</button></td><td><button data-w="loot" data-i="' + i + '" class="' + (w.loot ? 'on' : '') + '">' + (w.loot ? 'On' : 'Off') + '</button></td></tr>'; });
+    h += '</table>' + (rows.length ? '' : '<div style="color:var(--dim)">No survivors yet.</div>');
+    el.innerHTML = h;
+    $('wkClose').onclick = toggleWork;
+    el.querySelectorAll('button[data-w]').forEach(b => b.onclick = () => { const r = rows[+b.dataset.i]; const w = Units.workOf(r.s); w[b.dataset.w] = !w[b.dataset.w]; lastWork = ''; renderWork(); Snd.click(); });
+    el.querySelectorAll('a[data-sel]').forEach(a => a.onclick = ev => { ev.preventDefault(); const r = rows[+a.dataset.sel]; clearSel(); G.sel.push(r.s.id); lastWork = ''; renderWork(); lastPeople = ''; });
+  }
+
   function bindInput() {
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('pointerdown', e => {
@@ -429,11 +496,13 @@ const UI = (() => {
       lastMouse = { x: e.clientX, y: e.clientY };
       G.hover = screenToTile(e.clientX, e.clientY);
       if (e.pointerType === 'mouse') {
-        if (e.button === 2 || e.button === 1) { panning = true; G.cam.free = true; return; }
+        if (e.button === 1) { panning = true; G.cam.free = true; return; }
+        if (e.button === 2) { rc = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }; return; }      // right-click orders, right-drag looks around
         if (e.button !== 0) return;
       } else if (pointers.size >= 2) {               // two fingers: pinch to zoom, drag to pan
         painting = false; G.cam.free = true; const p = pair(); pinch = { d: p.d, cx: p.cx, cy: p.cy, zoom: G.cam.zoom }; return;
       }
+      if (G.tool === 'orders') { selDrag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, moved: false, touch: e.pointerType === 'touch', add: e.shiftKey }; return; }
       painting = G.tool !== 'crew' && G.tool !== 'radio'; lastPaint = G.hover; tryBuild(G.hover.tx, G.hover.ty);
     });
     canvas.addEventListener('pointermove', e => {
@@ -441,6 +510,14 @@ const UI = (() => {
       const p = pointers.get(e.pointerId);
       if (e.pointerType !== 'touch') G.hover = screenToTile(e.clientX, e.clientY);
       if (p) { p.x = e.clientX; p.y = e.clientY; }
+      if (rc && rc.id === e.pointerId && !rc.moved && Math.hypot(e.clientX - rc.x, e.clientY - rc.y) > 5) { rc.moved = true; panning = true; G.cam.free = true; }
+      if (selDrag && selDrag.id === e.pointerId) {
+        selDrag.x1 = e.clientX; selDrag.y1 = e.clientY;
+        if (!selDrag.moved && Math.hypot(selDrag.x1 - selDrag.x0, selDrag.y1 - selDrag.y0) > 6) selDrag.moved = true;
+        const bx = $('selbox');
+        if (selDrag.moved && !selDrag.touch) { bx.style.display = 'block'; bx.style.left = Math.min(selDrag.x0, selDrag.x1) + 'px'; bx.style.top = Math.min(selDrag.y0, selDrag.y1) + 'px'; bx.style.width = Math.abs(selDrag.x1 - selDrag.x0) + 'px'; bx.style.height = Math.abs(selDrag.y1 - selDrag.y0) + 'px'; }
+        lastMouse = { x: e.clientX, y: e.clientY }; return;
+      }
       if (pinch && pointers.size >= 2) {
         const q = pair();
         G.cam.x -= (q.cx - pinch.cx) / G.cam.zoom / T; G.cam.y -= (q.cy - pinch.cy) / G.cam.zoom / T;
@@ -455,6 +532,8 @@ const UI = (() => {
       lastMouse = { x: e.clientX, y: e.clientY };
     });
     const up = e => {
+      if (selDrag && selDrag.id === e.pointerId) { $('selbox').style.display = 'none'; finishSelect(selDrag); selDrag = null; }
+      if (rc && rc.id === e.pointerId) { if (!rc.moved) rightClick(e.clientX, e.clientY); rc = null; panning = false; }
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
       if (!pointers.size) { panning = false; painting = false; lastPaint = null; if (e.pointerType === 'touch' && G) G.hover = null; }
@@ -493,6 +572,8 @@ const UI = (() => {
       if (!G) return;
       if (toolKeys[k]) { const t = TOOLS.find(x => x.id === toolKeys[k]); if (!(t.hidden && t.hidden())) G.tool = t.id; }
       else if (k === 'u') upgradeCore();
+      else if (k === 'x') { Units.standDownSelected(); lastPeople = ''; }
+      else if (k === 'k') toggleWork();
       else if (k === 'r') toggleResearch();
       else if (k === 'g') toggleMemorial();
       else if (k === 'p') toggleRules();

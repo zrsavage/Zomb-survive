@@ -27,6 +27,7 @@ function spriteFor(o) {
   if (o.s) {                                                      // posted survivor
     const set = Art.sprites['def_' + o.s.role] || Art.sprites.def_fighter;
     if (o.st === 'stab') return [set, 'attack', (G.time * 12 + o.anim | 0) % 2];
+    if (o.st === 'walk') return [set, 'walk', (o.anim | 0) % 4];
     return [set, 'idle', 0];
   }
   const set = Art.sprites[o.type === 'walker' ? (mobMode ? 'z_mob' : 'z_walker' + o.v) : 'z_' + o.type];
@@ -61,7 +62,7 @@ function drawWorld(cam, cw, ch, z) {
     if (b.looted) { ctx.fillStyle = 'rgba(0,0,0,0.36)'; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T - 9); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(b.x * T + b.w * T / 2 - 3, b.y * T + (b.h * T - 9) / 2 - 1, 6, 2); }
     if (b.locked && !b.looted) { const lx = b.x * T + b.w * T / 2, ly = b.y * T + (b.h * T - 9) / 2; ctx.fillStyle = '#0008'; ctx.fillRect(lx - 5, ly - 5, 10, 12); ctx.fillStyle = '#e8c547'; ctx.fillRect(lx - 3, ly - 1, 6, 5); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 1; ctx.strokeRect(lx - 2.5, ly - 5.5, 5, 5); }
     if (b.crew) {
-      const c = G.crews.find(c => buildings[c.bi] === b), f = c ? c.t / c.dur : 0;
+      const c = G.crews.find(c => buildings[c.bi] === b), f = c ? (c.prog !== undefined ? c.prog : c.t / c.dur) : 0;
       ctx.fillStyle = 'rgba(40,120,200,0.25)'; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T);
       ctx.fillStyle = '#000a'; ctx.fillRect(b.x * T + 2, b.y * T + 2, b.w * T - 4, 3);
       ctx.fillStyle = '#7fd0ff'; ctx.fillRect(b.x * T + 2, b.y * T + 2, (b.w * T - 4) * f, 3);
@@ -154,6 +155,7 @@ function drawWorld(cam, cw, ch, z) {
     items.push(zb);
   }
   for (const d of defenders) items.push(d);
+  for (const u of Units.all()) items.push(u);
   if (P.dead <= 0) items.push(P);
   items.sort((a, b) => (a.py !== undefined ? a.py : a.y) - (b.py !== undefined ? b.py : b.y));
   const crowd = items.length > 1800 || !Q.shadows;
@@ -197,15 +199,15 @@ function drawWorld(cam, cw, ch, z) {
     if (hv) reachOf(hv);
     for (const d of defenders) if (G.sel.includes(d.s.id) && d !== hv) reachOf(d);
   }
-  // idle survivors milling around the camp
-  const shown = G.idle.slice(0, 8);
-  shown.forEach((s, i) => {
-    const px = CORE.x + 0.5 - 1.7 + i * 0.5 + Math.sin(t * 0.7 + i) * 0.1, py = CORE.y + 2.9 + (i % 2) * 0.4;
-    const set = Art.sprites['def_' + s.role], img = set.idle[0];
-    shadow(px, py, 10);
-    ctx.drawImage(i % 2 ? set.fl.idle[0] : img, Math.round(px * T - (i % 2 ? img.width - set.ax : set.ax)), Math.round(py * T - set.ay + (s.sick > 0 ? 2 : 0)));
-    if (s.sick > 0) { ctx.fillStyle = '#7fcf6a'; ctx.fillRect(px * T - 1, py * T - 26, 3, 3); }
-  });
+  // selection rings, standing orders and the flash where an order was given
+  {
+    const ring = (x, y, c) => { ctx.strokeStyle = c; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(x * T, y * T + 1, 8, 3.6, 0, 0, 6.283); ctx.stroke(); };
+    const line = (x, y, gx, gy) => { ctx.strokeStyle = 'rgba(127,224,138,0.55)'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(x * T, y * T); ctx.lineTo(gx * T, gy * T); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#7fe08a'; ctx.fillRect(gx * T - 1, gy * T - 5, 2, 6); ctx.fillRect(gx * T, gy * T - 5, 4, 3); };
+    for (const u of Units.all()) if (G.sel.includes(u.s.id)) { ring(u.px, u.py, '#7fe08a'); if (u.order) line(u.px, u.py, u.gx, u.gy); }
+    for (const d of defenders) if (G.sel.includes(d.s.id)) ring(d.px, d.py, '#7fe08a');
+    if (G.selP && P.dead <= 0) { ring(P.px, P.py, '#7fe08a'); if (P.order) line(P.px, P.py, P.gx, P.gy); }
+    if (G.orderFx && G.orderFx.t > 0) { const f = G.orderFx; f.t -= 0.03; ctx.strokeStyle = 'rgba(127,224,138,' + f.t + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(f.x * T, f.y * T, 4 + (1 - f.t) * 14, 0, 6.283); ctx.stroke(); }
+  }
   if (G.trader) {
     const px = CORE.x + 0.5 + 3.4, py = CORE.y + 3.1;
     shadow(px, py, 10); const set = Art.sprites.trader; ctx.drawImage(set.idle[0], Math.round(px * T - set.ax), Math.round(py * T - set.ay));
