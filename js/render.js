@@ -77,6 +77,14 @@ function drawWorld(cam, cw, ch, z) {
       shadow(c.x, c.y + 0.3, 14); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(px - 8, py - 9, 16, 11); ctx.fillStyle = '#d8a030'; ctx.fillRect(px - 8, py - 9, 16, 2); ctx.fillStyle = '#ffd27a'; ctx.fillRect(px - 2, py - 6, 4, 5);
       continue;
     }
+    if (c.type === 'airdrop') {                                          // a pallet under a parachute: tall green beacon
+      ctx.globalAlpha = 0.3 + pulse * 0.35; ctx.fillStyle = '#7fe08a'; ctx.fillRect(px - 2, py - 90, 4, 86); ctx.globalAlpha = 1;
+      shadow(c.x, c.y + 0.3, 14);
+      ctx.fillStyle = '#2f4a2a'; ctx.fillRect(px - 8, py - 9, 16, 11); ctx.fillStyle = '#5a8a4a'; ctx.fillRect(px - 8, py - 9, 16, 2); ctx.fillStyle = '#e8e0c0'; ctx.fillRect(px - 2, py - 9, 4, 11); ctx.fillStyle = '#c8302a'; ctx.fillRect(px - 8, py - 4, 16, 2);
+      ctx.fillStyle = '#e8e0c0'; ctx.fillRect(px - 10, py - 19, 20, 2); ctx.fillRect(px - 12, py - 17, 24, 1);
+      ctx.strokeStyle = 'rgba(232,224,192,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px - 10, py - 17); ctx.lineTo(px - 6, py - 9); ctx.moveTo(px + 10, py - 17); ctx.lineTo(px + 6, py - 9); ctx.stroke();
+      continue;
+    }
     if (c.type === 'survivor') {
       ctx.globalAlpha = 0.3 + pulse * 0.3; ctx.fillStyle = '#7fd0ff'; ctx.fillRect(px - 1, py - 70, 2, 66); ctx.globalAlpha = 1;
       const set = Art.sprites.def_fighter; shadow(c.x, c.y + 0.3, 10); ctx.drawImage(set.idle[0], Math.round(px - set.ax), Math.round(py - set.ay));
@@ -119,7 +127,7 @@ function drawWorld(cam, cw, ch, z) {
     if (n.hp < NEST.hp) { ctx.fillStyle = '#000a'; ctx.fillRect(bx + 2, by + bh - 6, bw - 4, 3); ctx.fillStyle = '#ff8a22'; ctx.fillRect(bx + 2, by + bh - 6, (bw - 4) * Math.max(0, n.hp) / NEST.hp, 3); }
   }
   // facilities
-  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay'];
+  const NEWFAC = ['well', 'rain', 'latrine', 'turret', 'battery', 'garagebay', 'mine', 'solar'];
   for (const f of facilities) (NEWFAC.includes(f.type) ? Art.drawFacility2 : Art.drawFacility)(ctx, f, t);
   // sewer accesses you know about
   for (const s of sewers) {
@@ -370,6 +378,21 @@ function drawAtmosphere(cw, ch) {
     for (let i = 0; i < (Q.fog ? 130 : 60); i++) { const x = (i * 83 + Math.sin(t * 0.7 + i) * 18 + t * 12 * dpr) % (cw + 20) - 10, y = (i * 47 + t * (40 + (i % 5) * 9) * dpr) % (ch + 10); ctx.fillRect(x, y, 2 * dpr, 2 * dpr); }
   }
   if (G.fog > 0) { const k = Math.min(1, G.fog / 6, (FOG.time - G.fog) / 6 + 0.3); ctx.fillStyle = 'rgba(205,214,224,' + 0.3 * k + ')'; ctx.fillRect(0, 0, cw, ch); }
+  // ash and embers on the wind, thicker the louder the camp is
+  if (Q.fog) {
+    const n = 40 + (G.heat | 0) * 0.5;
+    for (let i = 0; i < n; i++) {
+      const x = (i * 131 + t * (14 + (i % 7) * 4) * dpr + Math.sin(t * 0.6 + i) * 20) % (cw + 20) - 10, y = ch - ((i * 53 + t * (10 + (i % 5) * 6) * dpr) % (ch + 20)) + 10;
+      ctx.globalAlpha = 0.25 + 0.35 * Math.abs(Math.sin(t * 2 + i)); ctx.fillStyle = i % 4 === 0 ? '#ff9a40' : '#b8aea0'; ctx.fillRect(x, y, (1 + (i % 3 === 0)) * dpr, (1 + (i % 3 === 0)) * dpr);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // the camp's noise tints the edges of the screen red-orange
+  if (G.heat > 45) {
+    const k = (G.heat - 45) / 55, hg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.4, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.55);
+    hg.addColorStop(0, 'rgba(255,90,30,0)'); hg.addColorStop(1, 'rgba(255,70,20,' + (0.22 * k * (0.75 + 0.25 * Math.sin(t * 4))) + ')');
+    ctx.fillStyle = hg; ctx.fillRect(0, 0, cw, ch);
+  }
   // vignette
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.55);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.55 + G.danger * 0.15) + ')');

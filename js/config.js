@@ -22,11 +22,15 @@ const WALL_HP = { 1: 120, 2: 260, 3: 90, 4: 100, 5: 500, 6: 300 };
 const WALL_PATH_COST = 12;       // how much zombies dislike climbing (they take gaps if close)
 const COST = {
   wall: { m: 3 }, tower: { m: 12 }, gate: { m: 6 }, lookout: { m: 10 },
-  spike: { m: 6 }, barrel: { m: 16 }, decoy: { m: 4, a: 8 }, radio: { m: 400, f: 120, a: 100 },
+  spike: { m: 6 }, barrel: { m: 16 }, decoy: { m: 4, a: 8 }, radio: { m: 250, f: 80, a: 60 },
   molotov: { m: 2, fuel: 1 }, electrify: { m: 8 }, outpost: { m: 40, a: 10 }, grate: { m: 10 },
 };
-const RADIO_LEVEL = 5;           // camp level needed to build the radio tower
-const RESCUE_TIME = 300;         // seconds you must hold out after the radio goes up
+const RADIO_LEVEL = 3;           // camp level needed to build the radio tower
+// The radio is a call for support: while it broadcasts, airdrops of food and supplies land in the camp. It is loud, though.
+const BROADCAST = { time: 480, gap: 140, again: { m: 60, fuel: 10 }, cooldown: 480, drop: { m: 110, f: 80, a: 55, med: 8, fuel: 8, water: 40 }, pressure: 1.4 };
+// Success is a town that can look after itself: food and water grown, raw materials mined, ammunition made on clean power, the walls whole and manned.
+const SECURE = { time: 360, mine: 0.3, matMin: 0.25, ammoMin: 100, wallMin: 0.8, calmFor: 120, garrison: 0.7 };
+const WIN_TOWNS = 3;                // secure this many towns at once to win
 const BUILD_RANGE = 11;          // tiles from the survivor
 const PLAYER = { hp: 100, speed: 3.6, sprint: 1.5, wallSlow: 0.45, vision: 10, respawn: 8, deathPenalty: 0.1, ammoCost: 0.4 };
 
@@ -89,8 +93,8 @@ const BLOAT = { radius: 1.9, defDmg: 28, playerDmg: 22, zombieDmg: 12 };
 
 // The siege: a constant trickle of the dead walks toward the camp (it ramps with time, camp level and how loud you are).
 // A real horde is rare and only comes when the player draws it: noise (HEAT) fills up, or they sound the siren, or call for rescue.
-const PRESSURE = { start: 150, base: 2.0, ramp: 0.35, max: 60, levelMul: 0.15, group: 3, cap: 22, capPerLevel: 7, tierMin: 6 };   // per minute / alive-at-once / minutes per wave
-const HEAT = { max: 100, decay: 0.12, gun: 0.003, gen: 0.16, flood: 0.03, shop: 0.04, radio: 0.35, decoy: 7, breach: 12, vault: 10, siren: { m: 25, fuel: 1 }, after: 25 };
+const PRESSURE = { start: 150, base: 2.0, ramp: 0.5, max: 80, levelMul: 0.15, group: 3, cap: 22, capPerLevel: 7, tierMin: 6 };   // per minute / alive-at-once / minutes per wave
+const HEAT = { mine: 0.02, max: 100, decay: 0.12, gun: 0.003, gen: 0.16, flood: 0.03, shop: 0.04, radio: 0.35, decoy: 7, breach: 12, vault: 10, siren: { m: 25, fuel: 1 }, after: 25 };
 // Hordes: first arrives after DIFFICULTY.first seconds (long enough to scavenge, wall in and recruit), then at random intervals, growing 1.4x each time.
 const HORDE = { gapMin: 90, gapMax: 160, base: 45, growth: 1.12, spawnSecs: 22, finalGapMin: 16, finalGapMax: 28 };
 const LOOKOUT = { detect: 16, detectPerLevel: 3, vision: 12 };
@@ -245,10 +249,12 @@ const FACILITIES = {
   latrine:    { label: 'Latrine',    level: 1, cost: { m: 20 }, desc: 'Keeps the camp clean. Dirty camps get sick and sullen.' },
   turret:     { label: 'Turret',     level: 3, cost: { m: 70 }, desc: 'Needs power. Fires at the nearest zombie on its own (uses ammo).' },
   battery:    { label: 'Battery',    level: 3, cost: { m: 40 }, desc: 'Stores up to 30 power; smooths brownouts. Generators run full to charge it.' },
+  mine:       { label: 'Mine',       level: 2, cost: { m: 50 }, desc: 'Digs raw materials without end: +0.3 materials/s. A little noisy.' },
+  solar:      { label: 'Solar array', level: 3, cost: { m: 90 }, desc: 'Gives 2 power with no fuel and no noise. Keeps workshops, lights and turrets running for good.' },
   garagebay:  { label: 'Garage bay', level: 3, cost: { m: 80 }, desc: 'Lets you build a Truck: needed to reach other towns.' },
 };
 const TIER = { hp: [1, 1.8, 3], press: [1, 0.6, 0.3], cost: [0, 6, 14], names: ['Timber', 'Reinforced', 'Concrete'] };
-const POWER = { gen: 4, fuelBurn: 0.03, noiseGap: 4, noiseR: 9, flood: 1, shop: 1, elec: 0.5, zap: 18, turret: 1.5, battCap: 30, battOut: 6 };
+const POWER = { solar: 2, gen: 4, fuelBurn: 0.03, noiseGap: 4, noiseR: 9, flood: 1, shop: 1, elec: 0.5, zap: 18, turret: 1.5, battCap: 30, battOut: 6 };
 const FIRE = { r: 2.1, t: 6, dps: 35, burn: 3, burnDps: 10, spread: 0.25, nestDps: 40, range: 9, cooldown: 1.5 };
 const NEST = { hp: 150, gapMin: 110, gapMax: 200, max: 6, spawnGap: 9, near: 10, hordeBonus: 0.05, crewRisk: 0.15 };
 const SPIT = { range: 6, dmg: 7, cd: 2.5, wallDmg: 6 };

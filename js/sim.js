@@ -173,8 +173,8 @@ function buildTown(seed, name, opts) {
     seed, diff: diffKey || 'normal', townName: name, level: 1, ammo: 40, mat: 45, food: 30, med: 4, fuel: 0, water: WATER.start, hygiene: HYGIENE.start, ap: 0, inc: 0, blades: 0, keys: 0, craft: 'ammo',
     fog: 0, thirstT: WATER.thirstGap, incT: 0, supply: 1, supplyLvl: 0, depleted: 0, outposts: [], herdT: 700, herdScan: 0, herdId: 0, herdMsg: null, batt: 0, truckT: 0, idle: [], crews: [], sel: [], sid: Campaign.sid,
     nests: [], nestT: 140, molCd: 0, power: { supply: 0, demand: 0, ratio: 1, burn: 0 },
-    coreHp: LEVELS[0].coreHp, kills: 0, elapsed: Campaign.t,
-    hordeN: 0, hordesBeaten: 0, nextHorde: 1e9, heat: 0, pressAcc: 0, pressAlive: 0, pulse: 1, pulseT: 0, hordeId: 0, rescue: null,
+    coreHp: LEVELS[0].coreHp, kills: 0, elapsed: Campaign.t, born: Campaign.t,
+    hordeN: 0, hordesBeaten: 0, nextHorde: 1e9, heat: 0, pressAcc: 0, pressAlive: 0, pulse: 1, pulseT: 0, hordeId: 0, rescue: null, dropT: 0, supCd: 0, secured: false, safeT: 0, coreHurtAt: -999,
     over: false, won: false, paused: false, speed: 1, tool: 'orders', selP: false,
     territory: 0, sealed: false, income: { m: 0, f: 0, a: 0, med: 0, fuel: 0 }, held: 0, lookouts: [],
     fieldDirty: true, fieldTimer: 0, pfTimer: 0, repairT: 0, hudT: 0, visT: 0, scanT: 0, refugeeT: REFUGEE_GAP,
@@ -192,7 +192,7 @@ function buildTown(seed, name, opts) {
   seedAmbient(D.ambient * (opts.ambient || 1), opts.safe);
   updateVision();
   if (opts.res) Object.assign(G, opts.res);
-  if (opts.home) log('You are alone. Scavenge buildings (hold E), scout, and fortify before the first horde.');
+  if (opts.home) log('You are alone. Scavenge buildings (hold E), scout, and fortify. The dead are already on their way.');
 }
 
 function newGame(diffKey, seed, storyKey) {
@@ -202,7 +202,9 @@ function newGame(diffKey, seed, storyKey) {
 }
 
 // ---- zombies: spawning ---------------------------------------------------------------
-const waveNow = () => Math.max(G.hordeN, 1 + Math.floor(G.elapsed / 60 / PRESSURE.tierMin));      // zombie variety and toughness follow time as well as hordes
+// a new town starts fresh: its pressure counts its own age plus a share of how far the campaign has come
+const townMins = g => (g.elapsed - (g.born || 0) + 0.3 * (g.born || 0)) / 60;
+const waveNow = () => Math.max(G.hordeN, 1 + Math.floor(townMins(G) / PRESSURE.tierMin));      // zombie variety and toughness follow time as well as hordes
 function pickType(n) {
   const r = rng(); let acc = 0;
   for (const m of HORDE_MIX) {
@@ -259,20 +261,21 @@ function spawnAmbient() {          // trickle in zombies out of sight so the tow
 function startHorde(opts = {}) {
   const minor = !!opts.minor, D = DIFFICULTY[G.diff];
   const n = minor ? Math.max(1, G.hordeN) : ++G.hordeN;
-  const mins = G.elapsed / 60;
+  const mins = townMins(G);
   const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * mins) * (0.9 + rng() * 0.2) * D.size * Director.hordeSize() * (opts.mult || 1)));
   hordes.push({ id: ++G.hordeId, n, minor, boss: !minor && n % BOSS_EVERY === 0 ? (n >= 9 ? 2 : 1) : 0, side: rng() * 4 | 0, pos: rng(), left: size, total: size, acc: 0, seen: false, heard: false, announced: false, alive: 0, near: Infinity, cx: 0, cy: 0 });
   if (minor) return;
   G.recentDeaths = 0;
-  G.nextHorde = G.rescue !== null ? HORDE.finalGapMin + rng() * (HORDE.finalGapMax - HORDE.finalGapMin) : 1e9;       // hordes only come when drawn
+  G.nextHorde = 1e9;                                       // hordes only come when drawn
 }
 
 // ---- the siege: a constant trickle of the dead, and the noise that can draw a real horde ---------------------------------------------------
-function pressureRate() {                                   // zombies per second heading for the camp
-  const mins = Math.max(0, G.elapsed - PRESSURE.start) / 60, D = DIFFICULTY[G.diff];      // a few quiet minutes to find your feet
-  let r = Math.min(PRESSURE.max, (G.elapsed < PRESSURE.start ? 0 : PRESSURE.base * Math.min(1, mins / 4)) + PRESSURE.ramp * mins);
-  r *= 1 + PRESSURE.levelMul * (G.level - 1);
-  r *= D.press * Director.pressureMul() * (1 + 0.8 * G.heat / HEAT.max) * (G.rescue !== null ? 1.5 : 1);
+function pressureRate(g) {                                  // zombies per second heading for the camp
+  g = g || G;
+  const age = g.elapsed - (g.born || 0), mins = Math.max(0, age - PRESSURE.start) / 60 + 0.3 * (g.born || 0) / 60, D = DIFFICULTY[Campaign.diff || g.diff];      // a few quiet minutes to find your feet
+  let r = Math.min(PRESSURE.max, (age < PRESSURE.start ? 0 : PRESSURE.base * Math.min(1, mins / 4)) + PRESSURE.ramp * mins);
+  r *= 1 + PRESSURE.levelMul * (g.level - 1);
+  r *= D.press * Director.pressureMul() * (1 + 0.8 * g.heat / HEAT.max) * (g.rescue !== null ? BROADCAST.pressure : 1);
   return r / 60;
 }
 function spawnPressureZombie() {
@@ -300,10 +303,10 @@ function lureHorde(why) {
 function updatePressure(dt) {
   // heat: loud things you choose to run fill it, quiet decays it; full means a real horde
   let gain = 0;
-  for (const f of facilities) { if (f.type === 'generator' && f.on) gain += HEAT.gen; else if (f.type === 'floodlight' && f.on) gain += HEAT.flood; else if (f.type === 'workshop' && f.on) gain += HEAT.shop; }
+  for (const f of facilities) { if (f.type === 'generator' && f.on) gain += HEAT.gen; else if (f.type === 'floodlight' && f.on) gain += HEAT.flood; else if (f.type === 'workshop' && f.on) gain += HEAT.shop; else if (f.type === 'mine') gain += HEAT.mine; }
   if (G.rescue !== null) gain += HEAT.radio;
   G.heat = clamp(G.heat + (gain - HEAT.decay) * dt, 0, HEAT.max);
-  if (G.heat >= HEAT.max && G.rescue === null && !hordes.some(h => !h.minor)) lureHorde('noise');
+  if (G.heat >= HEAT.max && !hordes.some(h => !h.minor)) lureHorde('noise');
   // the trickle
   G.pulseT -= dt; if (G.pulseT <= 0) { G.pulseT = 40 + rng() * 80; G.pulse = 0.3 + rng() * 1.9; }
   const cap = PRESSURE.cap + PRESSURE.capPerLevel * (G.level - 1);
@@ -392,7 +395,7 @@ function updateZombies(dt) {
       continue;
     }
     if (z.mode === 2 && Math.hypot(z.x - cx, z.y - cy) < 2.2) {
-      G.coreHp -= zt.dmg * dt * 0.45; z.face = cx > z.x ? 1 : -1; z.st = 1;
+      G.coreHp -= zt.dmg * dt * 0.45; G.coreHurtAt = G.elapsed; z.face = cx > z.x ? 1 : -1; z.st = 1;
       if (G.coreHp <= 0 && !G.over) Campaign.campFell();
       continue;
     }
@@ -823,7 +826,15 @@ function updatePlayer(dt) {
       floatText(c.x, c.y - 1, 'TYRANT LOOT', '#ffd27a'); Snd.pickup(); log('Tyrant loot: 150m 60f 80a 20 med 20 fuel, a keycard' + bp);
       continue;
     }
-    if (c.type !== 'survivor' && c.type !== 'boss' && Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
+    if (c.type === 'airdrop' && ((Math.hypot(c.x - P.px, c.y - P.py) < 1.4 && P.dead <= 0) || Units.near(c.x, c.y, 1.4))) {
+      crates.splice(i, 1);
+      const roll = v => Math.round(v * (0.9 + rng() * 0.2) * c.mult), got = {};
+      for (const k in BROADCAST.drop) got[k] = roll(BROADCAST.drop[k]);
+      addRes(got); moraleGain('crate'); Snd.pickup();
+      floatText(c.x, c.y - 1, 'SUPPLY DROP', '#ffd27a'); log('Supply drop collected: ' + lootText(got));
+      continue;
+    }
+    if (c.type !== 'survivor' && c.type !== 'boss' && c.type !== 'airdrop' && Math.hypot(c.x - P.px, c.y - P.py) < 1.3) {
       const L = EVENTS.crateLoot, roll = v => Math.round(v * (0.8 + rng() * 0.5));
       const m = roll(L.m), f = roll(L.f), a = roll(L.a);
       G.mat = Math.min(storeCap(), G.mat + m); G.food = Math.min(storeCap(), G.food + f); G.ammo = Math.min(storeCap(), G.ammo + a);
@@ -1057,10 +1068,39 @@ function updateResearch(dt) {
     Snd.upgrade();
   }
 }
+function startBroadcast(again) {
+  if (G.rescue !== null) return warn('The radio is already broadcasting');
+  if (again) {
+    if (G.supCd > 0) return warn('The radio needs ' + fmtTime(G.supCd) + ' to cool before it can call again');
+    if (!canAfford(BROADCAST.again)) return warn('Calling again costs ' + BROADCAST.again.m + ' materials and ' + BROADCAST.again.fuel + ' fuel');
+    pay(BROADCAST.again);
+  }
+  G.rescue = BROADCAST.time; G.rescueKind = 'heli'; G.dropT = 10;
+  log('The radio is broadcasting a call for supplies. Drops will land in the camp for ' + fmtTime(BROADCAST.time) + ' - but the noise carries.');
+  Snd.horn();
+}
+function airdrop(mult) {                                    // a crate of food and supplies lands inside the camp
+  let x = CORE.x + 0.5, y = CORE.y + 3.5;
+  for (let t = 0; t < 40; t++) {
+    const cx = (CORE.x + (rng() - 0.5) * 18) | 0, cy = (CORE.y + (rng() - 0.5) * 14) | 0, i = cy * W + cx;
+    if (!inb(cx, cy) || bld[i] >= 0 || wall[i] || isCoreTile(cx, cy) || !claimed[i] || Math.hypot(cx - CORE.x, cy - CORE.y) < 3) continue;
+    x = cx + 0.5; y = cy + 0.5; break;
+  }
+  crates.push({ x, y, t: 240, type: 'airdrop', mult: (mult || 1) * (G.flags.flares ? 1.5 : 1) });
+  log('A supply drop lands ' + compass(x - CORE.x, y - CORE.y) + ' inside the camp. Send someone to collect it!'); Snd.drop && Snd.drop(); toast('Supply drop incoming');
+}
 function updateRescue(dt) {
+  if (G.supCd > 0) G.supCd -= dt;
   if (G.rescue === null) return;
-  G.rescue -= dt;
-  if (G.rescue <= 0 && !G.over) endGame(true, G.rescueKind === 'convoy' ? 'The convoy arrived!' : 'Rescued!');
+  G.rescue -= dt; G.dropT -= dt;
+  if (G.dropT <= 0 && G.rescue > 5) { G.dropT = BROADCAST.gap; airdrop(1); }
+  if (G.rescue <= 0) {
+    G.rescue = null; G.supCd = BROADCAST.cooldown;
+    if (G.rescueKind === 'convoy') {
+      let n = 0; for (let k = 0; k < 4 && roomForPerson(); k++) { G.idle.push(newSurvivor()); n++; }
+      airdrop(1.4); log('The convoy arrives: ' + n + ' survivors join you and they leave a supply drop.'); moraleGain('refugee');
+    } else log('The broadcast ends. Call again once the radio has cooled (' + fmtTime(BROADCAST.cooldown) + ').');
+  }
 }
 
 // ---- build actions ---------------------------------------------------------------
@@ -1085,12 +1125,12 @@ function tryBuild(tx, ty) {
   if (!explored[i]) return;
   if (TOOL_KIND[tool]) {
     const kind = TOOL_KIND[tool];
+    if (tool === 'radio' && wall[i] === K.RADIO) return startBroadcast(true);                // click the tower again to call again
     if (wall[i] === kind) return;
     if (wall[i] && !(wall[i] === K.WALL && kind === K.TOWER)) return;                 // only wall -> tower upgrades
     if (trapAt[i]) return;
     if (tool === 'radio') {
       if (G.level < RADIO_LEVEL) return warn('The radio tower needs camp level ' + RADIO_LEVEL);
-      if (G.rescue !== null) return warn('The radio is already broadcasting');
       if (!claimed[i]) return warn('Build the radio inside your territory');
     }
     if (tool === 'outpost') {
@@ -1105,9 +1145,7 @@ function tryBuild(tx, ty) {
     G.fieldDirty = true; G.visT = 0; Snd.build();
     if (G.nfT <= 0) { G.nfT = 0.4; investigate(tx + 0.5, ty + 0.5, NOISE.build, false); if (rings.length < 24) rings.push({ x: tx + 0.5, y: ty + 0.5, r: NOISE.build, t: 0, max: 0.6 }); }   // hammering is noisy
     if (tool === 'radio') {
-      G.rescue = RESCUE_TIME; G.rescueKind = 'heli'; G.nextHorde = Math.min(G.nextHorde, 10);
-      log('The radio is broadcasting! Hold out for ' + fmtTime(RESCUE_TIME) + ' until the helicopter arrives.');
-      Snd.horn();
+      startBroadcast(false);
     }
   } else if (FACILITIES[tool]) {
     Base.place(tool, tx, ty);

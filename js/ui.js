@@ -27,7 +27,7 @@ const TOOLS = [
   { cat: 'People', id: 'crew',    key: '8', label: 'Send crew',     cost: () => ({ a: CREW.ammoCost }), tip: 'Click a scouted building or nest. Risky but pays more.' },
   { cat: 'People', id: 'erase',   key: '9', label: 'Demolish',      cost: () => ({}),               tip: 'Refunds half. Also unposts survivors.' },
   { cat: 'Camp', id: 'siren', key: '', label: 'Sound the siren', cost: () => HEAT.siren, tip: 'Deliberately draw a real horde to the camp. Click the camp core. Rare, big, and the only way besides noise to get one.' },
-  { cat: 'Camp', id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for rescue. Camp level ' + RADIO_LEVEL + '. Then hold out!', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
+  { cat: 'Camp', id: 'radio',   key: 'B', label: 'Radio tower',   cost: () => COST.radio,         tip: 'Call for supply drops: a pallet of food and supplies lands in the camp every ' + BROADCAST.gap + 's for ' + fmtTime(BROADCAST.time) + ', but the noise draws the dead. Camp level ' + RADIO_LEVEL + '. Click the tower again to call again after it cools.', hidden: () => G.level < RADIO_LEVEL && G.rescue === null },
 ];
 const costStr = c => [c.m && c.m + 'm', c.f && c.f + 'f', c.a && c.a + 'a', c.med && c.med + 'med', c.fuel && c.fuel + 'fuel'].filter(Boolean).join(' ');
 const fmtRate = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '/s';
@@ -56,6 +56,7 @@ const UI = (() => {
     $('btnFallen').addEventListener('click', toggleMemorial);
     $('btnRules').addEventListener('click', toggleRules);
     $('btnWork').addEventListener('click', toggleWork);
+    $('btnSecure').addEventListener('click', toggleSecure);
     $('btnMap').addEventListener('click', toggleMap);
     $('btnTruck').addEventListener('click', () => Base.buildTruck());
     const cs = $('craftSeg');
@@ -109,7 +110,7 @@ const UI = (() => {
     else if (G.herdMsg) { hd.className = 'panel alert'; hd.textContent = G.herdMsg; }
     else { hd.className = 'panel'; hd.textContent = G.lookouts.length ? 'Lookouts watching - no horde sighted' : 'No lookouts - you will get almost no warning'; }
     const rs = $('rescue');
-    if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = (G.rescueKind === 'convoy' ? 'Convoy arrives in ' : 'Helicopter extraction in ') + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
+    if (G.rescue !== null) { rs.style.display = 'block'; rs.textContent = G.rescueKind === 'convoy' ? 'Convoy arrives in ' + fmtTime(Math.max(0, G.rescue)) : 'Broadcasting for supplies: next drop in ' + fmtTime(Math.max(0, G.dropT)) + ' - ends in ' + fmtTime(Math.max(0, G.rescue)); } else rs.style.display = 'none';
 
     document.querySelectorAll('[data-tool]').forEach(b => {
       const t = TOOLS.find(x => x.id === b.dataset.tool), c = t.cost();
@@ -148,6 +149,8 @@ const UI = (() => {
     const nr = Object.keys(G.rules).length; $('cRules').textContent = nr ? nr + ' active' : G.ruleCd > 0 ? Math.ceil(G.ruleCd) + 's' : 'none';
     renderPeople(); renderCrews(); renderLog(); renderTrade(); renderRadio(); renderCmd();
     if ($('work').classList.contains('show')) renderWork();
+    if ($('secure').classList.contains('show')) renderSecure();
+    { const a = G.assess || []; $('cSecure').textContent = G.secured ? 'SECURED' : a.length ? a.filter(c => c.ok).length + '/' + a.length : ''; }
     if ($('rules').classList.contains('show')) renderRules();
     if ($('research').classList.contains('show')) renderResearch();
   }
@@ -339,6 +342,7 @@ const UI = (() => {
   function showMenu(mode) {
     menuMode = mode;
     const c = $('card'), ov = $('overlay');
+    ov.classList.toggle('title', mode === 'title'); if (mode === 'title') TitleFx.start($('fxc')); else TitleFx.stop();
     const diff = (localStorage.getItem('zomb-diff') || 'normal');
     const story = localStorage.getItem('zomb-story') || 'cassandra';
     const storyBtns = '<div class="seg" id="storySeg">' + Object.keys(STORYTELLERS).map(k => '<button data-story="' + k + '" class="' + (k === story ? 'on' : '') + '">' + STORYTELLERS[k].label + '</button>').join('') + '</div>' +
@@ -350,20 +354,20 @@ const UI = (() => {
       '<div style="margin-top:10px"><button id="mFull" style="display:inline-flex">Toggle fullscreen (F)</button></div>';
     let h = '';
     if (mode === 'title') {
-      h = '<h1>ZOMB SURVIVE</h1><div class="sub">Hold out. Build up. Get rescued.</div>' +
-        '<p>You are the last one left at a ruined camp. The town is full of the dead, and there is no night to warn you when a horde is coming. Every survivor is a named specialist, but people can be replaced: the camp is what matters. Lose it and the run is over.</p>' +
+      h = '<h1>ZOMB SURVIVE</h1><div class="sub">Hold out. Build up. Make it last.</div>' +
+        '<p>You are the last one left at a ruined camp. The town is full of the dead, and they never stop coming: a steady trickle that thickens with every hour. A real horde only comes when you make enough noise, or ask for one. Every survivor is a named specialist, but people can be replaced: the camp is what matters. Lose it and the run is over.</p>' +
         '<ul><li><b>Scavenge</b> (hold E), <b>scout</b> the fog and <b>send crews</b> for supplies. Some buildings hide survivors.</li>' +
         '<li><b>Fortify</b> with walls, towers, gates and traps. Zombies never break walls: they pile up and climb, so kill them as they climb.</li>' +
-        '<li><b>Build lookouts</b> to see hordes coming. Without them you only get a faint rumble.</li>' +
+        '<li><b>Build lookouts</b> to see what is coming. <b>Noise</b> (generators, floodlights, workshops, breaching, decoys) fills a meter that draws a horde, so choose what you run.</li>' +
         '<li><b>Recruit</b> survivors with roles: fighters, snipers, medics, builders, scavengers.</li>' +
-        '<li><b>Research</b> upgrades, <b>trade</b>, and weather events. At camp level ' + RADIO_LEVEL + ' build the <b>radio tower</b> and survive ' + fmtTime(RESCUE_TIME) + ' until the helicopter arrives.</li></ul>' +
+        '<li><b>Research</b> upgrades, <b>trade</b>, and weather events. Grow food and mine materials, make your own ammo on clean power, keep the walls whole and manned: when a town can look after itself it is <b>secured</b>. Secure ' + WIN_TOWNS + ' towns to win. A <b>radio tower</b> calls in supply drops when you need a push.</li></ul>' +
         '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + vol +
         '<div id="menuBtns">' + (Save.exists() ? '<button id="mContinue">Continue</button>' : '') + '<button id="mNew" class="' + (Save.exists() ? 'alt' : '') + '">New game</button></div>';
     } else if (mode === 'pause') {
       h = '<h1>Paused</h1><div class="sub">Survived ' + fmtTime(G.elapsed) + ' · ' + G.hordesBeaten + ' hordes beaten</div>' + vol +
         '<div id="menuBtns"><button id="mResume">Resume</button><button id="mMem" class="alt">Memorial (' + G.memorial.length + ')</button><button id="mSave" class="alt">Save game</button><button id="mQuit" class="alt">Abandon run</button></div>';
     } else {
-      h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? (G.rescueKind === 'convoy' ? 'The convoy carries your people to the safe zone.' : 'The helicopter lifts you out of the dead town.') : 'The dead take the town.') + '</div>' +
+      h = '<h1>' + G.endWhy + '</h1><div class="sub">' + (G.won ? 'Your towns stand on their own. The dead no longer decide anything.' : 'The dead take the town.') + '</div>' +
         '<p>You lasted <b>' + fmtTime(G.elapsed) + '</b>, beat <b>' + G.hordesBeaten + '</b> horde' + (G.hordesBeaten === 1 ? '' : 's') + ', killed <b>' + G.kills + '</b> zombies, reached camp level <b>' + G.level + '</b>, and lost your own survivor <b>' + G.deaths + '</b> time' + (G.deaths === 1 ? '' : 's') + '.</p>' +
         '<h4 style="margin-top:12px">The fallen</h4><div style="max-height:30vh;overflow:auto">' + memorialHtml(8) + '</div>' +
         '<div>Difficulty</div>' + diffBtns + '<div style="margin-top:8px">Storyteller</div>' + storyBtns + '<div id="menuBtns"><button id="mNew">New game</button></div>';
@@ -390,7 +394,7 @@ const UI = (() => {
     on('mSave', () => { toast(Save.save() ? 'Game saved' : 'Could not save'); });
     on('mQuit', () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } showMenu('title'); });
   }
-  function hideMenu() { menuMode = null; $('overlay').classList.add('hidden'); }
+  function hideMenu() { menuMode = null; $('overlay').classList.add('hidden'); TitleFx.stop(); }
   function showEnd() { showMenu('end'); }
 
   // ---- input (pointer events: mouse, touch and pen share one path) -----------------------------------------------
@@ -470,6 +474,18 @@ const UI = (() => {
     el.innerHTML = '<b>' + n + ' selected</b> · ' + names.slice(0, 4).join(', ') + (names.length > 4 ? ' +' + (names.length - 4) : '') + '<br><span style="color:var(--dim)">Right-click: ground to move · wall to man it · building to scavenge</span> <button id="cbDown">Stand down (X)</button><button id="cbWork">Work (K)</button><button id="cbClr">Deselect</button>';
     $('cbDown').onclick = () => { Units.standDownSelected(); lastPeople = ''; };
     $('cbWork').onclick = toggleWork; $('cbClr').onclick = () => { clearSel(); lastPeople = ''; };
+  }
+  let lastSecure = '';
+  function toggleSecure() { const el = $('secure'); el.classList.toggle('show'); lastSecure = ''; if (el.classList.contains('show')) renderSecure(); Snd.click(); }
+  function renderSecure() {
+    const a = G.assess || Survival.assess(), key = a.map(c => c.ok + c.text).join('|') + (G.safeT | 0) + G.secured + Campaign.towns.length;
+    if (key === lastSecure) return; lastSecure = key;
+    const n = Campaign.towns.filter(t => t.status === 'alive' && (t === Campaign.active ? G.secured : t.G.secured)).length;
+    let h = '<div class="row"><h3>Sustainability</h3><button id="scClose" style="padding:2px 8px">Close (Y)</button></div><div style="color:var(--dim);margin-bottom:6px">A town is <b>secured</b> when every line below holds for ' + fmtTime(SECURE.time) + ' straight: it feeds, arms and defends itself. Then it is safe to move on to the next town. Secure ' + WIN_TOWNS + ' towns to win (' + n + ' secured so far).</div>';
+    for (const c of a) h += '<div class="tech"><div><b style="color:' + (c.ok ? '#7fe08a' : '#e8827a') + '">' + (c.ok ? '✔ ' : '✘ ') + '</b>' + c.text + '</div></div>';
+    h += '<div style="margin-top:8px">' + (G.secured ? '<b style="color:#7fe08a">' + G.townName + ' is SECURED.</b>' : 'Steady for ' + fmtTime(G.safeT) + ' of ' + fmtTime(SECURE.time)) + '</div><div class="bar"><i style="width:' + Math.min(100, G.safeT / SECURE.time * 100) + '%"></i></div>' +
+      '<div style="color:var(--dim);margin-top:6px"><small>Build: Gardens (food), Wells / Rain collectors (water), Mines (materials), Solar arrays + a Workshop (ammo and weapons without fuel), keep the walls repaired and the garrison full.</small></div>';
+    el.innerHTML = h; $('scClose').onclick = toggleSecure;
   }
   let lastWork = '';
   function toggleWork() { const el = $('work'); el.classList.toggle('show'); lastWork = ''; if (el.classList.contains('show')) renderWork(); Snd.click(); }
@@ -576,6 +592,7 @@ const UI = (() => {
       else if (k === 'u') upgradeCore();
       else if (k === 'x') { Units.standDownSelected(); lastPeople = ''; }
       else if (k === 'k') toggleWork();
+      else if (k === 'y') toggleSecure();
       else if (k === 'r') toggleResearch();
       else if (k === 'g') toggleMemorial();
       else if (k === 'p') toggleRules();

@@ -76,6 +76,7 @@ const Campaign = {
       { ok: has('expedition'), text: 'Research Expedition Planning' },
       { ok: !!this.truck, text: 'A truck (Garage bay, then build it)' },
       { ok: canAfford(FOUND.cost), text: 'Supplies: ' + costStr(FOUND.cost) },
+      { ok: G.secured, text: 'This town is secured (sustainable and safe: press Y)' },
       { ok: healthy >= FOUND.minPeople, text: FOUND.minPeople + '+ healthy idle survivors (' + healthy + ')' },
     ];
   },
@@ -130,6 +131,10 @@ const Campaign = {
     this.notify(msg, hit);
   },
 
+  checkWin() {
+    const n = this.towns.filter(t => t.status === 'alive' && (t === this.active ? G.secured : t.G.secured)).length;
+    if (n >= WIN_TOWNS && !G.over) endGame(true, 'Safe zone established');
+  },
   // ---- per-frame ---------------------------------------------------------------
   update(dt) {
     this.t += dt;
@@ -200,7 +205,7 @@ const Bg = {
   tick(t, dt) {
     const g = t.G, L = t.lists;
     g.elapsed += dt;
-    this.economy(t, dt); this.crews(t, dt); this.morale(t, dt); this.nests(t, dt);
+    this.economy(t, dt); this.siege(t, dt); this.crews(t, dt); this.morale(t, dt); this.nests(t, dt);
     if (t.pending) {
       t.pending.eta -= dt;
       if (t.pending.eta <= 0) { const pd = t.pending; t.pending = null; this.resolve(t, pd); }
@@ -215,7 +220,7 @@ const Bg = {
     const g = t.G, D = DIFFICULTY[Campaign.diff], st = STORYTELLERS[Campaign.story] || STORYTELLERS.cassandra;
     const n = ++g.hordeN;
     const sMul = Campaign.story === 'randy' ? 0.6 + rng() * 1.1 : st.size * clamp(0.9 + this.strength(t) / 90, 0.9, st.adapt);
-    const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * g.elapsed / 60) * (0.9 + rng() * 0.2) * D.size * sMul * (1 + NEST.hordeBonus * g.nests.length)));
+    const size = Math.max(6, Math.round(HORDE.base * Math.pow(HORDE.growth, n - 1) * (1 + 0.035 * townMins(g)) * (0.9 + rng() * 0.2) * D.size * sMul * (1 + NEST.hordeBonus * g.nests.length)));
     const gapMul = Campaign.story === 'randy' ? 0.4 + rng() * 1.8 : st.gap;
     g.raidT = (900 + rng() * 900) * D.gap * (gapMul || 1);
     t.pending = { size, n, eta: BG.eta, boss: n % BOSS_EVERY === 0 ? (n >= 10 ? 2 : 1) : 0 };
@@ -272,10 +277,11 @@ const Bg = {
     g.food = Math.min(cap, g.food + 0.35 * S.garden * this.fac(t, 'garden') * dt);
     g.water = Math.min(cap, g.water + (WATER.well * this.fac(t, 'well') + WATER.rain * S.rain * this.fac(t, 'rain')) * dt);
     g.med = Math.min(cap, g.med + 0.04 * this.fac(t, 'clinic') * dt);
+    g.mat = Math.min(cap, g.mat + SECURE.mine * this.fac(t, 'mine') * dt);
     let elec = 0; for (let i = 0; i < W * H; i++) if (t.mem.elec[i] && t.mem.wall[i]) elec++;
     const demand = lights * POWER.flood + shops * POWER.shop + turrets * POWER.turret + elec * POWER.elec;
-    const powered = gens > 0 && g.fuel > 0;
-    if (powered && demand > 0) g.fuel = Math.max(0, g.fuel - gens * POWER.fuelBurn * S.fuel * Math.min(1, demand / (gens * POWER.gen)) * dt);
+    const solarCap = this.fac(t, 'solar') * POWER.solar, powered = (gens > 0 && g.fuel > 0) || solarCap >= demand && demand > 0;
+    if (gens > 0 && g.fuel > 0 && demand > solarCap) g.fuel = Math.max(0, g.fuel - gens * POWER.fuelBurn * S.fuel * Math.min(1, (demand - solarCap) / (gens * POWER.gen)) * dt);
     if (powered && shops) {                               // workshops keep crafting while powered
       const R = RECIPES[g.craft] || RECIPES.ammo; t.shopT += dt * shops;
       while (t.shopT >= R.time) {
@@ -295,6 +301,19 @@ const Bg = {
     }
     // the core repairs slowly
     if (g.coreHp < LEVELS[g.level - 1].coreHp) g.coreHp = Math.min(LEVELS[g.level - 1].coreHp, g.coreHp + 6 * dt * 0.5);
+  },
+  siege(t, dt) {                                          // the trickle still walks at a town you are not in
+    const g = t.G, L = t.lists, press = pressureRate(g);
+    const powered = this.fac(t, 'generator') > 0 && g.fuel > 0 || this.fac(t, 'solar') > 0;
+    let cap = L.defenders.length * 0.14 + (powered ? this.fac(t, 'turret') * 0.3 : 0);
+    if (g.ammo < 5) cap *= 0.5;
+    const handled = Math.min(press, cap), leak = Math.max(0, press - cap);
+    g.mat = Math.min(this.cap(t), g.mat + handled * SALVAGE.m * dt); g.ammo = Math.max(0, Math.min(this.cap(t), g.ammo + handled * (SALVAGE.a - 0.3) * dt));
+    if (leak) {
+      g.coreHp -= leak * 6 * dt;
+      const w = t.mem.wallHp; for (let i = 0; i < W * H; i++) if (t.mem.wall[i]) w[i] = Math.max(1, w[i] - leak * 0.25 * dt);
+      if (g.coreHp <= 0) this.fall(t, 'was worn down by the endless dead');
+    }
   },
   crews(t, dt) {
     const g = t.G;

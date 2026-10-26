@@ -183,6 +183,8 @@ const Units = (() => {
     if (w.loot && G.nextHorde > 80 && G.crews.length < 2 && G.ammo >= CREW.ammoCost + 15 && s.hpNow === undefined) {
       const b = pickLoot(); if (b) { sendCrew(b, [s]); return; }
     }
+    const drop = crates.find(c => c.type === 'airdrop');
+    if (drop && !G.idle.some(o => { const b = U.get(o.id); return b && b.order && b.order.drop; })) { orderMove(u, drop.x, drop.y, false); u.order.drop = true; return; }      // someone fetches the supply drop
     if (rng() < 0.5) {                                   // mill about the camp
       const [hx, hy] = home(); orderMove(u, hx + (rng() - 0.5) * 6.5, hy + rng() * 2.2, false); u.order.slow = true;
     }
@@ -355,5 +357,6 @@ const Units = (() => {
     return 'idle';
   }
   const pendingTiles = () => pending();
-  return { pendingTiles, of, get: s => U.get(s.id), busy, free: free_, post, standDown, standDownSelected, orderAt, selected, update, updateCrews, all, at, playerOrder, route, heading, workOf, statusOf, alarm, cancel };
+  const near = (x, y, r) => all().some(u => Math.hypot(u.px - x, u.py - y) < r);
+  return { near, pendingTiles, of, get: s => U.get(s.id), busy, free: free_, post, standDown, standDownSelected, orderAt, selected, update, updateCrews, all, at, playerOrder, route, heading, workOf, statusOf, alarm, cancel };
 })();

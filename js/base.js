@@ -47,12 +47,14 @@ const Base = {
     const lights = facilities.filter(f => f.type === 'floodlight'), turrets = facilities.filter(f => f.type === 'turret'), batts = facilities.filter(f => f.type === 'battery');
     G.elecT = (G.elecT || 0) - dt;
     if (G.elecT <= 0) { G.elecT = 1; let n = 0; for (let i = 0; i < W * H; i++) if (elec[i] && wall[i]) n++; G.elecCount = n; }
+    const solarCap = facilities.filter(f => f.type === 'solar').length * POWER.solar;
     const demand = lights.length * POWER.flood + shops.length * POWER.shop + turrets.length * POWER.turret + (G.elecCount || 0) * POWER.elec;
     const fuelOk = G.fuel > 0 && gens.length > 0, battMax = batts.length * POWER.battCap;
     const cap = fuelOk ? gens.length * POWER.gen : 0;
     const wantFull = battMax > 0 && G.batt < battMax && fuelOk;
-    const burnFrac = fuelOk ? (wantFull ? 1 : demand > 0 ? Math.min(1, demand / cap) : 0) : 0;
-    const produced = cap * burnFrac;
+    const net = Math.max(0, demand - solarCap);                 // solar covers what it can; generators burn fuel only for the rest
+    const burnFrac = fuelOk ? (wantFull ? 1 : net > 0 ? Math.min(1, net / cap) : 0) : 0;
+    const produced = cap * burnFrac + solarCap;
     let discharge = 0;
     if (produced >= demand) G.batt = Math.min(battMax, G.batt + (produced - demand) * dt);
     else if (G.batt > 0) { discharge = Math.min(demand - produced, POWER.battOut * batts.length, G.batt / Math.max(dt, 1e-3)); G.batt = Math.max(0, G.batt - discharge * dt); }
@@ -60,7 +62,7 @@ const Base = {
     const ratio = demand <= 0 ? 1 : Math.min(1, (produced + discharge) / demand);
     const burn = gens.length * POWER.fuelBurn * S.fuel * burnFrac;
     G.fuel = Math.max(0, G.fuel - burn * dt);
-    G.power = { supply: cap, demand, ratio: demand > 0 ? ratio : (gens.length ? 1 : 0), burn, batt: G.batt, battMax };
+    G.power = { solar: solarCap, supply: cap + solarCap, demand, ratio: demand > 0 ? ratio : (gens.length ? 1 : 0), burn, batt: G.batt, battMax };
     for (const f of lights) f.on = ratio > 0 && demand > 0;
     for (const f of gens) {
       f.on = burn > 0; f.t -= dt;
@@ -74,6 +76,8 @@ const Base = {
     for (const f of facilities) {
       switch (f.type) {
         case 'garden': G.food = Math.min(store, G.food + 0.35 * S.garden * (G.storm > 0 ? 0.5 : 1) * dt); break;
+        case 'mine': G.mat = Math.min(store, G.mat + SECURE.mine * dt); break;
+        case 'solar': break;
         case 'well': G.water = Math.min(store, G.water + WATER.well * dt); break;
         case 'rain': G.water = Math.min(store, G.water + WATER.rain * S.rain * rain * dt); break;
         case 'clinic': G.med = Math.min(store, G.med + 0.04 * dt); break;

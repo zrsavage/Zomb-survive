@@ -68,6 +68,8 @@ const AI = (() => {
   }
   function chooseJob() {
     if (hordeOn()) { const [hx, hy] = home(); return startJob('guard', { gx: hx, gy: hy }); }
+    const cr = crates.filter(c => c.type !== 'survivor' && Math.hypot(c.x - P.px, c.y - P.py) < 40).sort((a, b) => Math.hypot(a.x - P.px, a.y - P.py) - Math.hypot(b.x - P.px, b.y - P.py))[0];
+    if (cr && cr.type === 'airdrop' && zNear(cr.x, cr.y, 5) < 6) return startJob('scout', { gx: cr.x, gy: cr.y });
     if (A.want) { const w = A.want; A.want = null; return startJob('build', { gx: w[0], gy: w[1] }); }
     const lowSupplies = G.mat < 260 || G.food < 90 || G.ammo < 100 || G.water < 70 || G.fuel < 15 || G.med < 6 || !G.sealed || G.idle.length < 3;
     if (lowSupplies || rng() < 0.3) {
@@ -167,7 +169,7 @@ const AI = (() => {
   const spend = () => buildMul();
   function freeSpots() {
     const out = [];
-    for (let y = CORE.y - 6; y <= CORE.y + 6; y++) for (let x = CORE.x - 6; x <= CORE.x + 6; x++) {
+    for (let y = CORE.y - 10; y <= CORE.y + 10; y++) for (let x = CORE.x - 10; x <= CORE.x + 10; x++) {
       const i = y * W + x;
       if (inb(x, y) && claimed[i] && !wall[i] && bld[i] < 0 && !facAt[i] && !trapAt[i] && !isCoreTile(x, y) && Math.hypot(x - CORE.x, y - CORE.y) > 3.5) out.push([x, y]);
     }
@@ -232,8 +234,15 @@ const AI = (() => {
       const next = order.find(id => !G.res.done[id]);
       if (next) { const r0 = RESEARCH.find(x => x.id === next); if (canAfford(r0.cost) && G.mat > r0.cost.m + 50 + (saving ? L.up.m : 0)) startResearch(next); }
     }
-    if (sealed) { const gm = 1 + Math.floor(people() / 6), wm = 1 + Math.floor(people() / 12); if (buildFacility('well', wm) || buildFacility('latrine', 1) || buildFacility('garden', gm)) { /* one at a time */ } }                 // water, hygiene and food are never optional
-    if (sealed && G.level >= 2 && (!saving || G.mat > L.up.m * 0.6)) for (const t of ['generator', 'workshop']) if (buildFacility(t)) break;
+    // a town that can look after itself: water, hygiene and food first, then mines, solar power and a workshop
+    if (sealed) {
+      const ppl = people(), avgG = SEASONS.reduce((a, q) => a + q.garden, 0) / SEASONS.length, avgUp = SEASONS.reduce((a, q) => a + q.upkeep, 0) / SEASONS.length;
+      const needGardens = Math.ceil(0.05 * ppl * avgUp * 1.35 / (0.35 * avgG)), needWells = Math.max(1, Math.ceil(0.03 * ppl * 1.3 / WATER.well));
+      if (buildFacility('well', needWells) || buildFacility('latrine', 1) || buildFacility('garden', Math.max(1, needGardens))) { /* one at a time */ }
+      else if (G.level >= 2 && (!saving || G.mat > L.up.m * 0.5)) {
+        if (buildFacility('mine', 1) || buildFacility('solar', Math.min(3, 1 + Math.floor(defenders.length / 12))) || buildFacility('workshop', 1)) { /* one at a time */ }
+      }
+    }
     if (G.lookouts.length < 2 && G.mat > 110 && sealed && (!saving || G.lookouts.length < 1)) { const dx = G.lookouts.length ? 1 : -1; place('lookout', CORE.x + dx * (r + 4), CORE.y + 2); }
     // burn out nests when there is fuel
     if (G.nests.length && G.fuel >= 1 && !A.job?.b) {
@@ -246,16 +255,33 @@ const AI = (() => {
       const cand = buildings.filter(b => !b.looted && !b.crew && !b.nest && !b.locked && explored[((b.y + (b.h >> 1)) | 0) * W + ((b.x + (b.w >> 1)) | 0)]).sort((a, b) => Math.hypot(a.x - CORE.x, a.y - CORE.y) - Math.hypot(b.x - CORE.x, b.y - CORE.y))[0];
       if (cand) { G.sel = [hc[0].id, hc[1].id]; G.tool = 'crew'; sendCrew(cand); }
     }
-    // the way out: call for rescue once the camp is strong enough to survive the final stand
-    if (G.level >= RADIO_LEVEL && G.rescue === null && sealed && defenders.length >= 14 && G.ammo >= COST.radio.a + 120 && canAfford(COST.radio) && G.mat > COST.radio.m + 80) {
-      const spots = freeSpots();
-      for (const [x, y] of spots.slice(0, 20)) { if (!inBuildRange(x, y)) continue; G.tool = 'radio'; tryBuild(x, y); if (G.rescue !== null) break; }
+    // a call for supplies: build the radio once there is slack, and call again when the camp runs thin
+    const radioUp = wall.includes(K.RADIO);
+    if (G.level >= RADIO_LEVEL && !radioUp && sealed && defenders.length >= 8 && canAfford(COST.radio) && G.mat > COST.radio.m + 60) {
+      for (const [x, y] of freeSpots().slice(0, 30)) { if (!inBuildRange(x, y)) continue; G.tool = 'radio'; tryBuild(x, y); if (wall.includes(K.RADIO)) break; }
+    } else if (radioUp && G.rescue === null && G.supCd <= 0 && (G.food < 160 || G.ammo < 160 || G.mat < 200) && canAfford(BROADCAST.again)) {
+      const i = wall.indexOf(K.RADIO), x = i % W, y = (i / W) | 0;
+      if (inBuildRange(x, y)) { G.tool = 'radio'; tryBuild(x, y); }
+      else if (!A.want) A.want = [x + (CORE.x - x) * 0.4, y + (CORE.y - y) * 0.4];
     }
+    // once this town can stand alone, move on: garage, truck, expedition research, then found the next town
+    if (G.secured && Campaign.towns.length < WIN_TOWNS && Campaign.towns.length < MAX_TOWNS) expand();
     // the trader: spend spare materials on whatever the camp is short of
     if (G.trader) for (let k = 0; k < 4; k++) {
       if (G.food < 70 && G.mat >= 40) doTrade(1);
       else if (G.ammo < 70 && G.mat >= 40) doTrade(0);
       else break;
+    }
+  }
+  function expand() {
+    if (!has('expedition') && !G.res.active && canAfford(RESEARCH.find(x => x.id === 'expedition').cost)) startResearch('expedition');
+    buildFacility('garagebay', 1);
+    if (facilities.some(f => f.type === 'garagebay') && !Campaign.truck && G.truckT <= 0 && canAfford(TRUCK.cost)) Base.buildTruck();
+    // keep a few people back from the walls to send with the founders
+    const idle = Units.free().length;
+    if (Campaign.truck && has('expedition') && canAfford(FOUND.cost) && idle < FOUND.minPeople + 1 && defenders.length > 10) { const d = defenders.find(x => x.auto !== true); if (d) Units.standDown(d); }
+    if (Campaign.truck && has('expedition') && Campaign.foundReqs().every(x => x.ok)) {
+      A.log.push('found at ' + (G.elapsed | 0)); G.sel = G.idle.filter(x => !x.sick).slice(0, 4).map(x => x.id); Campaign.found();
     }
   }
   function radio() {
@@ -267,6 +293,7 @@ const AI = (() => {
 
   A.update = function (dt) {
     if (!A.on || !G || G.over) return;
+    if (A.curG !== G) { A.curG = G; A.job = null; A.goal = -1; A.want = null; A.ban.clear(); stop(); }
     if (G.radioMsg) radio();
     A.planT -= dt;
     if (A.planT <= 0) { A.planT = 1.5; try { plan(); } catch (e) { A.err = String(e.stack || e).split('\n').slice(0, 3).join(' | '); } }

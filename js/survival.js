@@ -60,7 +60,7 @@ const Survival = {
     }
     const lat = facilities.filter(f => f.type === 'latrine').length;
     G.hygiene = clamp(G.hygiene + (lat * HYGIENE.latrine - HYGIENE.decay * ppl) * dt, 0, 100);
-    G.incT -= dt; if (G.incT <= 0) { G.incT = 3; this.refreshIncome(); this.warnSupply(); }
+    G.incT -= dt; if (G.incT <= 0) { G.incT = 3; this.refreshIncome(); this.warnSupply(); this.secureTick(); }
     const idx = Math.floor(gameTime() / SEASON_LEN) % SEASONS.length;
     if (idx !== G.seasonIdx) {
       if (G.seasonIdx !== undefined) log('The season turns to ' + SEASONS[idx].name.toLowerCase() + (SEASONS[idx].snow ? '. Food and fuel run short in the cold; gardens stop growing.' : '.'));
@@ -82,6 +82,39 @@ const Survival = {
     if (s.sealed) { warn('Already sealed'); return true; }
     const cost = effCost('grate'); if (!canAfford(cost)) { warn('A grate needs ' + cost.m + ' materials'); return true; }
     pay(cost); s.sealed = true; s.found = true; Snd.build(); log('Sewer sealed.'); return true;
+  },
+  // ---- sustainability: can this town look after itself? --------------------------------------------
+  assess() {
+    const avg = k => SEASONS.reduce((a, q) => a + q[k], 0) / SEASONS.length, ppl = people(), fac = t => facilities.filter(f => f.type === t).length;      // judged over the whole year, not just this season
+    const upkeep = 0.05 * allPeople().reduce((m, s) => m + tmul(s, 'eat'), 0) * ruleMul('upkeep') * avg('upkeep');
+    const foodMake = 0.35 * avg('garden') * fac('garden'), waterUse = WATER.use * ppl * avg('water'), waterMake = WATER.well * fac('well') + WATER.rain * avg('rain') * fac('rain');
+    const matMake = SECURE.mine * fac('mine'), solar = (G.power && G.power.solar) || 0, demand = (G.power && G.power.demand) || 0;
+    const shopOn = facilities.some(f => f.type === 'workshop' && f.on);
+    let wsum = 0, wn = 0;
+    for (let i = 0; i < W * H; i++) if (wall[i] && wall[i] !== K.RADIO && N4.some(([dx, dy]) => inb((i % W) + dx, ((i / W) | 0) + dy) && claimed[((i / W | 0) + dy) * W + (i % W) + dx])) { wsum += wallHp[i] / maxHp(wall[i], i); wn++; }
+    const wallAvg = wn ? wsum / wn : 0, L = LEVELS[G.level - 1], need = Math.max(6, Math.round(L.defs * SECURE.garrison));
+    const f2 = v => v.toFixed(2);
+    return [
+      { id: 'food', ok: foodMake >= upkeep && G.food >= 30, text: 'Food: farms grow ' + f2(foodMake) + '/s, people eat ' + f2(upkeep) + '/s' },
+      { id: 'water', ok: waterMake >= waterUse && G.water >= 30, text: 'Water: wells and rain give ' + f2(waterMake) + '/s, people drink ' + f2(waterUse) + '/s' },
+      { id: 'mat', ok: matMake >= SECURE.matMin && G.mat >= 60, text: 'Raw materials: mines dig ' + f2(matMake) + '/s (need ' + SECURE.matMin + ')' },
+      { id: 'power', ok: shopOn && solar >= demand && demand > 0, text: 'Weapons: a workshop running on solar power (' + f2(solar) + ' of ' + f2(demand) + ' power)' },
+      { id: 'ammo', ok: G.ammo >= SECURE.ammoMin, text: 'Ammunition in stock: ' + (G.ammo | 0) + ' / ' + SECURE.ammoMin },
+      { id: 'walls', ok: G.sealed && wallAvg >= SECURE.wallMin && G.coreHp >= L.coreHp * 0.9, text: 'Walls: sealed, ' + Math.round(wallAvg * 100) + '% intact (need ' + SECURE.wallMin * 100 + '%), core at ' + Math.round(G.coreHp / L.coreHp * 100) + '%' },
+      { id: 'garrison', ok: defenders.length >= need, text: 'Garrison: ' + defenders.length + ' on the walls (need ' + need + ')' },
+      { id: 'calm', ok: G.elapsed - G.coreHurtAt > SECURE.calmFor && G.morale >= 50 && G.hygiene >= HYGIENE.low, text: 'Calm: core untouched for ' + SECURE.calmFor + 's, morale 50+, clean camp' },
+    ];
+  },
+  secureTick() {
+    G.assess = this.assess();
+    const all = G.assess.every(c => c.ok);
+    if (all) G.safeT += 3; else G.safeT = Math.max(0, G.safeT - 6);
+    if (!G.secured && G.safeT >= SECURE.time) {
+      G.secured = true; moraleGain('upgrade'); Snd.upgrade();
+      log(G.townName + ' is SECURED: it feeds, arms and defends itself. It is safe to move on.');
+      Campaign.notify(G.townName + ' is secured. ' + Campaign.towns.filter(t => t === Campaign.active ? G.secured : t.G.secured).length + ' of ' + WIN_TOWNS + ' towns secured.', false);
+      Campaign.checkWin();
+    }
   },
   sewerShare() { const w = waveNow(); return w >= SEWER.from ? Math.min(SEWER.max, SEWER.base + SEWER.per * (w - SEWER.from)) : 0; },
 };

@@ -607,6 +607,14 @@ Art.drawFacility2 = function (g, f, t) {
     R('#2a3a2a', px + 2, py + 4, 12, 11); R('#4a5a3a', px + 2, py + 4, 12, 2); R('#c8c020', px + 5, py + 2, 6, 2);
     const fr = Math.max(0, Math.min(1, (G.power.battMax ? G.batt / G.power.battMax : 0)));
     for (let q = 0; q < 3; q++) R(fr > q / 3 + 0.05 ? '#7dff8c' : '#2a4a2a', px + 4, py + 7 + q * 2.5, 8, 1.5);
+  } else if (f.type === 'mine') {
+    R('#3a3228', px + 1, py + 6, 14, 9); R('#2a2218', px + 3, py + 8, 10, 6); R('#6a5a44', px + 1, py + 6, 14, 1); R('#8a7a60', px + 2, py + 7, 3, 2);
+    R('#5a4228', px + 11, py + 3, 1, 8); R('#5a4228', px + 8, py + 3, 6, 1); R('#9aa0aa', px + 7, py + 2, 3, 1);
+    R('#7a6a54', px + 5, py + 11, 5, 3); R('#4a3a28', px + 5, py + 13, 5, 1); R('#c8a040', px + 6, py + 11, 2, 1);
+  } else if (f.type === 'solar') {
+    R('#2a2c30', px + 7, py + 11, 2, 4); R('#1c2a4a', px + 1, py + 3, 14, 9); R('#2f4f8a', px + 2, py + 4, 12, 7);
+    for (let q = 0; q < 3; q++) { R('#4a74b8', px + 2 + q * 4, py + 4, 3, 3); R('#4a74b8', px + 2 + q * 4, py + 8, 3, 3); }
+    R('#9ad0ff', px + 3, py + 4, 1, 1); R('#9ad0ff', px + 11, py + 8, 1, 1); R('#8a94a8', px + 1, py + 3, 14, 1);
   } else if (f.type === 'garagebay') {
     R('#5a5c60', px, py + 2, T, 13); R('#e8c020', px, py + 3, T, 1); R('#e8c020', px, py + 13, T, 1);
     if (Campaign.truck) { R('#3a5a8a', px + 1, py + 6, 11, 6); R('#5a80b0', px + 1, py + 6, 11, 2); R('#8ab0d8', px + 9, py + 7, 3, 2); R('#1a1a1e', px + 3, py + 12, 3, 3); R('#1a1a1e', px + 9, py + 12, 3, 3); }
